@@ -4,6 +4,8 @@ import { requireSupabaseUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
+type Params = { leagueId: string };
+
 const getProfileId = async (userId: string) => {
   const profile = await prisma.profile.findUnique({ where: { id: userId } });
   return profile?.id ?? null;
@@ -11,9 +13,11 @@ const getProfileId = async (userId: string) => {
 
 export async function GET(
   _request: Request,
-  { params }: { params: { leagueId: string } },
+  { params }: { params: Promise<Params> },
 ) {
   try {
+    const { leagueId } = await params;
+
     const user = await requireSupabaseUser();
     const profileId = await getProfileId(user.id);
 
@@ -22,7 +26,7 @@ export async function GET(
     }
 
     const league = await prisma.league.findUnique({
-      where: { id: params.leagueId },
+      where: { id: leagueId },
       select: { id: true },
     });
 
@@ -33,7 +37,7 @@ export async function GET(
     const membership = await prisma.leagueMember.findUnique({
       where: {
         leagueId_profileId: {
-          leagueId: params.leagueId,
+          leagueId,
           profileId,
         },
       },
@@ -45,7 +49,7 @@ export async function GET(
     }
 
     const teams = await prisma.fantasyTeam.findMany({
-      where: { leagueId: params.leagueId },
+      where: { leagueId },
       include: {
         profile: {
           select: { displayName: true },
