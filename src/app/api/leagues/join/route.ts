@@ -29,6 +29,12 @@ const buildDefaultTeamName = (profile: {
   return `Team ${suffixSource.slice(0, 6)}`;
 };
 
+const buildRosterSlots = (fantasyTeamId: string) =>
+  Array.from({ length: 15 }, (_, index) => ({
+    fantasyTeamId,
+    slotIndex: index + 1,
+  }));
+
 export async function POST(request: Request) {
   try {
     const user = await requireSupabaseUser();
@@ -71,7 +77,7 @@ export async function POST(request: Request) {
         },
       });
 
-      await tx.fantasyTeam.upsert({
+      const team = await tx.fantasyTeam.upsert({
         where: {
           leagueId_profileId: {
             leagueId: league.id,
@@ -84,6 +90,12 @@ export async function POST(request: Request) {
           profileId: profile.id,
           name: buildDefaultTeamName(profile),
         },
+        select: { id: true },
+      });
+
+      await tx.rosterSlot.createMany({
+        data: buildRosterSlots(team.id),
+        skipDuplicates: true,
       });
     });
 

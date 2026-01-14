@@ -3,43 +3,27 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
-import TeamPanel from "./team-panel";
 
 export const runtime = "nodejs";
 
-type LeagueParams = { leagueId: string };
+type TeamParams = { leagueId: string; teamId: string };
 
-async function getLeague(leagueId: string) {
-  return prisma.league.findUnique({
-    where: { id: leagueId },
-    include: { season: true },
-  });
-}
+type SlotView = {
+  slotIndex: number;
+  player: {
+    name: string;
+    position: string;
+    club: { shortName: string | null } | null;
+  } | null;
+};
 
-async function getMembership(leagueId: string, profileId: string) {
-  return prisma.leagueMember.findUnique({
-    where: { leagueId_profileId: { leagueId, profileId } },
-  });
-}
-
-async function getTeams(leagueId: string) {
-  return prisma.fantasyTeam.findMany({
-    where: { leagueId },
-    include: {
-      profile: { select: { displayName: true } },
-      rosterSlots: { select: { playerId: true } },
-    },
-    orderBy: { createdAt: "asc" },
-  });
-}
-
-export default async function LeagueDetailPage({
+export default async function TeamRosterPage({
   params,
 }: {
-  params: LeagueParams | Promise<LeagueParams>;
+  params: TeamParams | Promise<TeamParams>;
 }) {
-  const { leagueId } = await params;
-  if (!leagueId) notFound();
+  const { leagueId, teamId } = await params;
+  if (!leagueId || !teamId) notFound();
 
   const supabase = await createClient();
   const {
@@ -51,17 +35,17 @@ export default async function LeagueDetailPage({
       <div className="min-h-screen bg-zinc-50 px-6 py-16">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl bg-white p-10 shadow-sm">
           <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-semibold text-black">League teams</h1>
+            <h1 className="text-3xl font-semibold text-black">Team roster</h1>
             <p className="text-sm text-zinc-500">
-              Sign in to view the teams in this league.
+              Sign in to view this team roster.
             </p>
           </div>
           <AuthButtons isAuthenticated={false} />
           <Link
-            href="/leagues"
+            href={`/leagues/${leagueId}`}
             className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
           >
-            Back to leagues
+            Back to league
           </Link>
         </div>
       </div>
@@ -93,10 +77,22 @@ export default async function LeagueDetailPage({
     );
   }
 
-  const league = await getLeague(leagueId);
-  if (!league) notFound();
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { id: true, name: true, season: true },
+  });
 
-  const membership = await getMembership(league.id, profile.id);
+  if (!league) {
+    notFound();
+  }
+
+  const membership = await prisma.leagueMember.findUnique({
+    where: {
+      leagueId_profileId: { leagueId, profileId: profile.id },
+    },
+    select: { id: true },
+  });
+
   if (!membership) {
     return (
       <div className="min-h-screen bg-zinc-50 px-6 py-16">
@@ -118,70 +114,96 @@ export default async function LeagueDetailPage({
     );
   }
 
-  const teams = await getTeams(league.id);
-  const teamsWithCounts = teams.map((team) => ({
-    ...team,
-    filledCount: team.rosterSlots.filter((slot) => slot.playerId).length,
-  }));
-  const currentTeam =
-    teamsWithCounts.find((t) => t.profileId === profile.id) ?? null;
+  const team = await prisma.fantasyTeam.findFirst({
+    where: { id: teamId, leagueId },
+    include: {
+      profile: { select: { displayName: true } },
+      rosterSlots: {
+        orderBy: { slotIndex: "asc" },
+        include: {
+          player: {
+            select: {
+              name: true,
+              position: true,
+              club: { select: { shortName: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!team) {
+    notFound();
+  }
+
+  const slotMap = new Map<number, SlotView>();
+  team.rosterSlots.forEach((slot) => {
+    slotMap.set(slot.slotIndex, {
+      slotIndex: slot.slotIndex,
+      player: slot.player,
+    });
+  });
+
+  const roster: SlotView[] = Array.from({ length: 15 }, (_, index) => {
+    const slotIndex = index + 1;
+    return (
+      slotMap.get(slotIndex) ?? {
+        slotIndex,
+        player: null,
+      }
+    );
+  });
 
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-16">
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 rounded-3xl bg-white p-10 shadow-sm">
         <div className="flex flex-col gap-2">
           <Link
-            href="/leagues"
+            href={`/leagues/${leagueId}`}
             className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
           >
-            Back to leagues
+            Back to league
           </Link>
-          <h1 className="text-3xl font-semibold text-black">{league.name}</h1>
+          <h1 className="text-3xl font-semibold text-black">{team.name}</h1>
           <p className="text-sm text-zinc-500">
-            {league.season.name} · {league.season.year}
+            Owner: {team.profile.displayName ?? "Unknown"}
+          </p>
+          <p className="text-xs uppercase tracking-wide text-zinc-500">
+            {league.name} · {league.season.name} {league.season.year}
           </p>
         </div>
 
-        <TeamPanel
-          leagueId={league.id}
-          initialTeamName={currentTeam?.name ?? null}
-        />
-
         <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-            League teams
+            Roster slots
           </h2>
-
-          {teamsWithCounts.length === 0 ? (
-            <p className="mt-3 text-sm text-zinc-500">No teams yet.</p>
-          ) : (
-            <ul className="mt-4 flex flex-col gap-3">
-              {teamsWithCounts.map((t) => (
-                <li
-                  key={t.id}
-                  className="flex flex-col gap-1 rounded-2xl border border-zinc-200 bg-white p-4"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+          <ul className="mt-4 flex flex-col gap-3">
+            {roster.map((slot) => (
+              <li
+                key={slot.slotIndex}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-200 bg-white p-4"
+              >
+                <div className="flex flex-col">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                    Slot {slot.slotIndex}
+                  </p>
+                  {slot.player ? (
                     <p className="text-base font-semibold text-zinc-900">
-                      {t.name}
+                      {slot.player.name}
                     </p>
-                    <Link
-                      href={`/leagues/${league.id}/teams/${t.id}`}
-                      className="text-xs font-semibold uppercase tracking-wide text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline"
-                    >
-                      View roster
-                    </Link>
-                  </div>
+                  ) : (
+                    <p className="text-sm text-zinc-500">Empty slot</p>
+                  )}
+                </div>
+                {slot.player ? (
                   <p className="text-sm text-zinc-500">
-                    Owner: {t.profile.displayName ?? "Unknown"}
+                    {slot.player.position} · {slot.player.club?.shortName ?? ""}
                   </p>
-                  <p className="text-xs text-zinc-500">
-                    Filled: {t.filledCount}/15
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
+                ) : null}
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </div>

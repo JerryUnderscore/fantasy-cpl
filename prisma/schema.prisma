@@ -65,6 +65,7 @@ model Player {
 
   season    Season @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   club      Club   @relation(fields: [clubId], references: [id], onDelete: Restrict)
+  rosterSlots RosterSlot[]
 
   @@index([seasonId])
   @@index([clubId])
@@ -118,8 +119,25 @@ model FantasyTeam {
 
   league  League  @relation(fields: [leagueId], references: [id], onDelete: Restrict)
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Restrict)
+  rosterSlots RosterSlot[]
 
   @@unique([leagueId, profileId])
   @@index([leagueId])
   @@index([profileId])
+}
+
+model RosterSlot {
+  id            String   @id @default(cuid())
+  fantasyTeamId String
+  slotIndex     Int
+  playerId      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  fantasyTeam FantasyTeam @relation(fields: [fantasyTeamId], references: [id], onDelete: Restrict)
+  player      Player?     @relation(fields: [playerId], references: [id], onDelete: SetNull)
+
+  @@unique([fantasyTeamId, slotIndex])
+  @@index([fantasyTeamId])
+  @@index([fantasyTeamId, playerId])
 }

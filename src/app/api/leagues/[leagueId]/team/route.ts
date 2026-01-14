@@ -31,6 +31,12 @@ const buildDefaultTeamName = (profile: {
   return `Team ${suffixSource.slice(0, 6)}`;
 };
 
+const buildRosterSlots = (fantasyTeamId: string) =>
+  Array.from({ length: 15 }, (_, index) => ({
+    fantasyTeamId,
+    slotIndex: index + 1,
+  }));
+
 export async function POST(request: NextRequest, ctx: Ctx) {
   try {
     const { leagueId } = await ctx.params;
@@ -92,6 +98,11 @@ export async function POST(request: NextRequest, ctx: Ctx) {
         name: requestedName ?? buildDefaultTeamName(profile),
       },
       select: { id: true, name: true },
+    });
+
+    await prisma.rosterSlot.createMany({
+      data: buildRosterSlots(team.id),
+      skipDuplicates: true,
     });
 
     return NextResponse.json({ team });

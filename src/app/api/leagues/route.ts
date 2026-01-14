@@ -25,6 +25,12 @@ const buildInviteCode = () => {
   return result;
 };
 
+const buildRosterSlots = (fantasyTeamId: string) =>
+  Array.from({ length: 15 }, (_, index) => ({
+    fantasyTeamId,
+    slotIndex: index + 1,
+  }));
+
 const getProfile = async (userId: string) => {
   return prisma.profile.findUnique({
     where: { id: userId },
@@ -91,7 +97,7 @@ export async function POST(request: Request) {
             },
           });
 
-          await tx.fantasyTeam.upsert({
+          const team = await tx.fantasyTeam.upsert({
             where: {
               leagueId_profileId: {
                 leagueId: created.id,
@@ -104,6 +110,12 @@ export async function POST(request: Request) {
               profileId: profile.id,
               name: buildDefaultTeamName(profile),
             },
+            select: { id: true },
+          });
+
+          await tx.rosterSlot.createMany({
+            data: buildRosterSlots(team.id),
+            skipDuplicates: true,
           });
 
           return created;
