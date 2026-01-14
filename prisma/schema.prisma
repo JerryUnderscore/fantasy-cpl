@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PlayerPosition {
+  GK
+  DEF
+  MID
+  FWD
+}
+
+model Profile {
+  id          String   @id @db.Uuid // matches Supabase auth.users.id
+  discordId   String?  @unique
+  displayName String?
+  avatarUrl   String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  leaguesCreated League[]
+  memberships    LeagueMember[]
+}
+
+model Season {
+  id        String   @id @default(cuid())
+  year      Int      @unique
+  name      String   // e.g. "2026 Beta"
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  players   Player[]
+  leagues   League[]
+}
+
+model Club {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  shortName String?  @unique
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  players   Player[]
+}
+
+model Player {
+  id        String         @id @default(cuid())
+  seasonId  String
+  clubId    String
+  name      String
+  position  PlayerPosition
+  active    Boolean        @default(true)
+  slug      String?        @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  season    Season @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  club      Club   @relation(fields: [clubId], references: [id], onDelete: Restrict)
+
+  @@index([seasonId])
+  @@index([clubId])
+  @@unique([seasonId, name]) // simple guardrail for beta
+}
+
+enum LeagueRole {
+  OWNER
+  MEMBER
+}
+
+model League {
+  id          String   @id @default(cuid())
+  name        String
+  inviteCode  String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String   @db.Uuid
+  seasonId    String
+
+  createdBy   Profile      @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  season      Season       @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  members     LeagueMember[]
+
+  @@index([createdById])
+  @@index([seasonId])
+}
+
+model LeagueMember {
+  id        String     @id @default(cuid())
+  leagueId  String
+  profileId String     @db.Uuid
+  role      LeagueRole @default(MEMBER)
+  createdAt DateTime   @default(now())
+
+  league    League  @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Restrict)
+
+  @@unique([leagueId, profileId])
+  @@index([profileId])
+}
