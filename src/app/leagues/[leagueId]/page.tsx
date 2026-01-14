@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
+import TeamPanel from "./team-panel";
 
 export const runtime = "nodejs";
 
@@ -117,63 +117,6 @@ export default async function LeagueDetailPage({
     );
   }
 
-  // Server Action (inline)
-  async function createTeamAction(formData: FormData) {
-    "use server";
-
-    const rawName = (formData.get("teamName") ?? "").toString();
-    const teamName = rawName.trim();
-
-    if (!teamName) {
-      // simplest: just bounce back to page; later we can show inline errors
-      redirect(`/leagues/${leagueId}`);
-    }
-
-    // Re-check auth on server action
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) redirect(`/leagues/${leagueId}`);
-
-    const profile = await prisma.profile.findUnique({
-      where: { id: user.id },
-      select: { id: true },
-    });
-
-    if (!profile) redirect(`/`);
-
-    // Ensure league exists + user is a member
-    const member = await prisma.leagueMember.findUnique({
-      where: { leagueId_profileId: { leagueId, profileId: profile.id } },
-      select: { id: true },
-    });
-
-    if (!member) redirect(`/leagues`);
-
-    // Enforce 1 team per league per profile (upsert by compound unique)
-    await prisma.fantasyTeam.upsert({
-      where: {
-        leagueId_profileId: {
-          leagueId,
-          profileId: profile.id,
-        },
-      },
-      create: {
-        name: teamName,
-        leagueId,
-        profileId: profile.id,
-      },
-      update: {
-        name: teamName,
-      },
-    });
-
-    revalidatePath(`/leagues/${leagueId}`);
-    redirect(`/leagues/${leagueId}`);
-  }
-
   const teams = await getTeams(league.id);
   const currentTeam = teams.find((t) => t.profileId === profile.id) ?? null;
 
@@ -193,42 +136,10 @@ export default async function LeagueDetailPage({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1">
-              <p className="text-sm font-semibold text-zinc-900">Your team</p>
-              <p className="text-sm text-zinc-600">
-                {currentTeam?.name ?? "Team not created yet."}
-              </p>
-            </div>
-
-            {/* Create or rename team */}
-            <form action={createTeamAction} className="flex flex-col gap-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                {currentTeam ? "Rename your team" : "Create your team"}
-              </label>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <input
-                  name="teamName"
-                  defaultValue={currentTeam?.name ?? ""}
-                  placeholder="e.g., Harbour City XI"
-                  className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-900 outline-none ring-0 placeholder:text-zinc-400 focus:border-zinc-300"
-                  maxLength={40}
-                  required
-                />
-                <button
-                  type="submit"
-                  className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-900"
-                >
-                  {currentTeam ? "Save" : "Create"}
-                </button>
-              </div>
-              <p className="text-xs text-zinc-500">
-                One team per league. You can rename anytime.
-              </p>
-            </form>
-          </div>
-        </div>
+        <TeamPanel
+          leagueId={league.id}
+          initialTeamName={currentTeam?.name ?? null}
+        />
 
         <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
