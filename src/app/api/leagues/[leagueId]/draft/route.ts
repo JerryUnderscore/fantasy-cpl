@@ -1,0 +1,150 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireSupabaseUser } from "@/lib/auth";
+
+export const runtime = "nodejs";
+
+type Ctx = { params: Promise<{ leagueId: string }> };
+
+const getProfile = async (userId: string) => {
+  return prisma.profile.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+};
+
+export async function GET(_request: NextRequest, ctx: Ctx) {
+  try {
+    const { leagueId } = await ctx.params;
+
+    const user = await requireSupabaseUser();
+    const profile = await getProfile(user.id);
+
+    if (!profile) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const membership = await prisma.leagueMember.findUnique({
+      where: {
+        leagueId_profileId: { leagueId, profileId: profile.id },
+      },
+      select: { id: true },
+    });
+
+    if (!membership) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const league = await prisma.league.findUnique({
+      where: { id: leagueId },
+      select: {
+        id: true,
+        season: { select: { id: true, isActive: true } },
+      },
+    });
+
+    if (!league) {
+      return NextResponse.json({ error: "League not found" }, { status: 404 });
+    }
+
+    if (!league.season.isActive) {
+      return NextResponse.json({ error: "No active season" }, { status: 400 });
+    }
+
+    const draft = await prisma.draft.findUnique({
+      where: {
+        leagueId_seasonId: { leagueId, seasonId: league.season.id },
+      },
+      select: { id: true, status: true, rounds: true },
+    });
+
+    if (!draft) {
+      return NextResponse.json({ status: "NOT_STARTED" });
+    }
+
+    const teams = await prisma.fantasyTeam.findMany({
+      where: { leagueId },
+      select: { id: true, name: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const picks = await prisma.draftPick.findMany({
+      where: { draftId: draft.id },
+      orderBy: { pickNumber: "asc" },
+      include: {
+        fantasyTeam: { select: { id: true, name: true } },
+        player: {
+          select: {
+            id: true,
+            name: true,
+            position: true,
+            club: { select: { shortName: true } },
+          },
+        },
+      },
+    });
+
+    const teamCount = teams.length;
+    const totalPicks = teamCount ? draft.rounds * teamCount : 0;
+    const pickNumber = picks.length + 1;
+    let computedStatus = draft.status;
+    let onTheClock:
+      | {
+          fantasyTeamId: string;
+          name: string;
+          pickNumber: number;
+          round: number;
+          slotInRound: number;
+        }
+      | null = null;
+
+    if (teamCount && pickNumber > totalPicks) {
+      computedStatus = "COMPLETE";
+    } else if (teamCount && draft.status === "LIVE") {
+      const round = Math.ceil(pickNumber / teamCount);
+      const slotInRound = ((pickNumber - 1) % teamCount) + 1;
+      const teamIndex =
+        round % 2 === 1 ? slotInRound - 1 : teamCount - slotInRound;
+      const team = teams[teamIndex];
+
+      if (team) {
+        onTheClock = {
+          fantasyTeamId: team.id,
+          name: team.name,
+          pickNumber,
+          round,
+          slotInRound,
+        };
+      }
+    }
+
+    return NextResponse.json({
+      draft: {
+        id: draft.id,
+        status: computedStatus,
+        rounds: draft.rounds,
+      },
+      picks: picks.map((pick) => ({
+        id: pick.id,
+        pickNumber: pick.pickNumber,
+        round: pick.round,
+        slotInRound: pick.slotInRound,
+        fantasyTeamId: pick.fantasyTeamId,
+        teamName: pick.fantasyTeam.name,
+        player: {
+          id: pick.player.id,
+          name: pick.player.name,
+          position: pick.player.position,
+          club: pick.player.club?.shortName ?? null,
+        },
+      })),
+      onTheClock,
+    });
+  } catch (error) {
+    if ((error as { status?: number }).status === 401) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    console.error("GET /api/leagues/[leagueId]/draft error", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}

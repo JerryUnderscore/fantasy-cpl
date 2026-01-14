@@ -26,6 +26,7 @@ model Profile {
   leaguesCreated League[]
   memberships    LeagueMember[]
   teams          FantasyTeam[]
+  draftPicks     DraftPick[]
 }
 
 model Season {
@@ -38,6 +39,7 @@ model Season {
 
   players   Player[]
   leagues   League[]
+  drafts    Draft[]
 }
 
 model Club {
@@ -66,6 +68,7 @@ model Player {
   season    Season @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   club      Club   @relation(fields: [clubId], references: [id], onDelete: Restrict)
   rosterSlots RosterSlot[]
+  draftPicks DraftPick[]
 
   @@index([seasonId])
   @@index([clubId])
@@ -75,6 +78,12 @@ model Player {
 enum LeagueRole {
   OWNER
   MEMBER
+}
+
+enum DraftStatus {
+  NOT_STARTED
+  LIVE
+  COMPLETE
 }
 
 model League {
@@ -90,6 +99,7 @@ model League {
   season      Season       @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   members     LeagueMember[]
   teams       FantasyTeam[]
+  drafts      Draft[]
 
   @@index([createdById])
   @@index([seasonId])
@@ -120,6 +130,7 @@ model FantasyTeam {
   league  League  @relation(fields: [leagueId], references: [id], onDelete: Restrict)
   profile Profile @relation(fields: [profileId], references: [id], onDelete: Restrict)
   rosterSlots RosterSlot[]
+  draftPicks DraftPick[]
 
   @@unique([leagueId, profileId])
   @@index([leagueId])
@@ -140,4 +151,45 @@ model RosterSlot {
   @@unique([fantasyTeamId, slotIndex])
   @@index([fantasyTeamId])
   @@index([fantasyTeamId, playerId])
+}
+
+model Draft {
+  id        String      @id @default(cuid())
+  leagueId  String
+  seasonId  String
+  status    DraftStatus @default(NOT_STARTED)
+  rounds    Int         @default(15)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Restrict)
+  picks  DraftPick[]
+
+  @@unique([leagueId, seasonId])
+  @@index([leagueId])
+  @@index([seasonId])
+}
+
+model DraftPick {
+  id            String   @id @default(cuid())
+  draftId       String
+  pickNumber    Int
+  round         Int
+  slotInRound   Int
+  fantasyTeamId String
+  profileId     String   @db.Uuid
+  playerId      String
+  createdAt     DateTime @default(now())
+
+  draft       Draft       @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  fantasyTeam FantasyTeam @relation(fields: [fantasyTeamId], references: [id], onDelete: Restrict)
+  profile     Profile     @relation(fields: [profileId], references: [id], onDelete: Restrict)
+  player      Player      @relation(fields: [playerId], references: [id], onDelete: Restrict)
+
+  @@unique([draftId, pickNumber])
+  @@unique([draftId, playerId])
+  @@index([fantasyTeamId])
+  @@index([profileId])
+  @@index([playerId])
 }

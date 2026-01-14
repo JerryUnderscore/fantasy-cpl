@@ -140,6 +140,12 @@ export default async function LeagueDetailPage({
           <p className="text-sm text-zinc-500">
             {league.season.name} · {league.season.year}
           </p>
+          <Link
+            href={`/leagues/${league.id}/draft`}
+            className="mt-3 w-fit rounded-full bg-black px-4 py-2 text-sm font-semibold text-white"
+          >
+            Go to draft
+          </Link>
         </div>
 
         <TeamPanel
