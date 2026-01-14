@@ -25,9 +25,23 @@ const buildInviteCode = () => {
   return result;
 };
 
-const getProfileId = async (userId: string) => {
-  const profile = await prisma.profile.findUnique({ where: { id: userId } });
-  return profile?.id ?? null;
+const getProfile = async (userId: string) => {
+  return prisma.profile.findUnique({
+    where: { id: userId },
+    select: { id: true, displayName: true, discordId: true },
+  });
+};
+
+const buildDefaultTeamName = (profile: {
+  id: string;
+  displayName: string | null;
+  discordId: string | null;
+}) => {
+  if (profile.displayName?.trim()) {
+    return profile.displayName.trim();
+  }
+  const suffixSource = profile.discordId ?? profile.id;
+  return `Team ${suffixSource.slice(0, 6)}`;
 };
 
 export async function POST(request: Request) {
@@ -40,8 +54,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
 
-    const profileId = await getProfileId(user.id);
-    if (!profileId) {
+    const profile = await getProfile(user.id);
+    if (!profile) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -73,8 +87,23 @@ export async function POST(request: Request) {
           await tx.leagueMember.create({
             data: {
               leagueId: created.id,
-              profileId,
+              profileId: profile.id,
               role: "OWNER",
+            },
+          });
+
+          await tx.fantasyTeam.upsert({
+            where: {
+              leagueId_profileId: {
+                leagueId: created.id,
+                profileId: profile.id,
+              },
+            },
+            update: {},
+            create: {
+              leagueId: created.id,
+              profileId: profile.id,
+              name: buildDefaultTeamName(profile),
             },
           });
 

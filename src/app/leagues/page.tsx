@@ -101,17 +101,28 @@ export default async function LeaguesPage() {
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <p className="text-base font-semibold text-zinc-900">
+                      <Link
+                        href={`/leagues/${membership.league.id}`}
+                        className="text-base font-semibold text-zinc-900 underline-offset-4 hover:underline"
+                      >
                         {membership.league.name}
-                      </p>
+                      </Link>
                       <p className="text-xs uppercase tracking-wide text-zinc-500">
                         {membership.league.season.name} ·{" "}
                         {membership.league.season.year}
                       </p>
                     </div>
-                    <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-600">
-                      {membership.role}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={`/leagues/${membership.league.id}`}
+                        className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-600 hover:border-zinc-300 hover:text-zinc-900"
+                      >
+                        View
+                      </Link>
+                      <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                        {membership.role}
+                      </span>
+                    </div>
                   </div>
                   {membership.role === "OWNER" ? (
                     <div className="text-sm text-zinc-600">

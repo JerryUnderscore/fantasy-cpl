@@ -25,6 +25,7 @@ model Profile {
 
   leaguesCreated League[]
   memberships    LeagueMember[]
+  teams          FantasyTeam[]
 }
 
 model Season {
@@ -87,6 +88,7 @@ model League {
   createdBy   Profile      @relation(fields: [createdById], references: [id], onDelete: Restrict)
   season      Season       @relation(fields: [seasonId], references: [id], onDelete: Restrict)
   members     LeagueMember[]
+  teams       FantasyTeam[]
 
   @@index([createdById])
   @@index([seasonId])
@@ -103,5 +105,21 @@ model LeagueMember {
   profile   Profile @relation(fields: [profileId], references: [id], onDelete: Restrict)
 
   @@unique([leagueId, profileId])
+  @@index([profileId])
+}
+
+model FantasyTeam {
+  id        String   @id @default(cuid())
+  leagueId  String
+  profileId String   @db.Uuid
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  league  League  @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Restrict)
+
+  @@unique([leagueId, profileId])
+  @@index([leagueId])
   @@index([profileId])
 }
