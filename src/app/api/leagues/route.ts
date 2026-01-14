@@ -61,13 +61,11 @@ export async function POST(request: Request) {
 
     const season = await prisma.season.findFirst({
       where: { isActive: true },
+      select: { id: true },
     });
 
     if (!season) {
-      return NextResponse.json(
-        { error: "No active season" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "No active season" }, { status: 400 });
     }
 
     for (let attempt = 0; attempt < MAX_INVITE_ATTEMPTS; attempt += 1) {
@@ -79,9 +77,10 @@ export async function POST(request: Request) {
             data: {
               name,
               inviteCode,
-              createdById: profileId,
+              createdById: profile.id, // ✅ FIX: use profile.id
               seasonId: season.id,
             },
+            select: { id: true, inviteCode: true },
           });
 
           await tx.leagueMember.create({
@@ -115,6 +114,7 @@ export async function POST(request: Request) {
           inviteCode: league.inviteCode,
         });
       } catch (error) {
+        // Unique constraint collision on inviteCode => try again
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === "P2002"
@@ -141,14 +141,14 @@ export async function POST(request: Request) {
 export async function GET() {
   try {
     const user = await requireSupabaseUser();
-    const profileId = await getProfileId(user.id);
 
-    if (!profileId) {
+    const profile = await getProfile(user.id); // ✅ FIX: no getProfileId
+    if (!profile) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const memberships = await prisma.leagueMember.findMany({
-      where: { profileId },
+      where: { profileId: profile.id },
       include: {
         league: {
           include: {
