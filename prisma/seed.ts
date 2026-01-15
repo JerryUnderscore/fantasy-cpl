@@ -7,42 +7,25 @@ const clubs = [
   { name: "Forge FC", shortName: "Forge", slug: "forge" },
   { name: "HFX Wanderers FC", shortName: "HFX", slug: "hfx-wanderers" },
   { name: "Pacific FC", shortName: "Pacific", slug: "pacific" },
-  { name: "Valour FC", shortName: "Valour", slug: "valour" },
+  { name: "FC Supra du Quebec", shortName: "Supra", slug: "supra" },
   { name: "Vancouver FC", shortName: "Vancouver", slug: "vancouver" },
-  { name: "York United FC", shortName: "York", slug: "york-united" },
-];
-
-const players = [
-  { name: "Ollie Bassett", position: "MID", clubSlug: "atletico-ottawa" },
-  { name: "Malcolm Shaw", position: "FWD", clubSlug: "atletico-ottawa" },
-  { name: "Marco Carducci", position: "GK", clubSlug: "cavalry" },
-  { name: "Shamit Shome", position: "MID", clubSlug: "cavalry" },
-  { name: "Tristan Borges", position: "MID", clubSlug: "forge" },
-  { name: "Woobens Pacius", position: "FWD", clubSlug: "forge" },
-  { name: "Ryan Telfer", position: "MID", clubSlug: "hfx-wanderers" },
-  { name: "Dan Nimick", position: "DEF", clubSlug: "hfx-wanderers" },
-  { name: "Manny Aparicio", position: "MID", clubSlug: "pacific" },
-  {
-    name: "Thomas Meilleur-Giguere",
-    position: "DEF",
-    clubSlug: "pacific",
-  },
-  { name: "William Akio", position: "FWD", clubSlug: "valour" },
-  { name: "Kelsey Egbo", position: "FWD", clubSlug: "valour" },
-  { name: "Callum Irving", position: "GK", clubSlug: "vancouver" },
-  { name: "Terran Campbell", position: "FWD", clubSlug: "vancouver" },
-  { name: "Osaze De Rosario", position: "FWD", clubSlug: "york-united" },
-  { name: "Max Ferrari", position: "DEF", clubSlug: "york-united" },
+  { name: "Inter Toronto FC", shortName: "Toronto", slug: "inter-toronto" },
 ];
 
 async function main() {
+  // Ensure we don't accidentally have multiple active seasons.
+  await prisma.season.updateMany({
+    where: { year: { not: 2026 }, isActive: true },
+    data: { isActive: false },
+  });
+
   const season = await prisma.season.upsert({
     where: { year: 2026 },
     create: { year: 2026, name: "2026 Beta", isActive: true },
     update: { name: "2026 Beta", isActive: true },
   });
 
-  const clubRecords = await Promise.all(
+  await Promise.all(
     clubs.map((club) =>
       prisma.club.upsert({
         where: { slug: club.slug },
@@ -52,35 +35,13 @@ async function main() {
     ),
   );
 
-  const clubBySlug = new Map(
-    clubRecords.map((club) => [club.slug, club.id]),
+  const playerCount = await prisma.player.count({
+    where: { seasonId: season.id },
+  });
+
+  console.log(
+    `✅ Seed complete: season=${season.year} (active), clubs=${clubs.length}, players already in DB for this season=${playerCount}`,
   );
-
-  for (const player of players) {
-    const clubId = clubBySlug.get(player.clubSlug);
-    if (!clubId) {
-      throw new Error(`Missing club for slug: ${player.clubSlug}`);
-    }
-
-    await prisma.player.upsert({
-      where: {
-        seasonId_name: {
-          seasonId: season.id,
-          name: player.name,
-        },
-      },
-      create: {
-        name: player.name,
-        position: player.position as "GK" | "DEF" | "MID" | "FWD",
-        seasonId: season.id,
-        clubId,
-      },
-      update: {
-        position: player.position as "GK" | "DEF" | "MID" | "FWD",
-        clubId,
-      },
-    });
-  }
 }
 
 main()

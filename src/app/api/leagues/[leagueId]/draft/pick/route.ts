@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
+import { PlayerPosition } from "@prisma/client";
 
 export const runtime = "nodejs";
 
@@ -17,7 +18,8 @@ const getProfile = async (userId: string) => {
 const buildRosterSlots = (fantasyTeamId: string) =>
   Array.from({ length: 15 }, (_, index) => ({
     fantasyTeamId,
-    slotIndex: index + 1,
+    slotNumber: index + 1,
+    position: PlayerPosition.MID,
   }));
 
 export async function POST(request: NextRequest, ctx: Ctx) {
@@ -148,8 +150,8 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
     const openSlot = await prisma.rosterSlot.findFirst({
       where: { fantasyTeamId: onTheClockTeam.id, playerId: null },
-      orderBy: { slotIndex: "asc" },
-      select: { id: true, slotIndex: true },
+      orderBy: { slotNumber: "asc" },
+      select: { id: true, slotNumber: true },
     });
 
     if (!openSlot) {

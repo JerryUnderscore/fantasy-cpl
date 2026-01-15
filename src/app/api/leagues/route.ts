@@ -3,6 +3,7 @@ import { randomInt } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
+import { PlayerPosition } from "@prisma/client";
 
 export const runtime = "nodejs";
 
@@ -28,7 +29,8 @@ const buildInviteCode = () => {
 const buildRosterSlots = (fantasyTeamId: string) =>
   Array.from({ length: 15 }, (_, index) => ({
     fantasyTeamId,
-    slotIndex: index + 1,
+    slotNumber: index + 1,
+    position: PlayerPosition.MID,
   }));
 
 const getProfile = async (userId: string) => {

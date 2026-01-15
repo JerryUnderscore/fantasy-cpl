@@ -1,36 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fantasy CPL
 
-## Getting Started
+Fantasy CPL is an early-stage fantasy soccer platform for the Canadian Premier League (CPL).
 
-First, run the development server:
+The goal of this project is to build a modern, league-centric fantasy experience with invite-only leagues, async drafts, flexible roster rules, and room to grow into deeper stats, scoring, and historical data.
 
-```bash
+This repository currently represents a working beta, focused on correctness and structure before polish.
+
+## Current Features
+
+- Authentication and profiles
+- Seasons and clubs
+- Player database (2026 season)
+- Invite-only leagues
+- League membership and ownership
+- Fantasy teams (one per league)
+- Roster slots (15 total)
+- Async snake draft
+- Draft pick locking
+- Starter vs bench designation
+- Lineup validation (in progress)
+- Scoring engine (planned)
+
+UI polish, moderation tools, and commissioner controls will come later.
+
+## Tech Stack
+
+- Next.js (App Router)
+- TypeScript
+- Prisma
+- Supabase (Postgres)
+- Tailwind CSS
+- Node.js runtime
+
+Fonts are intentionally kept local/system-based to avoid network-dependent builds.
+
+## Getting Started (Local Development)
+
+Install dependencies:
+
+npm install
+
+Run the dev server:
+
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+http://localhost:3000
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Most pages live under src/app/ and update automatically during development.
 
-## Learn More
+## Database and Seeding
 
-To learn more about Next.js, take a look at the following resources:
+This project uses Prisma with Supabase.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Apply migrations:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+npx prisma migrate dev
 
-## Deploy on Vercel
+Seed core data (season and clubs only):
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+npx prisma db seed
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Player data is managed directly in Supabase via CSV imports and is not hardcoded in seed files.
+
+## Project Philosophy
+
+This project is being built layer by layer:
+
+1. Identity and structure  
+2. Social containers (leagues)  
+3. Fantasy mechanics  
+4. Data depth and realism  
+5. Polish and moderation  
+
+The focus is on correctness over cleverness, structure over shortcuts, and shipping working systems before UI perfection.
+
+## Status
+
+Active development.  
+Breaking changes are expected.  
+Not production-ready.  
+Not yet public.
+
+## Deployment
+
+The app is deployed via Vercel.
+
+Local builds should succeed without requiring external network access.

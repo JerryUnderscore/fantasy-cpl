@@ -172,7 +172,11 @@ export default async function LeagueDetailPage({
                       {t.name}
                     </p>
                     <Link
-                      href={`/leagues/${league.id}/teams/${t.id}`}
+                      href={
+                        t.profileId === profile.id
+                          ? `/leagues/${league.id}/team`
+                          : `/leagues/${league.id}/teams/${t.id}`
+                      }
                       className="text-xs font-semibold uppercase tracking-wide text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline"
                     >
                       View roster

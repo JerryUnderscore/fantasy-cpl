@@ -138,19 +138,21 @@ model FantasyTeam {
 }
 
 model RosterSlot {
-  id            String   @id @default(cuid())
+  id            String         @id @default(cuid())
   fantasyTeamId String
-  slotIndex     Int
+  slotNumber    Int
+  position      PlayerPosition @default(MID)
   playerId      String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  isStarter     Boolean        @default(false)
 
-  fantasyTeam FantasyTeam @relation(fields: [fantasyTeamId], references: [id], onDelete: Restrict)
-  player      Player?     @relation(fields: [playerId], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
-  @@unique([fantasyTeamId, slotIndex])
-  @@index([fantasyTeamId])
-  @@index([fantasyTeamId, playerId])
+  fantasyTeam   FantasyTeam    @relation(fields: [fantasyTeamId], references: [id])
+  player        Player?        @relation(fields: [playerId], references: [id])
+
+  @@unique([fantasyTeamId, slotNumber])
+  @@unique([fantasyTeamId, playerId])
 }
 
 model Draft {

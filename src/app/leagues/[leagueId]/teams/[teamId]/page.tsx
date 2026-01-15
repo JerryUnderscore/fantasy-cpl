@@ -9,7 +9,9 @@ export const runtime = "nodejs";
 type TeamParams = { leagueId: string; teamId: string };
 
 type SlotView = {
-  slotIndex: number;
+  id: string;
+  slotNumber: number;
+  isStarter: boolean;
   player: {
     name: string;
     position: string;
@@ -119,8 +121,11 @@ export default async function TeamRosterPage({
     include: {
       profile: { select: { displayName: true } },
       rosterSlots: {
-        orderBy: { slotIndex: "asc" },
-        include: {
+        orderBy: { slotNumber: "asc" },
+        select: {
+          id: true,
+          slotNumber: true,
+          isStarter: true,
           player: {
             select: {
               name: true,
@@ -139,21 +144,28 @@ export default async function TeamRosterPage({
 
   const slotMap = new Map<number, SlotView>();
   team.rosterSlots.forEach((slot) => {
-    slotMap.set(slot.slotIndex, {
-      slotIndex: slot.slotIndex,
+    slotMap.set(slot.slotNumber, {
+      id: slot.id,
+      slotNumber: slot.slotNumber,
+      isStarter: slot.isStarter,
       player: slot.player,
     });
   });
 
   const roster: SlotView[] = Array.from({ length: 15 }, (_, index) => {
-    const slotIndex = index + 1;
+    const slotNumber = index + 1;
     return (
-      slotMap.get(slotIndex) ?? {
-        slotIndex,
+      slotMap.get(slotNumber) ?? {
+        id: `empty-${slotNumber}`,
+        slotNumber,
+        isStarter: false,
         player: null,
       }
     );
   });
+
+  const starters = roster.filter((slot) => slot.isStarter);
+  const bench = roster.filter((slot) => !slot.isStarter);
 
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-16">
@@ -174,36 +186,77 @@ export default async function TeamRosterPage({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-            Roster slots
-          </h2>
-          <ul className="mt-4 flex flex-col gap-3">
-            {roster.map((slot) => (
-              <li
-                key={slot.slotIndex}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-200 bg-white p-4"
-              >
-                <div className="flex flex-col">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                    Slot {slot.slotIndex}
-                  </p>
-                  {slot.player ? (
-                    <p className="text-base font-semibold text-zinc-900">
-                      {slot.player.name}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              Starters ({starters.length}/11)
+            </h2>
+            <ul className="mt-4 flex flex-col gap-3">
+              {starters.map((slot) => (
+                <li
+                  key={slot.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-200 bg-white p-4"
+                >
+                  <div className="flex flex-col">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                      Slot {slot.slotNumber}
                     </p>
-                  ) : (
-                    <p className="text-sm text-zinc-500">Empty slot</p>
-                  )}
-                </div>
-                {slot.player ? (
-                  <p className="text-sm text-zinc-500">
-                    {slot.player.position} · {slot.player.club?.shortName ?? ""}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+                    {slot.player ? (
+                      <p className="text-base font-semibold text-zinc-900">
+                        {slot.player.name}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-zinc-500">Empty slot</p>
+                    )}
+                  </div>
+                  {slot.player ? (
+                    <p className="text-sm text-zinc-500">
+                      {slot.player.position} ·{" "}
+                      {slot.player.club?.shortName ?? ""}
+                    </p>
+                  ) : null}
+                </li>
+              ))}
+              {starters.length === 0 ? (
+                <li className="rounded-2xl border border-dashed border-zinc-200 bg-white p-4 text-sm text-zinc-500">
+                  No starters selected yet.
+                </li>
+              ) : null}
+            </ul>
+          </div>
+
+          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              Bench ({bench.length}/4)
+            </h2>
+            <ul className="mt-4 flex flex-col gap-3">
+              {bench.map((slot) => (
+                <li
+                  key={slot.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-200 bg-white p-4"
+                >
+                  <div className="flex flex-col">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                      Slot {slot.slotNumber}
+                    </p>
+                    {slot.player ? (
+                      <p className="text-base font-semibold text-zinc-900">
+                        {slot.player.name}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-zinc-500">Empty slot</p>
+                    )}
+                  </div>
+                  {slot.player ? (
+                    <p className="text-sm text-zinc-500">
+                      {slot.player.position} ·{" "}
+                      {slot.player.club?.shortName ?? ""}
+                    </p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
     </div>
