@@ -146,6 +146,12 @@ export default async function LeagueDetailPage({
           >
             Go to draft
           </Link>
+          <Link
+            href="/scoring-admin"
+            className="mt-2 w-fit text-sm font-semibold text-zinc-500 underline-offset-4 hover:text-black hover:underline"
+          >
+            Scoring admin
+          </Link>
         </div>
 
         <TeamPanel

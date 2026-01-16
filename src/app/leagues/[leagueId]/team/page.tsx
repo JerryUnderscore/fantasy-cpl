@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
 import RosterClient from "./roster-client";
+import ScoringCard from "./scoring-card";
 import { PlayerPosition } from "@prisma/client";
 
 export const runtime = "nodejs";
@@ -206,6 +207,7 @@ export default async function MyTeamRosterPage({
         </div>
 
         <RosterClient leagueId={league.id} initialSlots={slots} />
+        <ScoringCard leagueId={league.id} matchWeekNumber={1} />
       </div>
     </div>
   );

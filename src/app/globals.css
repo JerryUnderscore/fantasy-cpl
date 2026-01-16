@@ -23,3 +23,14 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
 }
+
+input,
+select,
+textarea {
+  color: #0b0b0b;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #6b7280;
+}

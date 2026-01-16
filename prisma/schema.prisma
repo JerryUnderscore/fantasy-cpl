@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
   engineType = "binary"
 }
 
@@ -7,39 +7,30 @@ datasource db {
   provider = "postgresql"
 }
 
-enum PlayerPosition {
-  GK
-  DEF
-  MID
-  FWD
-}
-
 model Profile {
-  id          String   @id @db.Uuid // matches Supabase auth.users.id
-  discordId   String?  @unique
-  displayName String?
-  avatarUrl   String?
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
+  id             String         @id @db.Uuid
+  discordId      String?        @unique
+  displayName    String?
+  avatarUrl      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  draftPicks     DraftPick[]
+  teams          FantasyTeam[]
   leaguesCreated League[]
   memberships    LeagueMember[]
-  teams          FantasyTeam[]
-  draftPicks     DraftPick[]
 }
 
 model Season {
-  id        String   @id @default(cuid())
-  year      Int      @unique
-  name      String   // e.g. "2026 Beta"
-  isActive  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  players   Player[]
-  leagues   League[]
-  drafts    Draft[]
+  id         String      @id @default(cuid())
+  year       Int         @unique
+  name       String
+  isActive   Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  drafts     Draft[]
+  leagues    League[]
+  matchWeeks MatchWeek[]
+  players    Player[]
 }
 
 model Club {
@@ -49,57 +40,77 @@ model Club {
   slug      String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   players   Player[]
 }
 
 model Player {
-  id        String         @id @default(cuid())
-  seasonId  String
-  clubId    String
-  name      String
-  position  PlayerPosition
-  active    Boolean        @default(true)
-  slug      String?        @unique
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  season    Season @relation(fields: [seasonId], references: [id], onDelete: Restrict)
-  club      Club   @relation(fields: [clubId], references: [id], onDelete: Restrict)
+  id          String            @id @default(dbgenerated("(gen_random_uuid())::text"))
+  seasonId    String
+  clubId      String
+  name        String
+  position    PlayerPosition
+  active      Boolean           @default(true)
+  slug        String?           @unique
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @default(now()) @updatedAt
+  draftPicks  DraftPick[]
+  club        Club              @relation(fields: [clubId], references: [id])
+  season      Season            @relation(fields: [seasonId], references: [id])
+  matchStats  PlayerMatchStat[]
   rosterSlots RosterSlot[]
-  draftPicks DraftPick[]
 
+  @@unique([seasonId, name])
   @@index([seasonId])
   @@index([clubId])
-  @@unique([seasonId, name]) // simple guardrail for beta
 }
 
-enum LeagueRole {
-  OWNER
-  MEMBER
+model MatchWeek {
+  id          String            @id @default(cuid())
+  seasonId    String
+  number      Int
+  name        String?
+  startsAt    DateTime?
+  endsAt      DateTime?
+  isLocked    Boolean           @default(false)
+  season      Season            @relation(fields: [seasonId], references: [id])
+  playerStats PlayerMatchStat[]
+
+  @@unique([seasonId, number])
+  @@index([seasonId])
 }
 
-enum DraftStatus {
-  NOT_STARTED
-  LIVE
-  COMPLETE
+model PlayerMatchStat {
+  id          String    @id @default(cuid())
+  playerId    String
+  matchWeekId String
+  minutes     Int       @default(0)
+  goals       Int       @default(0)
+  assists     Int       @default(0)
+  yellowCards Int       @default(0)
+  redCards    Int       @default(0)
+  ownGoals    Int       @default(0)
+  cleanSheet  Boolean   @default(false)
+  matchWeek   MatchWeek @relation(fields: [matchWeekId], references: [id])
+  player      Player    @relation(fields: [playerId], references: [id])
+
+  @@unique([playerId, matchWeekId])
+  @@index([matchWeekId])
+  @@index([playerId])
 }
 
 model League {
-  id          String   @id @default(cuid())
+  id          String         @id @default(cuid())
   name        String
-  inviteCode  String   @unique
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  createdById String   @db.Uuid
+  inviteCode  String         @unique
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  createdById String         @db.Uuid
   seasonId    String
-
-  createdBy   Profile      @relation(fields: [createdById], references: [id], onDelete: Restrict)
-  season      Season       @relation(fields: [seasonId], references: [id], onDelete: Restrict)
-  members     LeagueMember[]
-  teams       FantasyTeam[]
   drafts      Draft[]
+  teams       FantasyTeam[]
+  createdBy   Profile        @relation(fields: [createdById], references: [id])
+  season      Season         @relation(fields: [seasonId], references: [id])
+  members     LeagueMember[]
 
   @@index([createdById])
   @@index([seasonId])
@@ -111,26 +122,24 @@ model LeagueMember {
   profileId String     @db.Uuid
   role      LeagueRole @default(MEMBER)
   createdAt DateTime   @default(now())
-
-  league    League  @relation(fields: [leagueId], references: [id], onDelete: Restrict)
-  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Restrict)
+  league    League     @relation(fields: [leagueId], references: [id])
+  profile   Profile    @relation(fields: [profileId], references: [id])
 
   @@unique([leagueId, profileId])
   @@index([profileId])
 }
 
 model FantasyTeam {
-  id        String   @id @default(cuid())
-  leagueId  String
-  profileId String   @db.Uuid
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  league  League  @relation(fields: [leagueId], references: [id], onDelete: Restrict)
-  profile Profile @relation(fields: [profileId], references: [id], onDelete: Restrict)
+  id          String       @id @default(cuid())
+  leagueId    String
+  profileId   String       @db.Uuid
+  name        String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  draftPicks  DraftPick[]
+  league      League       @relation(fields: [leagueId], references: [id])
+  profile     Profile      @relation(fields: [profileId], references: [id])
   rosterSlots RosterSlot[]
-  draftPicks DraftPick[]
 
   @@unique([leagueId, profileId])
   @@index([leagueId])
@@ -141,18 +150,17 @@ model RosterSlot {
   id            String         @id @default(cuid())
   fantasyTeamId String
   slotNumber    Int
-  position      PlayerPosition @default(MID)
   playerId      String?
-  isStarter     Boolean        @default(false)
-
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
-
+  isStarter     Boolean        @default(false)
+  position      PlayerPosition @default(MID)
   fantasyTeam   FantasyTeam    @relation(fields: [fantasyTeamId], references: [id])
   player        Player?        @relation(fields: [playerId], references: [id])
 
-  @@unique([fantasyTeamId, slotNumber])
   @@unique([fantasyTeamId, playerId])
+  @@unique([fantasyTeamId, slotNumber], map: "RosterSlot_fantasyTeamId_slotIndex_key")
+  @@index([fantasyTeamId])
 }
 
 model Draft {
@@ -163,10 +171,9 @@ model Draft {
   rounds    Int         @default(15)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
-
-  league League @relation(fields: [leagueId], references: [id], onDelete: Restrict)
-  season Season @relation(fields: [seasonId], references: [id], onDelete: Restrict)
-  picks  DraftPick[]
+  league    League      @relation(fields: [leagueId], references: [id])
+  season    Season      @relation(fields: [seasonId], references: [id])
+  picks     DraftPick[]
 
   @@unique([leagueId, seasonId])
   @@index([leagueId])
@@ -174,24 +181,41 @@ model Draft {
 }
 
 model DraftPick {
-  id            String   @id @default(cuid())
+  id            String      @id @default(cuid())
   draftId       String
   pickNumber    Int
   round         Int
   slotInRound   Int
   fantasyTeamId String
-  profileId     String   @db.Uuid
+  profileId     String      @db.Uuid
   playerId      String
-  createdAt     DateTime @default(now())
-
-  draft       Draft       @relation(fields: [draftId], references: [id], onDelete: Cascade)
-  fantasyTeam FantasyTeam @relation(fields: [fantasyTeamId], references: [id], onDelete: Restrict)
-  profile     Profile     @relation(fields: [profileId], references: [id], onDelete: Restrict)
-  player      Player      @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  createdAt     DateTime    @default(now())
+  draft         Draft       @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  fantasyTeam   FantasyTeam @relation(fields: [fantasyTeamId], references: [id])
+  player        Player      @relation(fields: [playerId], references: [id])
+  profile       Profile     @relation(fields: [profileId], references: [id])
 
   @@unique([draftId, pickNumber])
   @@unique([draftId, playerId])
   @@index([fantasyTeamId])
   @@index([profileId])
   @@index([playerId])
+}
+
+enum PlayerPosition {
+  GK
+  DEF
+  MID
+  FWD
+}
+
+enum LeagueRole {
+  OWNER
+  MEMBER
+}
+
+enum DraftStatus {
+  NOT_STARTED
+  LIVE
+  COMPLETE
 }
