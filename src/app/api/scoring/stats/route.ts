@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
         seasonId: season.id,
         number: matchWeekNumber,
         name: `MatchWeek ${matchWeekNumber}`,
-        isLocked: false,
+        status: "OPEN",
       },
       update: {},
       select: { id: true },

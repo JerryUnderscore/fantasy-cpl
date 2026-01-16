@@ -162,7 +162,7 @@ export default function RosterClient({ leagueId, initialSlots }: Props) {
           >
             {slot.isStarter ? "Bench" : "Starter"}
           </button>
-          {slot.player ? (
+          {slot.player && !slot.isStarter ? (
             <button
               type="button"
               onClick={(event) => {

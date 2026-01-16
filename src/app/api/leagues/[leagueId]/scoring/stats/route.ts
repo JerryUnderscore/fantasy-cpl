@@ -88,7 +88,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
         seasonId: league.seasonId,
         number: matchWeekNumber,
         name: `MatchWeek ${matchWeekNumber}`,
-        isLocked: false,
+        status: "OPEN",
       },
       update: {},
       select: { id: true },

@@ -101,7 +101,7 @@ export default async function ScoringAdminPage() {
   const matchWeeks = await prisma.matchWeek.findMany({
     where: { seasonId: season.id },
     orderBy: { number: "asc" },
-    select: { id: true, number: true, name: true },
+    select: { id: true, number: true, name: true, status: true },
   });
 
   const playerOptions = players.map((player) => ({

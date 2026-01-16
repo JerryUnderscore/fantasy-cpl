@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
 import { PlayerPosition } from "@prisma/client";
+import { getCurrentMatchWeekForSeason } from "@/lib/matchweek";
 
 export const runtime = "nodejs";
 
@@ -186,6 +187,15 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
+const currentMatchWeek = await getCurrentMatchWeekForSeason(league.seasonId);
+
+if (currentMatchWeek && currentMatchWeek.status !== "OPEN") {
+  return NextResponse.json(
+    { error: `Lineups are locked for MatchWeek ${currentMatchWeek.number}` },
+    { status: 409 },
+  );
+}
+
     await prisma.rosterSlot.createMany({
       data: buildRosterSlots(team.id),
       skipDuplicates: true,
@@ -287,11 +297,18 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
       const slot = await prisma.rosterSlot.findFirst({
         where: { id: slotId, fantasyTeamId: team.id },
-        select: { id: true },
+        select: { id: true, isStarter: true },
       });
 
       if (!slot) {
         return NextResponse.json({ error: "Slot not found" }, { status: 404 });
+      }
+
+      if (slot.isStarter) {
+        return NextResponse.json(
+          { error: "Cannot drop a starter. Bench them first." },
+          { status: 409 },
+        );
       }
 
       await prisma.rosterSlot.update({

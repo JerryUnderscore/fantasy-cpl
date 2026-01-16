@@ -12,6 +12,7 @@ model Profile {
   discordId      String?        @unique
   displayName    String?
   avatarUrl      String?
+  isAdmin        Boolean        @default(false)
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   draftPicks     DraftPick[]
@@ -71,12 +72,15 @@ model MatchWeek {
   name        String?
   startsAt    DateTime?
   endsAt      DateTime?
-  isLocked    Boolean           @default(false)
+  status      MatchWeekStatus   @default(OPEN)
+  lockAt      DateTime?
+  finalizedAt DateTime?
   season      Season            @relation(fields: [seasonId], references: [id])
   playerStats PlayerMatchStat[]
 
   @@unique([seasonId, number])
   @@index([seasonId])
+  @@index([seasonId, status])
 }
 
 model PlayerMatchStat {
@@ -218,4 +222,10 @@ enum DraftStatus {
   NOT_STARTED
   LIVE
   COMPLETE
+}
+
+enum MatchWeekStatus {
+  OPEN
+  LOCKED
+  FINALIZED
 }

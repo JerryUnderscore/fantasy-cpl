@@ -80,7 +80,7 @@ export async function GET(request: NextRequest, ctx: Ctx) {
           number: matchWeekNumber,
         },
       },
-      select: { id: true, number: true },
+      select: { id: true, number: true, status: true },
     });
 
     if (!matchWeek) {
@@ -171,6 +171,7 @@ export async function GET(request: NextRequest, ctx: Ctx) {
       totalPoints,
       startersCount: filteredBreakdown.length,
       breakdown: filteredBreakdown,
+      provisional: matchWeek.status !== "FINALIZED",
     });
   } catch (error) {
     if ((error as { status?: number }).status === 401) {

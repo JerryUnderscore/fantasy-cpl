@@ -13,6 +13,7 @@ type MatchWeekOption = {
   id: string;
   number: number;
   name: string | null;
+  status: "OPEN" | "LOCKED" | "FINALIZED";
 };
 
 type Row = {
@@ -63,12 +64,17 @@ export default function ScoringAdminClient({
     matchWeeks.length > 0 ? String(matchWeeks[0].number) : "1";
   const [matchWeekNumber, setMatchWeekNumber] =
     useState<string>(initialMatchWeek);
+  const [matchWeekOptions, setMatchWeekOptions] =
+    useState<MatchWeekOption[]>(matchWeeks);
   const [rows, setRows] = useState<Row[]>(() =>
     Array.from({ length: 5 }, (_, index) => createRow(index)),
   );
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [matchWeekMessage, setMatchWeekMessage] = useState<string | null>(null);
+  const [matchWeekError, setMatchWeekError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUpdatingMatchWeek, setIsUpdatingMatchWeek] = useState(false);
 
   const playerOptions = useMemo(() => players, [players]);
 
@@ -189,6 +195,63 @@ export default function ScoringAdminClient({
     }
   };
 
+  const selectedMatchWeekNumber = parseNumber(matchWeekNumber);
+  const selectedMatchWeek = selectedMatchWeekNumber
+    ? matchWeekOptions.find((week) => week.number === selectedMatchWeekNumber)
+    : undefined;
+
+  const updateMatchWeekOptions = (updated: MatchWeekOption) => {
+    setMatchWeekOptions((current) => {
+      const existingIndex = current.findIndex((week) => week.id === updated.id);
+      if (existingIndex === -1) {
+        return [...current, updated].sort((a, b) => a.number - b.number);
+      }
+      return current.map((week) => (week.id === updated.id ? updated : week));
+    });
+  };
+
+  const handleMatchWeekAction = async (
+    endpoint: "open" | "lock" | "finalize",
+  ) => {
+    setMatchWeekError(null);
+    setMatchWeekMessage(null);
+    setIsUpdatingMatchWeek(true);
+
+    try {
+      const payload =
+        endpoint === "open"
+          ? { number: selectedMatchWeekNumber }
+          : { matchWeekId: selectedMatchWeek?.id };
+
+      const res = await fetch(`/api/admin/matchweeks/${endpoint}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setMatchWeekError(data?.error ?? "Unable to update MatchWeek");
+        return;
+      }
+
+      if (data?.matchWeek) {
+        updateMatchWeekOptions(data.matchWeek as MatchWeekOption);
+      }
+
+      setMatchWeekMessage(
+        endpoint === "open"
+          ? "MatchWeek opened."
+          : endpoint === "lock"
+            ? "MatchWeek locked."
+            : "MatchWeek finalized.",
+      );
+    } finally {
+      setIsUpdatingMatchWeek(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
@@ -209,18 +272,82 @@ export default function ScoringAdminClient({
       <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
+            <p className="text-sm font-semibold text-zinc-900">
+              MatchWeek controls
+            </p>
+            <p className="text-xs text-zinc-700">
+              Manage the lifecycle for the selected MatchWeek.
+            </p>
+          </div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+            Status: {selectedMatchWeek?.status ?? "Unknown"}
+          </p>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => handleMatchWeekAction("open")}
+            disabled={
+              !selectedMatchWeekNumber ||
+              selectedMatchWeekNumber <= 0 ||
+              isUpdatingMatchWeek
+            }
+            className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600 disabled:opacity-60"
+          >
+            Open MatchWeek
+          </button>
+          <button
+            type="button"
+            onClick={() => handleMatchWeekAction("lock")}
+            disabled={
+              !selectedMatchWeek ||
+              selectedMatchWeek.status !== "OPEN" ||
+              isUpdatingMatchWeek
+            }
+            className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600 disabled:opacity-60"
+          >
+            Lock MatchWeek
+          </button>
+          <button
+            type="button"
+            onClick={() => handleMatchWeekAction("finalize")}
+            disabled={
+              !selectedMatchWeek ||
+              selectedMatchWeek.status === "FINALIZED" ||
+              isUpdatingMatchWeek
+            }
+            className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600 disabled:opacity-60"
+          >
+            Finalize MatchWeek
+          </button>
+        </div>
+        {matchWeekError ? (
+          <p className="mt-3 text-sm font-semibold text-red-700">
+            {matchWeekError}
+          </p>
+        ) : null}
+        {matchWeekMessage ? (
+          <p className="mt-3 text-sm font-semibold text-emerald-700">
+            {matchWeekMessage}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
             <p className="text-sm font-semibold text-zinc-900">MatchWeek</p>
             <p className="text-xs text-zinc-700">
               Select the matchweek to upsert stats.
             </p>
           </div>
-          {matchWeeks.length > 0 ? (
+          {matchWeekOptions.length > 0 ? (
             <select
               value={matchWeekNumber}
               onChange={(event) => setMatchWeekNumber(event.target.value)}
               className="min-w-[180px] rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
             >
-              {matchWeeks.map((matchWeek) => (
+              {matchWeekOptions.map((matchWeek) => (
                 <option key={matchWeek.id} value={matchWeek.number}>
                   {matchWeek.name
                     ? `${matchWeek.name} (${matchWeek.number})`

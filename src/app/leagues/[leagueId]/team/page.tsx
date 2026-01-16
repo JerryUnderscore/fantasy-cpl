@@ -6,6 +6,7 @@ import AuthButtons from "@/components/auth-buttons";
 import RosterClient from "./roster-client";
 import ScoringCard from "./scoring-card";
 import { PlayerPosition } from "@prisma/client";
+import { getActiveMatchWeekForSeason } from "@/lib/matchweek";
 
 export const runtime = "nodejs";
 
@@ -190,6 +191,8 @@ export default async function MyTeamRosterPage({
       : null,
   }));
 
+  const activeMatchWeek = await getActiveMatchWeekForSeason(league.season.id);
+
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-16">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 rounded-3xl bg-white p-10 shadow-sm">
@@ -205,6 +208,17 @@ export default async function MyTeamRosterPage({
             {league.name} · {league.season.name} {league.season.year}
           </p>
         </div>
+
+        {activeMatchWeek ? (
+          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+            <p className="text-sm font-semibold text-zinc-900">
+              MatchWeek {activeMatchWeek.number} · {activeMatchWeek.status}
+            </p>
+            {activeMatchWeek.status !== "OPEN" ? (
+              <p className="text-xs text-zinc-600">Lineups locked.</p>
+            ) : null}
+          </div>
+        ) : null}
 
         <RosterClient leagueId={league.id} initialSlots={slots} />
         <ScoringCard leagueId={league.id} matchWeekNumber={1} />

@@ -36,11 +36,11 @@ async function main() {
       seasonId: season.id,
       number: 1,
       name: "MatchWeek 1",
-      isLocked: false,
+      status: "OPEN",
     },
     update: {
       name: "MatchWeek 1",
-      isLocked: false,
+      status: "OPEN",
     },
   });
 
