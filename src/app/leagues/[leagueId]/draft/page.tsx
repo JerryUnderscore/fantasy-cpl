@@ -72,7 +72,14 @@ export default async function DraftPage({
 
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { id: true, name: true, season: true, seasonId: true },
+    select: {
+      id: true,
+      name: true,
+      season: true,
+      seasonId: true,
+      draftMode: true,
+      draftPickSeconds: true,
+    },
   });
 
   if (!league) {
@@ -144,14 +151,19 @@ export default async function DraftPage({
     where: {
       leagueId_seasonId: { leagueId, seasonId: league.seasonId },
     },
-    select: { id: true, status: true, rounds: true },
+    select: { id: true, status: true, rounds: true, createdAt: true },
   });
 
   const picks = draft
     ? await prisma.draftPick.findMany({
         where: { draftId: draft.id },
         orderBy: { pickNumber: "asc" },
-        include: {
+        select: {
+          id: true,
+          pickNumber: true,
+          round: true,
+          slotInRound: true,
+          createdAt: true,
           fantasyTeam: { select: { name: true } },
           player: {
             select: {
@@ -199,6 +211,13 @@ export default async function DraftPage({
     }
   }
 
+  const pickStartAt =
+    draftStatus === "LIVE" && draft
+      ? picks.length
+        ? picks[picks.length - 1]?.createdAt ?? null
+        : draft.createdAt
+      : null;
+
   const draftedPlayerIds = picks.map((pick) => pick.player.id);
   const availablePlayers = await prisma.player.findMany({
     where: {
@@ -235,6 +254,9 @@ export default async function DraftPage({
           isOwner={membership.role === "OWNER"}
           draftStatus={draftStatus}
           onTheClock={onTheClock}
+          draftMode={league.draftMode}
+          draftPickSeconds={league.draftPickSeconds}
+          pickStartAt={pickStartAt ? pickStartAt.toISOString() : null}
           picks={picks.map((pick) => ({
             id: pick.id,
             pickNumber: pick.pickNumber,

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
 import { PlayerPosition } from "@prisma/client";
 import { getCurrentMatchWeekForSeason } from "@/lib/matchweek";
+import { getNextEasternTimeAt } from "@/lib/time";
 
 export const runtime = "nodejs";
 
@@ -378,7 +379,8 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       }
 
       const waiverAvailableAt = slot.playerId
-        ? new Date(Date.now() + waiverHours * 60 * 60 * 1000)
+        ? getNextEasternTimeAt(new Date(), 4, 0) ??
+          new Date(Date.now() + waiverHours * 60 * 60 * 1000)
         : null;
 
       await prisma.$transaction(async (tx) => {

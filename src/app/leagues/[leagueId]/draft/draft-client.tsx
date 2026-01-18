@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 type OnTheClock = {
   fantasyTeamId: string;
@@ -31,6 +31,9 @@ type Props = {
   isOwner: boolean;
   draftStatus: "NOT_STARTED" | "LIVE" | "COMPLETE";
   onTheClock: OnTheClock | null;
+  draftMode: "ASYNC" | "TIMED";
+  draftPickSeconds: number | null;
+  pickStartAt: string | null;
   picks: Pick[];
   availablePlayers: AvailablePlayer[];
   canPick: boolean;
@@ -41,18 +44,81 @@ export default function DraftClient({
   isOwner,
   draftStatus,
   onTheClock,
+  draftMode,
+  draftPickSeconds,
+  pickStartAt,
   picks,
   availablePlayers,
   canPick,
 }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [now, setNow] = useState<number | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+  const lastAutoPickRef = useRef<string | null>(null);
 
   const statusLabel = useMemo(() => {
     if (draftStatus === "NOT_STARTED") return "Not started";
     if (draftStatus === "LIVE") return "Live";
     return "Complete";
   }, [draftStatus]);
+
+  const pickStartMs =
+    pickStartAt && !Number.isNaN(new Date(pickStartAt).getTime())
+      ? new Date(pickStartAt).getTime()
+      : null;
+  const hasTimer =
+    draftMode === "TIMED" &&
+    draftStatus === "LIVE" &&
+    onTheClock &&
+    typeof draftPickSeconds === "number" &&
+    pickStartMs !== null;
+  const remainingSeconds =
+    hasTimer && hydrated && typeof now === "number"
+      ? Math.max(0, draftPickSeconds - Math.floor((now - pickStartMs) / 1000))
+      : null;
+  const formatSeconds = (value: number) => {
+    const minutes = Math.floor(value / 60);
+    const seconds = value % 60;
+    return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  };
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hasTimer || !hydrated) return;
+    setNow(Date.now());
+    const interval = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [hasTimer, hydrated]);
+
+  useEffect(() => {
+    if (!hasTimer || remainingSeconds !== 0 || !pickStartAt) return;
+    if (lastAutoPickRef.current === pickStartAt) return;
+    lastAutoPickRef.current = pickStartAt;
+
+    startTransition(async () => {
+      const res = await fetch(`/api/leagues/${leagueId}/draft/auto-pick`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(data?.error ?? "Unable to auto-draft");
+        return;
+      }
+      window.location.reload();
+    });
+  }, [
+    hasTimer,
+    remainingSeconds,
+    pickStartAt,
+    leagueId,
+    startTransition,
+  ]);
 
   const startDraft = () => {
     setError(null);
@@ -95,6 +161,12 @@ export default function DraftClient({
           <p className="text-sm text-zinc-600">
             On the clock: {onTheClock ? onTheClock.name : "—"}
           </p>
+          {draftMode === "TIMED" ? (
+            <p className="text-sm text-zinc-600">
+              Time left:{" "}
+              {remainingSeconds !== null ? formatSeconds(remainingSeconds) : "—"}
+            </p>
+          ) : null}
           {onTheClock ? (
             <p className="text-xs text-zinc-500">
               Pick {onTheClock.pickNumber} · Round {onTheClock.round} · Slot{" "}

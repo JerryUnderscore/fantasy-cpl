@@ -29,6 +29,8 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
       select: {
         id: true,
         season: { select: { id: true, isActive: true } },
+        draftMode: true,
+        draftPickSeconds: true,
       },
     });
 
@@ -38,6 +40,18 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
 
     if (!league.season.isActive) {
       return NextResponse.json({ error: "No active season" }, { status: 400 });
+    }
+
+    if (league.draftMode === "TIMED") {
+      if (
+        typeof league.draftPickSeconds !== "number" ||
+        !Number.isInteger(league.draftPickSeconds)
+      ) {
+        return NextResponse.json(
+          { error: "Draft pick seconds required for timed drafts" },
+          { status: 400 },
+        );
+      }
     }
 
     const membership = await prisma.leagueMember.findUnique({

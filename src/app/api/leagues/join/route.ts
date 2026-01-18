@@ -11,6 +11,12 @@ const normalizeInviteCode = (value: unknown) => {
   return trimmed.length > 0 ? trimmed : null;
 };
 
+const normalizeLeagueId = (value: unknown) => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
 const getProfile = async (userId: string) => {
   return prisma.profile.findUnique({
     where: { id: userId },
@@ -43,8 +49,9 @@ export async function POST(request: Request) {
     const user = await requireSupabaseUser();
     const body = await request.json().catch(() => null);
     const inviteCode = normalizeInviteCode(body?.inviteCode);
+    const leagueId = normalizeLeagueId(body?.leagueId);
 
-    if (!inviteCode) {
+    if (!inviteCode && !leagueId) {
       return NextResponse.json(
         { error: "Invite code is required" },
         { status: 400 },
@@ -56,12 +63,44 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const league = await prisma.league.findUnique({
-      where: { inviteCode },
-    });
+    const league = inviteCode
+      ? await prisma.league.findUnique({
+          where: { inviteCode },
+          select: { id: true, inviteCode: true, joinMode: true, maxTeams: true },
+        })
+      : await prisma.league.findUnique({
+          where: { id: leagueId ?? undefined },
+          select: { id: true, inviteCode: true, joinMode: true, maxTeams: true },
+        });
 
     if (!league) {
-      return NextResponse.json({ error: "Invalid invite code" }, { status: 404 });
+      return NextResponse.json(
+        { error: inviteCode ? "Invalid invite code" : "League not found" },
+        { status: 404 },
+      );
+    }
+
+    if (league.joinMode === "INVITE_ONLY" && !inviteCode) {
+      return NextResponse.json(
+        { error: "Invite code required to join this league" },
+        { status: 403 },
+      );
+    }
+
+    const existingTeam = await prisma.fantasyTeam.findUnique({
+      where: {
+        leagueId_profileId: { leagueId: league.id, profileId: profile.id },
+      },
+      select: { id: true },
+    });
+
+    if (!existingTeam) {
+      const count = await prisma.fantasyTeam.count({
+        where: { leagueId: league.id },
+      });
+      if (count >= league.maxTeams) {
+        return NextResponse.json({ error: "League is full" }, { status: 409 });
+      }
     }
 
     await prisma.$transaction(async (tx) => {

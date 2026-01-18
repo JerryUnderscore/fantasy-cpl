@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
 import LeagueActions from "@/app/leagues/league-actions";
+import AvailableLeaguesClient from "@/app/leagues/available-leagues-client";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,25 @@ const getMemberships = async (profileId: string) => {
           season: true,
         },
       },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+};
+
+const getOpenLeagues = async (profileId: string) => {
+  return prisma.league.findMany({
+    where: {
+      joinMode: "OPEN",
+      members: {
+        none: { profileId },
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      maxTeams: true,
+      season: { select: { name: true, year: true } },
+      _count: { select: { teams: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -76,6 +96,7 @@ export default async function LeaguesPage() {
   }
 
   const memberships = await getMemberships(profile.id);
+  const openLeagues = await getOpenLeagues(profile.id);
 
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-16">
@@ -137,6 +158,8 @@ export default async function LeaguesPage() {
             </ul>
           )}
         </div>
+
+        <AvailableLeaguesClient leagues={openLeagues} />
 
         <LeagueActions />
       </div>

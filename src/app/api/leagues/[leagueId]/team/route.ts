@@ -7,8 +7,6 @@ export const runtime = "nodejs";
 
 type Ctx = { params: Promise<{ leagueId: string }> };
 
-const MAX_TEAMS_PER_LEAGUE = 12;
-
 const normalizeName = (value: unknown) => {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -65,6 +63,15 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const league = await prisma.league.findUnique({
+      where: { id: leagueId },
+      select: { id: true, maxTeams: true },
+    });
+
+    if (!league) {
+      return NextResponse.json({ error: "League not found" }, { status: 404 });
+    }
+
     const existing = await prisma.fantasyTeam.findUnique({
       where: {
         leagueId_profileId: {
@@ -77,7 +84,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
     if (!existing) {
       const count = await prisma.fantasyTeam.count({ where: { leagueId } });
-      if (count >= MAX_TEAMS_PER_LEAGUE) {
+      if (count >= league.maxTeams) {
         return NextResponse.json({ error: "League is full" }, { status: 409 });
       }
     }

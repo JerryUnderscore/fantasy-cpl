@@ -40,6 +40,8 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
       select: {
         id: true,
         season: { select: { id: true, isActive: true } },
+        draftMode: true,
+        draftPickSeconds: true,
       },
     });
 
@@ -59,7 +61,13 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
     });
 
     if (!draft) {
-      return NextResponse.json({ status: "NOT_STARTED" });
+      return NextResponse.json({
+        status: "NOT_STARTED",
+        settings: {
+          draftMode: league.draftMode,
+          draftPickSeconds: league.draftPickSeconds,
+        },
+      });
     }
 
     const teams = await prisma.fantasyTeam.findMany({
@@ -123,6 +131,10 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
         id: draft.id,
         status: computedStatus,
         rounds: draft.rounds,
+      },
+      settings: {
+        draftMode: league.draftMode,
+        draftPickSeconds: league.draftPickSeconds,
       },
       picks: picks.map((pick) => ({
         id: pick.id,

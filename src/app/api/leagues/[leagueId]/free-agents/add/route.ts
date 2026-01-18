@@ -3,6 +3,7 @@ import { MatchWeekStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
 import { getCurrentMatchWeekForSeason } from "@/lib/matchweek";
+import { getNextEasternTimeAt } from "@/lib/time";
 
 export const runtime = "nodejs";
 
@@ -184,10 +185,15 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       );
     }
 
+    const fallbackHours =
+      typeof league.waiverPeriodHours === "number" &&
+      Number.isFinite(league.waiverPeriodHours) &&
+      league.waiverPeriodHours >= 0
+        ? league.waiverPeriodHours
+        : 24;
     const waiverAvailableAt = dropSlot?.playerId
-      ? new Date(
-          now.getTime() + league.waiverPeriodHours * 60 * 60 * 1000,
-        )
+      ? getNextEasternTimeAt(now, 4, 0) ??
+        new Date(now.getTime() + fallbackHours * 60 * 60 * 1000)
       : null;
 
     await prisma.$transaction(async (tx) => {

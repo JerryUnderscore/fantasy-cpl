@@ -146,6 +146,13 @@ model League {
   createdById         String               @db.Uuid
   seasonId            String
   standingsMode       StandingsMode        @default(TOTAL_POINTS)
+  joinMode            JoinMode             @default(OPEN)
+  maxTeams            Int                  @default(8)
+  draftMode           DraftMode            @default(ASYNC)
+  draftPickSeconds    Int?
+  rosterSize          Int                  @default(15)
+  keepersEnabled      Boolean              @default(false)
+  keeperCount         Int?
   waiverPeriodHours   Int                  @default(24)
   drafts              Draft[]
   matchups            LeagueMatchup[]
@@ -404,6 +411,16 @@ enum PlayerPosition {
 enum LeagueRole {
   OWNER
   MEMBER
+}
+
+enum JoinMode {
+  OPEN
+  INVITE_ONLY
+}
+
+enum DraftMode {
+  ASYNC
+  TIMED
 }
 
 enum DraftStatus {

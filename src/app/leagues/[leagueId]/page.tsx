@@ -19,6 +19,7 @@ async function getLeague(leagueId: string) {
 async function getMembership(leagueId: string, profileId: string) {
   return prisma.leagueMember.findUnique({
     where: { leagueId_profileId: { leagueId, profileId } },
+    select: { role: true },
   });
 }
 
@@ -146,6 +147,14 @@ export default async function LeagueDetailPage({
           >
             Go to draft
           </Link>
+          {membership.role === "OWNER" ? (
+            <Link
+              href={`/leagues/${league.id}/settings`}
+              className="mt-2 w-fit text-sm font-semibold text-zinc-500 underline-offset-4 hover:text-black hover:underline"
+            >
+              League settings
+            </Link>
+          ) : null}
           <Link
             href="/scoring-admin"
             className="mt-2 w-fit text-sm font-semibold text-zinc-500 underline-offset-4 hover:text-black hover:underline"

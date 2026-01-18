@@ -115,3 +115,27 @@ export const formatEasternDateTime = (date: Date) => {
 };
 
 export const easternTimeZone = EASTERN_TIME_ZONE;
+
+export const getNextEasternTimeAt = (
+  now: Date,
+  hour: number,
+  minute: number,
+) => {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const parts = buildDateTimeParts(now, EASTERN_TIME_ZONE);
+  const candidateInput = `${parts.year}-${pad(parts.month)}-${pad(
+    parts.day,
+  )} ${pad(hour)}:${pad(minute)}`;
+  const candidate = parseEasternDateTime(candidateInput);
+  if (!candidate) return null;
+  if (candidate.getTime() > now.getTime()) {
+    return candidate;
+  }
+
+  const tomorrow = new Date(now.getTime() + 36 * 60 * 60 * 1000);
+  const tomorrowParts = buildDateTimeParts(tomorrow, EASTERN_TIME_ZONE);
+  const nextInput = `${tomorrowParts.year}-${pad(tomorrowParts.month)}-${pad(
+    tomorrowParts.day,
+  )} ${pad(hour)}:${pad(minute)}`;
+  return parseEasternDateTime(nextInput);
+};
