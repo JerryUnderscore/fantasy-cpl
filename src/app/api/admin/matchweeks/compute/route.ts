@@ -6,6 +6,8 @@ import { ScoreStatus } from "@prisma/client";
 
 export const runtime = "nodejs";
 
+type TeamError = { teamId: string; error: string };
+
 export async function POST(request: NextRequest) {
   try {
     await requireAdminUser();
@@ -13,6 +15,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => null);
     const matchWeekId =
       typeof body?.matchWeekId === "string" ? body.matchWeekId : null;
+    const leagueId = typeof body?.leagueId === "string" ? body.leagueId : null;
+    const force = body?.force === true;
 
     if (!matchWeekId) {
       return NextResponse.json(
@@ -21,34 +25,67 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existing = await prisma.matchWeek.findUnique({
+    const matchWeek = await prisma.matchWeek.findUnique({
       where: { id: matchWeekId },
-      select: { id: true, finalizedAt: true, seasonId: true, status: true },
+      select: { id: true, seasonId: true, status: true },
     });
 
-    if (!existing) {
+    if (!matchWeek) {
       return NextResponse.json({ error: "MatchWeek not found" }, { status: 404 });
     }
 
-    if (existing.status === "FINALIZED") {
+    if (matchWeek.status === "FINALIZED" && !force) {
       return NextResponse.json(
         { error: "MatchWeek already finalized" },
         { status: 409 },
       );
     }
 
+    if (leagueId) {
+      const league = await prisma.league.findUnique({
+        where: { id: leagueId },
+        select: { id: true, seasonId: true },
+      });
+
+      if (!league) {
+        return NextResponse.json({ error: "League not found" }, { status: 404 });
+      }
+
+      if (league.seasonId !== matchWeek.seasonId) {
+        return NextResponse.json(
+          { error: "League does not match MatchWeek season" },
+          { status: 400 },
+        );
+      }
+    }
+
     const teams = await prisma.fantasyTeam.findMany({
-      where: { league: { seasonId: existing.seasonId } },
+      where: leagueId
+        ? { leagueId }
+        : { league: { seasonId: matchWeek.seasonId } },
       select: { id: true },
     });
 
-    const errors: Array<{ teamId: string; error: string }> = [];
+    const scoreStatus =
+      matchWeek.status === "FINALIZED"
+        ? ScoreStatus.FINAL
+        : ScoreStatus.PROVISIONAL;
+
+    let teamScoresCreated = 0;
+    let teamScoresUpdated = 0;
+    const errors: TeamError[] = [];
 
     for (const team of teams) {
       try {
-        await persistTeamMatchWeekScore(team.id, matchWeekId, {
-          status: ScoreStatus.FINAL,
+        const result = await persistTeamMatchWeekScore(team.id, matchWeekId, {
+          status: scoreStatus,
         });
+
+        if (result.created) {
+          teamScoresCreated += 1;
+        } else {
+          teamScoresUpdated += 1;
+        }
       } catch (error) {
         errors.push({
           teamId: team.id,
@@ -57,32 +94,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (errors.length) {
-      return NextResponse.json(
-        { error: "Failed to compute all team scores", errors },
-        { status: 500 },
-      );
-    }
-
-    const matchWeek = await prisma.matchWeek.update({
-      where: { id: matchWeekId },
-      data: {
-        status: "FINALIZED",
-        finalizedAt: existing.finalizedAt ?? new Date(),
-      },
-      select: {
-        id: true,
-        number: true,
-        status: true,
-        lockAt: true,
-        finalizedAt: true,
-        seasonId: true,
-      },
-    });
-
     return NextResponse.json({
-      matchWeek,
+      ok: errors.length === 0,
       teamsProcessed: teams.length,
+      teamScoresCreated,
+      teamScoresUpdated,
+      errors,
     });
   } catch (error) {
     if ((error as { status?: number }).status === 401) {
@@ -91,7 +108,7 @@ export async function POST(request: NextRequest) {
     if ((error as { status?: number }).status === 403) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    console.error("POST /api/admin/matchweeks/finalize error", error);
+    console.error("POST /api/admin/matchweeks/compute error", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

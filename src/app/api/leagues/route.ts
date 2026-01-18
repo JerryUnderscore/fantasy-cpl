@@ -26,9 +26,10 @@ const buildInviteCode = () => {
   return result;
 };
 
-const buildRosterSlots = (fantasyTeamId: string) =>
+const buildRosterSlots = (fantasyTeamId: string, leagueId: string) =>
   Array.from({ length: 15 }, (_, index) => ({
     fantasyTeamId,
+    leagueId,
     slotNumber: index + 1,
     position: PlayerPosition.MID,
   }));
@@ -116,7 +117,7 @@ export async function POST(request: Request) {
           });
 
           await tx.rosterSlot.createMany({
-            data: buildRosterSlots(team.id),
+            data: buildRosterSlots(team.id, created.id),
             skipDuplicates: true,
           });
 

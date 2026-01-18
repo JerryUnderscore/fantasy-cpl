@@ -3,13 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatEasternDateTime } from "@/lib/time";
 
-type PlayerOption = {
-  id: string;
-  name: string;
-  position: string;
-  clubLabel: string;
-};
-
 type MatchWeekOption = {
   id: string;
   number: number;
@@ -30,9 +23,37 @@ type ClubOption = {
   shortName: string | null;
 };
 
+type MatchWeekPlayer = {
+  id: string;
+  name: string;
+  position: string;
+  clubLabel: string;
+  minutes: number;
+  goals: number;
+  assists: number;
+  yellowCards: number;
+  redCards: number;
+  ownGoals: number;
+  cleanSheet: boolean;
+};
+
+type MatchWeekMatch = {
+  id: string;
+  kickoffAt: string;
+  status: string;
+  homeClub: { slug: string; shortName: string | null; name: string };
+  awayClub: { slug: string; shortName: string | null; name: string };
+  homePlayers: MatchWeekPlayer[];
+  awayPlayers: MatchWeekPlayer[];
+};
+
 type Row = {
   id: string;
   playerId: string;
+  playerName: string;
+  position: string;
+  clubLabel: string;
+  side: "home" | "away";
   minutes: string;
   goals: string;
   assists: string;
@@ -44,7 +65,12 @@ type Row = {
 
 type Props = {
   postUrl: string;
-  players: PlayerOption[];
+  players: Array<{
+    id: string;
+    name: string;
+    position: string;
+    clubLabel: string;
+  }>;
   matchWeeks: MatchWeekOption[];
   seasons: SeasonOption[];
   clubs: ClubOption[];
@@ -85,18 +111,6 @@ const matchStatusOptions = [
   "CANCELED",
 ];
 
-const createRow = (index: number): Row => ({
-  id: `row-${index}-${Date.now()}`,
-  playerId: "",
-  minutes: "",
-  goals: "",
-  assists: "",
-  yellowCards: "",
-  redCards: "",
-  ownGoals: "",
-  cleanSheet: false,
-});
-
 const parseNumber = (value: string) => {
   if (value.trim() === "") return null;
   const parsed = Number(value);
@@ -124,13 +138,17 @@ export default function ScoringAdminClient({
   const [scheduleSeasonId, setScheduleSeasonId] =
     useState<string>(initialSeasonId);
   const [matchesSeasonId] = useState<string>(initialSeasonId);
-  const [rows, setRows] = useState<Row[]>(() =>
-    Array.from({ length: 5 }, (_, index) => createRow(index)),
-  );
+  const [rows, setRows] = useState<Row[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [matchWeekMessage, setMatchWeekMessage] = useState<string | null>(null);
   const [matchWeekError, setMatchWeekError] = useState<string | null>(null);
+  const [matchWeekMatches, setMatchWeekMatches] = useState<MatchWeekMatch[]>([]);
+  const [matchWeekMatchesError, setMatchWeekMatchesError] =
+    useState<string | null>(null);
+  const [isLoadingMatchWeekMatches, setIsLoadingMatchWeekMatches] =
+    useState(false);
+  const [selectedMatchId, setSelectedMatchId] = useState<string>("");
   const [scheduleFile, setScheduleFile] = useState<File | null>(null);
   const [scheduleSummary, setScheduleSummary] =
     useState<ScheduleSummary | null>(null);
@@ -153,7 +171,6 @@ export default function ScoringAdminClient({
   const [isUpdatingMatchWeek, setIsUpdatingMatchWeek] = useState(false);
   const [isImportingSchedule, setIsImportingSchedule] = useState(false);
 
-  const playerOptions = useMemo(() => players, [players]);
   const seasonOptions = useMemo(() => seasons, [seasons]);
   const clubOptions = useMemo(() => clubs, [clubs]);
 
@@ -163,12 +180,30 @@ export default function ScoringAdminClient({
     );
   };
 
-  const addRow = () => {
-    setRows((current) => [...current, createRow(current.length + 1)]);
-  };
+  const toTextValue = (value: number) => (value > 0 ? String(value) : "");
 
-  const removeRow = (rowId: string) => {
-    setRows((current) => current.filter((row) => row.id !== rowId));
+  const buildRows = (match: MatchWeekMatch): Row[] => {
+    const mapPlayers = (players: MatchWeekPlayer[], side: "home" | "away") =>
+      players.map((player) => ({
+        id: player.id,
+        playerId: player.id,
+        playerName: player.name,
+        position: player.position,
+        clubLabel: player.clubLabel,
+        side,
+        minutes: toTextValue(player.minutes),
+        goals: toTextValue(player.goals),
+        assists: toTextValue(player.assists),
+        yellowCards: toTextValue(player.yellowCards),
+        redCards: toTextValue(player.redCards),
+        ownGoals: toTextValue(player.ownGoals),
+        cleanSheet: player.cleanSheet,
+      }));
+
+    return [
+      ...mapPlayers(match.homePlayers, "home"),
+      ...mapPlayers(match.awayPlayers, "away"),
+    ];
   };
 
   const submit = async () => {
@@ -177,12 +212,9 @@ export default function ScoringAdminClient({
     setError(null);
 
     try {
-      const seenPlayers = new Set<string>();
       const normalizedStats = rows
         .map((row, index) => {
-          const playerId = row.playerId.trim();
           const hasAnyInput =
-            playerId ||
             row.minutes.trim() ||
             row.goals.trim() ||
             row.assists.trim() ||
@@ -194,14 +226,6 @@ export default function ScoringAdminClient({
           if (!hasAnyInput) {
             return null;
           }
-
-          if (!playerId) {
-            return { error: `Row ${index + 1}: select a player.` };
-          }
-          if (seenPlayers.has(playerId)) {
-            return { error: `Row ${index + 1}: duplicate player selected.` };
-          }
-          seenPlayers.add(playerId);
 
           const minutes = parseNumber(row.minutes);
           if (minutes === null) {
@@ -215,7 +239,7 @@ export default function ScoringAdminClient({
           const ownGoals = parseNumber(row.ownGoals) ?? 0;
 
           return {
-            playerId,
+            playerId: row.playerId,
             minutes,
             goals,
             assists,
@@ -334,6 +358,10 @@ export default function ScoringAdminClient({
   const selectedMatchWeek = selectedMatchWeekNumber
     ? matchWeekOptions.find((week) => week.number === selectedMatchWeekNumber)
     : undefined;
+  const selectedMatch = useMemo(
+    () => matchWeekMatches.find((match) => match.id === selectedMatchId),
+    [matchWeekMatches, selectedMatchId],
+  );
 
   const updateMatchWeekOptions = (updated: MatchWeekOption) => {
     setMatchWeekOptions((current) => {
@@ -444,6 +472,57 @@ export default function ScoringAdminClient({
       setIsImportingSchedule(false);
     }
   };
+
+  const loadMatchWeekMatches = useCallback(async () => {
+    if (!selectedMatchWeek?.id) {
+      setMatchWeekMatches([]);
+      setRows([]);
+      setSelectedMatchId("");
+      return;
+    }
+
+    setIsLoadingMatchWeekMatches(true);
+    setMatchWeekMatchesError(null);
+
+    try {
+      const res = await fetch(
+        `/api/admin/matchweeks/matches?matchWeekId=${selectedMatchWeek.id}`,
+      );
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setMatchWeekMatchesError(payload?.error ?? "Unable to load matches.");
+        setMatchWeekMatches([]);
+        setRows([]);
+        setSelectedMatchId("");
+        return;
+      }
+
+      const loadedMatches = (payload?.matches ?? []) as MatchWeekMatch[];
+      setMatchWeekMatches(loadedMatches);
+      setSelectedMatchId(loadedMatches[0]?.id ?? "");
+    } catch (loadError) {
+      console.error("loadMatchWeekMatches error", loadError);
+      setMatchWeekMatchesError("Unable to load matches.");
+      setMatchWeekMatches([]);
+      setRows([]);
+      setSelectedMatchId("");
+    } finally {
+      setIsLoadingMatchWeekMatches(false);
+    }
+  }, [selectedMatchWeek?.id]);
+
+  useEffect(() => {
+    void loadMatchWeekMatches();
+  }, [loadMatchWeekMatches]);
+
+  useEffect(() => {
+    if (!selectedMatch) {
+      setRows([]);
+      return;
+    }
+    setRows(buildRows(selectedMatch));
+  }, [selectedMatch]);
 
   const startEditingMatch = (match: MatchRow) => {
     setEditingMatchId(match.id);
@@ -630,157 +709,207 @@ export default function ScoringAdminClient({
           <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">
             Player stats
           </h2>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+              Match in MatchWeek
+            </label>
+            <select
+              value={selectedMatchId}
+              onChange={(event) => setSelectedMatchId(event.target.value)}
+              disabled={!matchWeekMatches.length}
+              className="min-w-[220px] rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 disabled:opacity-60"
+            >
+              {matchWeekMatches.length === 0 ? (
+                <option value="">
+                  {isLoadingMatchWeekMatches
+                    ? "Loading matches..."
+                    : "No matches found"}
+                </option>
+              ) : null}
+              {matchWeekMatches.map((match) => (
+                <option key={match.id} value={match.id}>
+                  {match.homeClub.shortName ?? match.homeClub.name} vs{" "}
+                  {match.awayClub.shortName ?? match.awayClub.name} ·{" "}
+                  {formatEasternDateTime(new Date(match.kickoffAt))}
+                </option>
+              ))}
+            </select>
+          </div>
           <button
             type="button"
-            onClick={addRow}
-            className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600"
+            onClick={() => void loadMatchWeekMatches()}
+            disabled={!selectedMatchWeek?.id || isLoadingMatchWeekMatches}
+            className="mt-5 rounded-full border border-zinc-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600 disabled:opacity-60"
           >
-            Add row
+            {isLoadingMatchWeekMatches ? "Refreshing…" : "Refresh matches"}
           </button>
         </div>
 
-        <div className="mt-4 max-h-[420px] overflow-x-auto overflow-y-auto pb-2 pr-2">
-          <div className="flex flex-col gap-4">
-            {rows.map((row) => (
-              <div
-                key={row.id}
-                className="grid min-w-full grid-cols-1 gap-3 rounded-xl border border-zinc-200 bg-white p-4 md:min-w-[1080px] md:grid-cols-[2fr_repeat(6,1fr)_auto]"
-              >
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
-                    Player
-                  </label>
-                  <select
-                    value={row.playerId}
-                    onChange={(event) =>
-                      updateRow(row.id, { playerId: event.target.value })
-                    }
-                    className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-                  >
-                    <option value="">Select player</option>
-                    {playerOptions.map((player) => (
-                      <option key={player.id} value={player.id}>
-                        {player.name} · {player.position}
-                        {player.clubLabel ? ` · ${player.clubLabel}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+        {matchWeekMatchesError ? (
+          <p className="mt-3 text-sm font-semibold text-red-700">
+            {matchWeekMatchesError}
+          </p>
+        ) : null}
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
-                    Min
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={row.minutes}
-                    onChange={(event) =>
-                      updateRow(row.id, { minutes: event.target.value })
-                    }
-                    className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-                  />
-                </div>
+        {selectedMatch ? (
+          <div className="mt-4 flex flex-col gap-4">
+            {(["home", "away"] as const).map((side) => {
+              const sideRows = rows.filter((row) => row.side === side);
+              const club =
+                side === "home"
+                  ? selectedMatch.homeClub
+                  : selectedMatch.awayClub;
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
-                    G
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={row.goals}
-                    onChange={(event) =>
-                      updateRow(row.id, { goals: event.target.value })
-                    }
-                    className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-                  />
-                </div>
+              return (
+                <div key={side} className="rounded-xl border border-zinc-200 bg-white p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-zinc-900">
+                      {side === "home" ? "Home" : "Away"} roster ·{" "}
+                      {club.shortName ?? club.name}
+                    </p>
+                    <span className="text-xs uppercase tracking-wide text-zinc-500">
+                      {sideRows.length} players
+                    </span>
+                  </div>
+                  <div className="mt-3 max-h-[420px] overflow-x-auto overflow-y-auto pb-2 pr-2">
+                    <div className="flex flex-col gap-4">
+                      {sideRows.map((row) => (
+                        <div
+                          key={row.id}
+                          className="grid min-w-full grid-cols-1 gap-3 rounded-xl border border-zinc-200 bg-white p-4 md:min-w-[1080px] md:grid-cols-[2fr_repeat(6,1fr)_auto]"
+                        >
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                              Player
+                            </label>
+                            <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900">
+                              {row.playerName} · {row.position}
+                              {row.clubLabel ? ` · ${row.clubLabel}` : ""}
+                            </div>
+                          </div>
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
-                    A
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={row.assists}
-                    onChange={(event) =>
-                      updateRow(row.id, { assists: event.target.value })
-                    }
-                    className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-                  />
-                </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                              Min
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.minutes}
+                              onChange={(event) =>
+                                updateRow(row.id, { minutes: event.target.value })
+                              }
+                              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+                            />
+                          </div>
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
-                    YC
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={row.yellowCards}
-                    onChange={(event) =>
-                      updateRow(row.id, { yellowCards: event.target.value })
-                    }
-                    className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-                  />
-                </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                              G
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.goals}
+                              onChange={(event) =>
+                                updateRow(row.id, { goals: event.target.value })
+                              }
+                              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+                            />
+                          </div>
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
-                    RC
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={row.redCards}
-                    onChange={(event) =>
-                      updateRow(row.id, { redCards: event.target.value })
-                    }
-                    className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-                  />
-                </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                              A
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.assists}
+                              onChange={(event) =>
+                                updateRow(row.id, { assists: event.target.value })
+                              }
+                              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+                            />
+                          </div>
 
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
-                    OG
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={row.ownGoals}
-                    onChange={(event) =>
-                      updateRow(row.id, { ownGoals: event.target.value })
-                    }
-                    className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-                  />
-                </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                              YC
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.yellowCards}
+                              onChange={(event) =>
+                                updateRow(row.id, {
+                                  yellowCards: event.target.value,
+                                })
+                              }
+                              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+                            />
+                          </div>
 
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-zinc-600">
-                    <input
-                      type="checkbox"
-                      checked={row.cleanSheet}
-                      onChange={(event) =>
-                        updateRow(row.id, { cleanSheet: event.target.checked })
-                      }
-                      className="h-4 w-4 rounded border-zinc-300"
-                    />
-                    CS
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => removeRow(row.id)}
-                    className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-600"
-                  >
-                    Remove
-                  </button>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                              RC
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.redCards}
+                              onChange={(event) =>
+                                updateRow(row.id, { redCards: event.target.value })
+                              }
+                              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-1">
+                            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                              OG
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={row.ownGoals}
+                              onChange={(event) =>
+                                updateRow(row.id, { ownGoals: event.target.value })
+                              }
+                              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                              <input
+                                type="checkbox"
+                                checked={row.cleanSheet}
+                                onChange={(event) =>
+                                  updateRow(row.id, {
+                                    cleanSheet: event.target.checked,
+                                  })
+                                }
+                                className="h-4 w-4 rounded border-zinc-300"
+                              />
+                              CS
+                            </label>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-        </div>
+        ) : (
+          <p className="mt-4 text-sm text-zinc-500">
+            Select a match to load club rosters.
+          </p>
+        )}
 
         {error ? (
           <p className="mt-3 text-sm font-semibold text-red-700">{error}</p>

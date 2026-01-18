@@ -18,7 +18,7 @@ type IncomingStat = {
 const getProfile = async (userId: string) =>
   prisma.profile.findUnique({
     where: { id: userId },
-    select: { id: true },
+    select: { id: true, isAdmin: true },
   });
 
 const toInt = (value: unknown) => {
@@ -29,15 +29,22 @@ const toInt = (value: unknown) => {
 
 export async function POST(request: NextRequest) {
   try {
-    if (process.env.ALLOW_DEV_STAT_WRITES !== "true") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
     const user = await requireSupabaseUser();
     const profile = await getProfile(user.id);
 
     if (!profile) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const adminEmail = process.env.ADMIN_EMAIL?.toLowerCase();
+    const isAdmin =
+      profile.isAdmin ||
+      (adminEmail &&
+        user.email &&
+        user.email.toLowerCase() === adminEmail);
+
+    if (process.env.ALLOW_DEV_STAT_WRITES !== "true" && !isAdmin) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = await request.json().catch(() => null);

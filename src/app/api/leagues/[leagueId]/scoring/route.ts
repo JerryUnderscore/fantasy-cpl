@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
-import { PlayerMatchStat } from "@prisma/client";
-import { scorePlayer } from "@/lib/scoring";
+import { computeTeamMatchWeekScore, buildScoreBreakdown } from "@/lib/scoring-persist";
 
 export const runtime = "nodejs";
 
@@ -13,22 +12,6 @@ const getProfile = async (userId: string) =>
     where: { id: userId },
     select: { id: true },
   });
-
-const buildEmptyStat = (
-  playerId: string,
-  matchWeekId: string,
-): PlayerMatchStat => ({
-  id: `missing-${playerId}-${matchWeekId}`,
-  playerId,
-  matchWeekId,
-  minutes: 0,
-  goals: 0,
-  assists: 0,
-  yellowCards: 0,
-  redCards: 0,
-  ownGoals: 0,
-  cleanSheet: false,
-});
 
 export async function GET(request: NextRequest, ctx: Ctx) {
   try {
@@ -101,76 +84,77 @@ export async function GET(request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
-    const starters = await prisma.rosterSlot.findMany({
+    const persistedScore = await prisma.teamMatchWeekScore.findUnique({
       where: {
-        fantasyTeamId: team.id,
-        isStarter: true,
-        playerId: { not: null },
-      },
-      select: {
-        playerId: true,
-        player: {
-          select: {
-            id: true,
-            name: true,
-            position: true,
-            club: { select: { slug: true } },
-          },
+        fantasyTeamId_matchWeekId: {
+          fantasyTeamId: team.id,
+          matchWeekId: matchWeek.id,
         },
       },
+      select: { points: true },
     });
 
-    const playerIds = starters
-      .map((slot) => slot.playerId)
-      .filter((id): id is string => Boolean(id));
+    if (persistedScore) {
+      const playerScores = await prisma.teamMatchWeekPlayerScore.findMany({
+        where: { fantasyTeamId: team.id, matchWeekId: matchWeek.id },
+        select: {
+          playerId: true,
+          points: true,
+          breakdown: true,
+          player: {
+            select: {
+              name: true,
+              position: true,
+              club: { select: { slug: true } },
+            },
+          },
+        },
+      });
 
-    const stats = await prisma.playerMatchStat.findMany({
-      where: {
-        matchWeekId: matchWeek.id,
-        playerId: { in: playerIds },
-      },
-    });
+      const breakdown = playerScores.map((score) => {
+        const breakdown = buildScoreBreakdown(score.breakdown);
+        return {
+          playerId: score.playerId,
+          playerName: score.player?.name ?? "Unknown",
+          position: score.player?.position ?? "MID",
+          clubSlug: score.player?.club?.slug ?? null,
+          minutes: breakdown.minutes,
+          points: score.points,
+          components: breakdown.components,
+        };
+      });
 
-    const statsByPlayer = new Map(stats.map((stat) => [stat.playerId, stat]));
+      return NextResponse.json({
+        ok: true,
+        leagueId,
+        matchWeek,
+        team,
+        totalPoints: persistedScore.points,
+        startersCount: breakdown.length,
+        breakdown,
+        provisional: matchWeek.status !== "FINALIZED",
+      });
+    }
 
-    const breakdown = starters.map((slot) => {
-      if (!slot.player || !slot.playerId) {
-        return null;
-      }
-
-      const stat =
-        statsByPlayer.get(slot.playerId) ??
-        buildEmptyStat(slot.playerId, matchWeek.id);
-      const scored = scorePlayer(slot.player.position, stat);
-
-      return {
-        playerId: slot.player.id,
-        playerName: slot.player.name,
-        position: slot.player.position,
-        clubSlug: slot.player.club?.slug ?? null,
-        minutes: stat.minutes,
-        points: scored.points,
-        components: scored.components,
-      };
-    });
-
-    const filteredBreakdown = breakdown.filter(
-      (entry): entry is NonNullable<typeof entry> => Boolean(entry),
-    );
-
-    const totalPoints = filteredBreakdown.reduce(
-      (sum, entry) => sum + entry.points,
-      0,
-    );
+    const computed = await computeTeamMatchWeekScore(team.id, matchWeek.id);
+    const breakdown = computed.playerResults.map((entry) => ({
+      playerId: entry.playerId,
+      playerName: entry.playerName,
+      position: entry.position,
+      clubSlug: entry.clubSlug,
+      minutes: entry.breakdown.minutes,
+      points: entry.points,
+      components: entry.breakdown.components,
+    }));
 
     return NextResponse.json({
       ok: true,
       leagueId,
       matchWeek,
       team,
-      totalPoints,
-      startersCount: filteredBreakdown.length,
-      breakdown: filteredBreakdown,
+      totalPoints: computed.totalPoints,
+      startersCount: computed.startersCount,
+      breakdown,
       provisional: matchWeek.status !== "FINALIZED",
     });
   } catch (error) {

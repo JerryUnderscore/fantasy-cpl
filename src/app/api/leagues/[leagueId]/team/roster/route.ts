@@ -23,9 +23,10 @@ type RosterSlotView = {
 
 const ROSTER_SIZE = 15;
 
-const buildRosterSlots = (fantasyTeamId: string) =>
+const buildRosterSlots = (fantasyTeamId: string, leagueId: string) =>
   Array.from({ length: ROSTER_SIZE }, (_, index) => ({
     fantasyTeamId,
+    leagueId,
     slotNumber: index + 1,
     position: PlayerPosition.MID,
   }));
@@ -120,7 +121,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
     }
 
     await prisma.rosterSlot.createMany({
-      data: buildRosterSlots(team.id),
+      data: buildRosterSlots(team.id, leagueId),
       skipDuplicates: true,
     });
 
@@ -188,16 +189,24 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
     }
 
     const currentMatchWeek = await getCurrentMatchWeekForSeason(league.seasonId);
+    const finalizedMatchWeek = currentMatchWeek
+      ? null
+      : await prisma.matchWeek.findFirst({
+          where: { seasonId: league.seasonId, status: MatchWeekStatus.FINALIZED },
+          orderBy: { number: "asc" },
+          select: { number: true, status: true },
+        });
+    const lockingMatchWeek = currentMatchWeek ?? finalizedMatchWeek;
 
-    if (currentMatchWeek && currentMatchWeek.status !== MatchWeekStatus.OPEN) {
+    if (lockingMatchWeek && lockingMatchWeek.status !== MatchWeekStatus.OPEN) {
       return NextResponse.json(
-        { error: `Lineups are locked for MatchWeek ${currentMatchWeek.number}` },
+        { error: `Lineups are locked for MatchWeek ${lockingMatchWeek.number}` },
         { status: 409 },
       );
     }
 
     await prisma.rosterSlot.createMany({
-      data: buildRosterSlots(team.id),
+      data: buildRosterSlots(team.id, leagueId),
       skipDuplicates: true,
     });
 
@@ -277,6 +286,22 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       if (existingSlot && existingSlot.id !== slotId) {
         return NextResponse.json(
           { error: "Player already on your roster" },
+          { status: 409 },
+        );
+      }
+
+      const leagueConflict = await prisma.rosterSlot.findFirst({
+        where: {
+          leagueId,
+          playerId,
+          fantasyTeamId: { not: team.id },
+        },
+        select: { id: true },
+      });
+
+      if (leagueConflict) {
+        return NextResponse.json(
+          { error: "Player already rostered in this league" },
           { status: 409 },
         );
       }
@@ -412,7 +437,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       error.code === "P2002"
     ) {
       return NextResponse.json(
-        { error: "Player already on your roster" },
+        { error: "Player already rostered in this league" },
         { status: 409 },
       );
     }

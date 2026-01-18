@@ -13,50 +13,63 @@ export const getActiveSeason = () =>
 
 /**
  * "Active" MatchWeek for gameplay flows that care about the in-progress week:
- * returns the most recent MatchWeek that is OPEN or LOCKED.
- *
- * Example: MW1 FINALIZED, MW2 not created yet -> returns null.
- * Example: MW2 OPEN -> returns MW2.
- * Example: MW2 LOCKED -> returns MW2.
+ * returns the lowest-number MatchWeek that is OPEN, or the lowest LOCKED if none OPEN.
  */
-export const getActiveMatchWeekForSeason = (seasonId: string) =>
-  prisma.matchWeek.findFirst({
-    where: {
-      seasonId,
-      status: { in: [MatchWeekStatus.OPEN, MatchWeekStatus.LOCKED] },
-    },
+export const getActiveMatchWeekForSeason = async (seasonId: string) => {
+  const select = {
+    id: true,
+    number: true,
+    status: true,
+    lockAt: true,
+    finalizedAt: true,
+  } as const;
+
+  const openMatchWeek = await prisma.matchWeek.findFirst({
+    where: { seasonId, status: MatchWeekStatus.OPEN },
     orderBy: { number: "asc" },
-    select: {
-      id: true,
-      number: true,
-      status: true,
-      lockAt: true,
-      finalizedAt: true,
-    },
+    select,
   });
 
-/**
- * "Current" MatchWeek = the latest MatchWeek row that exists for the season,
- * regardless of status (OPEN / LOCKED / FINALIZED).
- *
- * Use this for lineup locking, because FINALIZED still must block edits
- * until a new MatchWeek is opened.
- *
- * Example: MW1 FINALIZED -> returns MW1.
- * Example: MW1 FINALIZED + MW2 OPEN -> returns MW2.
- */
-export const getCurrentMatchWeekForSeason = (seasonId: string) =>
-  prisma.matchWeek.findFirst({
-    where: { seasonId },
-    orderBy: { number: "desc" },
-    select: {
-      id: true,
-      number: true,
-      status: true,
-      lockAt: true,
-      finalizedAt: true,
-    },
+  if (openMatchWeek) {
+    return openMatchWeek;
+  }
+
+  return prisma.matchWeek.findFirst({
+    where: { seasonId, status: MatchWeekStatus.LOCKED },
+    orderBy: { number: "asc" },
+    select,
   });
+};
+
+/**
+ * "Current" MatchWeek = the lowest-number MatchWeek that is OPEN,
+ * or the lowest LOCKED if none OPEN.
+ */
+export const getCurrentMatchWeekForSeason = async (seasonId: string) => {
+  const select = {
+    id: true,
+    number: true,
+    status: true,
+    lockAt: true,
+    finalizedAt: true,
+  } as const;
+
+  const openMatchWeek = await prisma.matchWeek.findFirst({
+    where: { seasonId, status: MatchWeekStatus.OPEN },
+    orderBy: { number: "asc" },
+    select,
+  });
+
+  if (openMatchWeek) {
+    return openMatchWeek;
+  }
+
+  return prisma.matchWeek.findFirst({
+    where: { seasonId, status: MatchWeekStatus.LOCKED },
+    orderBy: { number: "asc" },
+    select,
+  });
+};
 
 export const getActiveMatchWeek = async () => {
   const season = await getActiveSeason();

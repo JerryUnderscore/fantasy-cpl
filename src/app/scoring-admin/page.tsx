@@ -130,6 +130,9 @@ export default async function ScoringAdminPage() {
         user.email.toLowerCase() === adminEmail)
   );
 
+  const canWrite =
+    process.env.ALLOW_DEV_STAT_WRITES === "true" || isAdmin;
+
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-16">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 rounded-3xl bg-white p-10 shadow-sm">
@@ -155,7 +158,7 @@ export default async function ScoringAdminPage() {
           matchWeeks={matchWeeks}
           seasons={seasons}
           clubs={clubs}
-          canWrite={process.env.ALLOW_DEV_STAT_WRITES === "true"}
+          canWrite={canWrite}
           isAdmin={isAdmin}
         />
       </div>

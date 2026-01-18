@@ -15,9 +15,10 @@ const getProfile = async (userId: string) => {
   });
 };
 
-const buildRosterSlots = (fantasyTeamId: string) =>
+const buildRosterSlots = (fantasyTeamId: string, leagueId: string) =>
   Array.from({ length: 15 }, (_, index) => ({
     fantasyTeamId,
+    leagueId,
     slotNumber: index + 1,
     position: PlayerPosition.MID,
   }));
@@ -144,7 +145,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     }
 
     await prisma.rosterSlot.createMany({
-      data: buildRosterSlots(onTheClockTeam.id),
+      data: buildRosterSlots(onTheClockTeam.id, leagueId),
       skipDuplicates: true,
     });
 
@@ -157,6 +158,22 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     if (!openSlot) {
       return NextResponse.json(
         { error: "Roster is full" },
+        { status: 409 },
+      );
+    }
+
+    const leagueConflict = await prisma.rosterSlot.findFirst({
+      where: {
+        leagueId,
+        playerId,
+        fantasyTeamId: { not: onTheClockTeam.id },
+      },
+      select: { id: true },
+    });
+
+    if (leagueConflict) {
+      return NextResponse.json(
+        { error: "Player already rostered in this league" },
         { status: 409 },
       );
     }
@@ -212,6 +229,13 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
+      const target = (error.meta?.target ?? []) as string[];
+      if (target.includes("RosterSlot_leagueId_playerId_key")) {
+        return NextResponse.json(
+          { error: "Player already rostered in this league" },
+          { status: 409 },
+        );
+      }
       return NextResponse.json(
         { error: "Player already drafted" },
         { status: 409 },

@@ -25,9 +25,10 @@ type SlotView = {
   } | null;
 };
 
-const buildRosterSlots = (fantasyTeamId: string) =>
+const buildRosterSlots = (fantasyTeamId: string, leagueId: string) =>
   Array.from({ length: 15 }, (_, index) => ({
     fantasyTeamId,
+    leagueId,
     slotNumber: index + 1,
     position: PlayerPosition.MID,
   }));
@@ -158,7 +159,7 @@ export default async function MyTeamRosterPage({
   }
 
   await prisma.rosterSlot.createMany({
-    data: buildRosterSlots(team.id),
+    data: buildRosterSlots(team.id, league.id),
     skipDuplicates: true,
   });
 
