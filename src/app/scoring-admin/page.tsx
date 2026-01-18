@@ -122,9 +122,13 @@ export default async function ScoringAdminPage() {
   }));
 
   const adminEmail = process.env.ADMIN_EMAIL?.toLowerCase();
-  const isAdmin =
+
+  const isAdmin = Boolean(
     profile.isAdmin ||
-    (adminEmail && user.email && user.email.toLowerCase() === adminEmail);
+      (adminEmail &&
+        user.email &&
+        user.email.toLowerCase() === adminEmail)
+  );
 
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-16">
