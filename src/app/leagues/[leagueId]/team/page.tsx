@@ -5,9 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
 import RosterClient from "./roster-client";
 import ScoringCard from "./scoring-card";
+import MatchWeekSelector from "./matchweek-selector";
 import { PlayerPosition } from "@prisma/client";
 import { getActiveMatchWeekForSeason } from "@/lib/matchweek";
-import MatchWeekSelector from "./matchweek-selector";
 
 export const runtime = "nodejs";
 
@@ -25,23 +25,30 @@ type SlotView = {
   } | null;
 };
 
+const ROSTER_SIZE = 15;
+
 const buildRosterSlots = (fantasyTeamId: string, leagueId: string) =>
-  Array.from({ length: 15 }, (_, index) => ({
+  Array.from({ length: ROSTER_SIZE }, (_, index) => ({
     fantasyTeamId,
     leagueId,
     slotNumber: index + 1,
     position: PlayerPosition.MID,
   }));
 
+type SearchParamsShape = { matchWeek?: string };
+
 export default async function MyTeamRosterPage({
   params,
   searchParams,
 }: {
   params: TeamParams | Promise<TeamParams>;
-  searchParams?: { matchWeek?: string };
+  searchParams?: SearchParamsShape | Promise<SearchParamsShape>;
 }) {
   const { leagueId } = await params;
   if (!leagueId) notFound();
+
+  // Next 16 sometimes provides searchParams as a Promise.
+  const sp = searchParams ? await searchParams : undefined;
 
   const supabase = await createClient();
   const {
@@ -72,6 +79,7 @@ export default async function MyTeamRosterPage({
 
   const profile = await prisma.profile.findUnique({
     where: { id: user.id },
+    select: { id: true },
   });
 
   if (!profile) {
@@ -97,12 +105,14 @@ export default async function MyTeamRosterPage({
 
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { id: true, name: true, season: true },
+    select: {
+      id: true,
+      name: true,
+      season: { select: { id: true, name: true, year: true } },
+    },
   });
 
-  if (!league) {
-    notFound();
-  }
+  if (!league) notFound();
 
   const membership = await prisma.leagueMember.findUnique({
     where: {
@@ -158,6 +168,7 @@ export default async function MyTeamRosterPage({
     );
   }
 
+  // Ensure roster slots exist
   await prisma.rosterSlot.createMany({
     data: buildRosterSlots(team.id, league.id),
     skipDuplicates: true,
@@ -195,23 +206,26 @@ export default async function MyTeamRosterPage({
       : null,
   }));
 
-  const activeMatchWeek = await getActiveMatchWeekForSeason(league.season.id);
   const matchWeeks = await prisma.matchWeek.findMany({
     where: { seasonId: league.season.id },
     orderBy: { number: "asc" },
     select: { id: true, number: true, status: true },
   });
 
-  const requestedMatchWeek = Number(searchParams?.matchWeek);
+  const activeMatchWeek = await getActiveMatchWeekForSeason(league.season.id);
+
+  const requestedMatchWeek = Number(sp?.matchWeek);
   const requestedMatchWeekNumber =
     Number.isInteger(requestedMatchWeek) && requestedMatchWeek > 0
       ? requestedMatchWeek
       : null;
+
   const selectedMatchWeek =
     matchWeeks.find((week) => week.number === requestedMatchWeekNumber) ??
     activeMatchWeek ??
     matchWeeks[0] ??
     null;
+
   const selectedMatchWeekNumber = selectedMatchWeek?.number ?? 1;
 
   return (
@@ -234,8 +248,7 @@ export default async function MyTeamRosterPage({
           <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm font-semibold text-zinc-900">
-                MatchWeek {selectedMatchWeek.number} ·{" "}
-                {selectedMatchWeek.status}
+                MatchWeek {selectedMatchWeek.number} · {selectedMatchWeek.status}
               </p>
               <MatchWeekSelector
                 matchWeeks={matchWeeks}

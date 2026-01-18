@@ -37,17 +37,19 @@ const getProfile = async (userId: string) =>
     select: { id: true },
   });
 
-const serializeSlots = (slots: Array<{
-  id: string;
-  slotNumber: number;
-  isStarter: boolean;
-  player: {
+const serializeSlots = (
+  slots: Array<{
     id: string;
-    name: string;
-    position: string;
-    club: { shortName: string | null; slug: string } | null;
-  } | null;
-}>): RosterSlotView[] =>
+    slotNumber: number;
+    isStarter: boolean;
+    player: {
+      id: string;
+      name: string;
+      position: string;
+      club: { shortName: string | null; slug: string } | null;
+    } | null;
+  }>,
+): RosterSlotView[] =>
   slots.map((slot) => ({
     id: slot.id,
     slotNumber: slot.slotNumber,
@@ -106,6 +108,15 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const league = await prisma.league.findUnique({
+      where: { id: leagueId },
+      select: { id: true, seasonId: true },
+    });
+
+    if (!league) {
+      return NextResponse.json({ error: "League not found" }, { status: 404 });
+    }
+
     const team = await prisma.fantasyTeam.findUnique({
       where: {
         leagueId_profileId: {
@@ -125,11 +136,29 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
       skipDuplicates: true,
     });
 
+    const currentMatchWeek = await getCurrentMatchWeekForSeason(league.seasonId);
+    const finalizedMatchWeek = currentMatchWeek
+      ? null
+      : await prisma.matchWeek.findFirst({
+          where: { seasonId: league.seasonId, status: MatchWeekStatus.FINALIZED },
+          orderBy: { number: "asc" },
+          select: { number: true, status: true },
+        });
+    const lockingMatchWeek = currentMatchWeek ?? finalizedMatchWeek;
+    const lockInfo = lockingMatchWeek
+      ? {
+          isLocked: lockingMatchWeek.status !== MatchWeekStatus.OPEN,
+          matchWeekNumber: lockingMatchWeek.number,
+          status: lockingMatchWeek.status,
+        }
+      : null;
+
     const slots = await loadRosterSlots(team.id);
 
     return NextResponse.json({
       team,
       slots: serializeSlots(slots),
+      lockInfo,
     });
   } catch (error) {
     if ((error as { status?: number }).status === 401) {
@@ -167,12 +196,20 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
     const league = await prisma.league.findUnique({
       where: { id: leagueId },
-      select: { id: true, seasonId: true },
+      select: { id: true, seasonId: true, waiverPeriodHours: true },
     });
 
     if (!league) {
       return NextResponse.json({ error: "League not found" }, { status: 404 });
     }
+
+    // Default waiver window (hours) if unset/null/invalid
+    const waiverHours =
+      typeof league.waiverPeriodHours === "number" &&
+      Number.isFinite(league.waiverPeriodHours) &&
+      league.waiverPeriodHours >= 0
+        ? league.waiverPeriodHours
+        : 24;
 
     const team = await prisma.fantasyTeam.findUnique({
       where: {
@@ -188,22 +225,11 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
-    const currentMatchWeek = await getCurrentMatchWeekForSeason(league.seasonId);
-    const finalizedMatchWeek = currentMatchWeek
-      ? null
-      : await prisma.matchWeek.findFirst({
-          where: { seasonId: league.seasonId, status: MatchWeekStatus.FINALIZED },
-          orderBy: { number: "asc" },
-          select: { number: true, status: true },
-        });
-    const lockingMatchWeek = currentMatchWeek ?? finalizedMatchWeek;
-
-    if (lockingMatchWeek && lockingMatchWeek.status !== MatchWeekStatus.OPEN) {
-      return NextResponse.json(
-        { error: `Lineups are locked for MatchWeek ${lockingMatchWeek.number}` },
-        { status: 409 },
-      );
-    }
+    // Current matchweek semantics should already be:
+    // lowest-number OPEN, else lowest-number LOCKED, else null.
+    const lockingMatchWeek = await getCurrentMatchWeekForSeason(league.seasonId);
+    const isLocked =
+      lockingMatchWeek != null && lockingMatchWeek.status !== MatchWeekStatus.OPEN;
 
     await prisma.rosterSlot.createMany({
       data: buildRosterSlots(team.id, leagueId),
@@ -217,10 +243,19 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "Action is required" }, { status: 400 });
     }
 
+    // During LOCKED/FINALIZED: allow only "clear" (drops).
+    if (isLocked && action !== "clear") {
+      return NextResponse.json(
+        {
+          error: `Lineups are locked for MatchWeek ${lockingMatchWeek?.number ?? "?"}`,
+        },
+        { status: 409 },
+      );
+    }
+
     if (action === "assign") {
       const slotId = typeof body?.slotId === "string" ? body.slotId : null;
-      const playerId =
-        typeof body?.playerId === "string" ? body.playerId : null;
+      const playerId = typeof body?.playerId === "string" ? body.playerId : null;
 
       if (!slotId || !playerId) {
         return NextResponse.json(
@@ -244,10 +279,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       });
 
       if (!player || player.seasonId !== league.seasonId) {
-        return NextResponse.json(
-          { error: "Player not available" },
-          { status: 400 },
-        );
+        return NextResponse.json({ error: "Player not available" }, { status: 400 });
       }
 
       const draft = await prisma.draft.findUnique({
@@ -265,10 +297,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       });
 
       if (!draftPick) {
-        return NextResponse.json(
-          { error: "Player not drafted" },
-          { status: 400 },
-        );
+        return NextResponse.json({ error: "Player not drafted" }, { status: 400 });
       }
 
       if (draftPick.fantasyTeamId !== team.id) {
@@ -278,6 +307,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
         );
       }
 
+      // Same-team duplication check (should be redundant if DB constraints exist, but good UX)
       const existingSlot = await prisma.rosterSlot.findFirst({
         where: { fantasyTeamId: team.id, playerId },
         select: { id: true },
@@ -290,6 +320,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
         );
       }
 
+      // League-level uniqueness enforcement (one rostered instance per league)
       const leagueConflict = await prisma.rosterSlot.findFirst({
         where: {
           leagueId,
@@ -314,21 +345,31 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       const slotId = typeof body?.slotId === "string" ? body.slotId : null;
 
       if (!slotId) {
-        return NextResponse.json(
-          { error: "slotId is required" },
-          { status: 400 },
-        );
+        return NextResponse.json({ error: "slotId is required" }, { status: 400 });
       }
 
       const slot = await prisma.rosterSlot.findFirst({
         where: { id: slotId, fantasyTeamId: team.id },
-        select: { id: true, isStarter: true },
+        select: { id: true, isStarter: true, playerId: true },
       });
 
       if (!slot) {
         return NextResponse.json({ error: "Slot not found" }, { status: 404 });
       }
 
+      // Prevent starter drops during LOCKED/FINALIZED
+      if (slot.isStarter && isLocked) {
+        return NextResponse.json(
+          {
+            error: `Cannot drop a starter while MatchWeek ${
+              lockingMatchWeek?.number ?? "?"
+            } is locked`,
+          },
+          { status: 409 },
+        );
+      }
+
+      // Even when OPEN, you must bench first (no dropping starters directly)
       if (slot.isStarter) {
         return NextResponse.json(
           { error: "Cannot drop a starter. Bench them first." },
@@ -336,14 +377,36 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
         );
       }
 
-      await prisma.rosterSlot.update({
-        where: { id: slotId },
-        data: { playerId: null, isStarter: false },
+      const waiverAvailableAt = slot.playerId
+        ? new Date(Date.now() + waiverHours * 60 * 60 * 1000)
+        : null;
+
+      await prisma.$transaction(async (tx) => {
+        await tx.rosterSlot.update({
+          where: { id: slotId },
+          data: { playerId: null, isStarter: false },
+        });
+
+        if (slot.playerId && waiverAvailableAt) {
+          await tx.leaguePlayerWaiver.upsert({
+            where: {
+              leagueId_playerId: {
+                leagueId,
+                playerId: slot.playerId,
+              },
+            },
+            update: { waiverAvailableAt },
+            create: {
+              leagueId,
+              playerId: slot.playerId,
+              waiverAvailableAt,
+            },
+          });
+        }
       });
     } else if (action === "starter") {
       const slotId = typeof body?.slotId === "string" ? body.slotId : null;
-      const isStarter =
-        typeof body?.isStarter === "boolean" ? body.isStarter : null;
+      const isStarter = typeof body?.isStarter === "boolean" ? body.isStarter : null;
 
       if (!slotId || isStarter === null) {
         return NextResponse.json(
@@ -362,10 +425,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       }
 
       if (isStarter && !slot.playerId) {
-        return NextResponse.json(
-          { error: "Slot has no player" },
-          { status: 400 },
-        );
+        return NextResponse.json({ error: "Slot has no player" }, { status: 400 });
       }
 
       await prisma.rosterSlot.update({
@@ -385,10 +445,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       }
 
       if (slotId === targetSlotId) {
-        return NextResponse.json(
-          { error: "Slots must be different" },
-          { status: 400 },
-        );
+        return NextResponse.json({ error: "Slots must be different" }, { status: 400 });
       }
 
       const slots = await prisma.rosterSlot.findMany({
@@ -401,9 +458,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       }
 
       const [slotA, slotB] =
-        slots[0].id === slotId
-          ? [slots[0], slots[1]]
-          : [slots[1], slots[0]];
+        slots[0].id === slotId ? [slots[0], slots[1]] : [slots[1], slots[0]];
 
       await prisma.$transaction(async (tx) => {
         await tx.rosterSlot.update({
