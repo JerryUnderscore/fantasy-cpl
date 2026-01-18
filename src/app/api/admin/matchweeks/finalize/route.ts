@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdminUser } from "@/lib/admin";
 import { persistTeamMatchWeekScore } from "@/lib/scoring-persist";
-import { ScoreStatus } from "@prisma/client";
+import { finalizeLeagueMatchupsForMatchWeek, recomputeLeagueTeamRecords } from "@/lib/h2h";
+import { ScoreStatus, StandingsMode } from "@prisma/client";
 
 export const runtime = "nodejs";
 
@@ -60,6 +61,32 @@ export async function POST(request: NextRequest) {
     if (errors.length) {
       return NextResponse.json(
         { error: "Failed to compute all team scores", errors },
+        { status: 500 },
+      );
+    }
+
+    const h2hLeagues = await prisma.league.findMany({
+      where: { seasonId: existing.seasonId, standingsMode: StandingsMode.HEAD_TO_HEAD },
+      select: { id: true },
+    });
+
+    const h2hErrors: Array<{ leagueId: string; error: string }> = [];
+
+    for (const league of h2hLeagues) {
+      try {
+        await finalizeLeagueMatchupsForMatchWeek(league.id, matchWeekId);
+        await recomputeLeagueTeamRecords(league.id);
+      } catch (error) {
+        h2hErrors.push({
+          leagueId: league.id,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+
+    if (h2hErrors.length) {
+      return NextResponse.json(
+        { error: "Failed to update H2H matchups", errors: h2hErrors },
         { status: 500 },
       );
     }

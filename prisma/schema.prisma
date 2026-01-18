@@ -84,6 +84,7 @@ model MatchWeek {
   playerStats      PlayerMatchStat[]
   teamScores       TeamMatchWeekScore[]
   teamPlayerScores TeamMatchWeekPlayerScore[]
+  leagueMatchups   LeagueMatchup[]
 
   @@unique([seasonId, number])
   @@index([seasonId])
@@ -134,19 +135,22 @@ model PlayerMatchStat {
 }
 
 model League {
-  id          String         @id @default(cuid())
-  name        String
-  inviteCode  String         @unique
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  createdById String         @db.Uuid
-  seasonId    String
-  drafts      Draft[]
-  teams       FantasyTeam[]
-  createdBy   Profile        @relation(fields: [createdById], references: [id])
-  season      Season         @relation(fields: [seasonId], references: [id])
-  members     LeagueMember[]
-  rosterSlots RosterSlot[]
+  id            String             @id @default(cuid())
+  name          String
+  inviteCode    String             @unique
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  createdById   String             @db.Uuid
+  seasonId      String
+  standingsMode StandingsMode      @default(TOTAL_POINTS)
+  drafts        Draft[]
+  matchups      LeagueMatchup[]
+  teamRecords   LeagueTeamRecord[]
+  teams         FantasyTeam[]
+  createdBy     Profile            @relation(fields: [createdById], references: [id])
+  season        Season             @relation(fields: [seasonId], references: [id])
+  members       LeagueMember[]
+  rosterSlots   RosterSlot[]
 
   @@index([createdById])
   @@index([seasonId])
@@ -177,6 +181,10 @@ model FantasyTeam {
   profile               Profile                    @relation(fields: [profileId], references: [id])
   matchWeekScores       TeamMatchWeekScore[]
   matchWeekPlayerScores TeamMatchWeekPlayerScore[]
+  homeMatchups          LeagueMatchup[]            @relation("LeagueMatchupHomeTeam")
+  awayMatchups          LeagueMatchup[]            @relation("LeagueMatchupAwayTeam")
+  wonMatchups           LeagueMatchup[]            @relation("LeagueMatchupWinnerTeam")
+  teamRecords           LeagueTeamRecord[]
   rosterSlots           RosterSlot[]
 
   @@unique([leagueId, profileId])
@@ -240,6 +248,52 @@ model TeamMatchWeekPlayerScore {
   @@index([matchWeekId])
   @@index([fantasyTeamId])
   @@index([playerId])
+}
+
+model LeagueMatchup {
+  id           String          @id @default(cuid())
+  leagueId     String
+  matchWeekId  String
+  homeTeamId   String
+  awayTeamId   String
+  homePoints   Int             @default(0)
+  awayPoints   Int             @default(0)
+  resultStatus H2HResultStatus @default(PENDING)
+  winnerTeamId String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  league       League          @relation(fields: [leagueId], references: [id])
+  matchWeek    MatchWeek       @relation(fields: [matchWeekId], references: [id])
+  homeTeam     FantasyTeam     @relation("LeagueMatchupHomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam     FantasyTeam     @relation("LeagueMatchupAwayTeam", fields: [awayTeamId], references: [id])
+  winnerTeam   FantasyTeam?    @relation("LeagueMatchupWinnerTeam", fields: [winnerTeamId], references: [id])
+
+  @@unique([leagueId, matchWeekId, homeTeamId])
+  @@unique([leagueId, matchWeekId, awayTeamId])
+  @@index([leagueId, matchWeekId])
+  @@index([homeTeamId])
+  @@index([awayTeamId])
+}
+
+model LeagueTeamRecord {
+  id              String      @id @default(cuid())
+  leagueId        String
+  fantasyTeamId   String
+  wins            Int         @default(0)
+  draws           Int         @default(0)
+  losses          Int         @default(0)
+  points          Int         @default(0)
+  pointsFor       Int         @default(0)
+  pointsAgainst   Int         @default(0)
+  playedFinalized Int         @default(0)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  league          League      @relation(fields: [leagueId], references: [id])
+  fantasyTeam     FantasyTeam @relation(fields: [fantasyTeamId], references: [id])
+
+  @@unique([leagueId, fantasyTeamId])
+  @@index([leagueId])
+  @@index([fantasyTeamId])
 }
 
 model Draft {
@@ -320,4 +374,14 @@ enum MatchStatus {
   POSTPONED
   COMPLETED
   CANCELED
+}
+
+enum StandingsMode {
+  TOTAL_POINTS
+  HEAD_TO_HEAD
+}
+
+enum H2HResultStatus {
+  PENDING
+  FINAL
 }
