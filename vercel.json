@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/admin/waivers/process",
-      "schedule": "*/5 * * * *",
+      "schedule": "0 9 * * *",
       "headers": {
         "x-cron-secret": "${CRON_SECRET}"
       }
