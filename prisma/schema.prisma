@@ -30,6 +30,7 @@ model Season {
   updatedAt  DateTime    @updatedAt
   drafts     Draft[]
   leagues    League[]
+  matches    Match[]
   matchWeeks MatchWeek[]
   players    Player[]
 }
@@ -41,6 +42,8 @@ model Club {
   slug      String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  awayMatches Match[] @relation("AwayClubMatches")
+  homeMatches Match[] @relation("HomeClubMatches")
   players   Player[]
 }
 
@@ -75,12 +78,37 @@ model MatchWeek {
   status      MatchWeekStatus   @default(OPEN)
   lockAt      DateTime?
   finalizedAt DateTime?
+  matches     Match[]
   season      Season            @relation(fields: [seasonId], references: [id])
   playerStats PlayerMatchStat[]
 
   @@unique([seasonId, number])
   @@index([seasonId])
   @@index([seasonId, status])
+}
+
+model Match {
+  id          String      @id @default(cuid())
+  seasonId    String
+  externalId  String
+  kickoffAt   DateTime
+  homeClubId  String
+  awayClubId  String
+  status      MatchStatus @default(SCHEDULED)
+  matchWeekId String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  season      Season      @relation(fields: [seasonId], references: [id])
+  matchWeek   MatchWeek?  @relation(fields: [matchWeekId], references: [id])
+  homeClub    Club        @relation("HomeClubMatches", fields: [homeClubId], references: [id])
+  awayClub    Club        @relation("AwayClubMatches", fields: [awayClubId], references: [id])
+
+  @@unique([seasonId, externalId])
+  @@index([seasonId, kickoffAt])
+  @@index([seasonId, kickoffAt, homeClubId, awayClubId])
+  @@index([matchWeekId])
+  @@index([homeClubId])
+  @@index([awayClubId])
 }
 
 model PlayerMatchStat {
@@ -228,4 +256,11 @@ enum MatchWeekStatus {
   OPEN
   LOCKED
   FINALIZED
+}
+
+enum MatchStatus {
+  SCHEDULED
+  POSTPONED
+  COMPLETED
+  CANCELED
 }

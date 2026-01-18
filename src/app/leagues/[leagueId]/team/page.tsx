@@ -7,6 +7,7 @@ import RosterClient from "./roster-client";
 import ScoringCard from "./scoring-card";
 import { PlayerPosition } from "@prisma/client";
 import { getActiveMatchWeekForSeason } from "@/lib/matchweek";
+import MatchWeekSelector from "./matchweek-selector";
 
 export const runtime = "nodejs";
 
@@ -33,8 +34,10 @@ const buildRosterSlots = (fantasyTeamId: string) =>
 
 export default async function MyTeamRosterPage({
   params,
+  searchParams,
 }: {
   params: TeamParams | Promise<TeamParams>;
+  searchParams?: { matchWeek?: string };
 }) {
   const { leagueId } = await params;
   if (!leagueId) notFound();
@@ -192,6 +195,23 @@ export default async function MyTeamRosterPage({
   }));
 
   const activeMatchWeek = await getActiveMatchWeekForSeason(league.season.id);
+  const matchWeeks = await prisma.matchWeek.findMany({
+    where: { seasonId: league.season.id },
+    orderBy: { number: "asc" },
+    select: { id: true, number: true, status: true },
+  });
+
+  const requestedMatchWeek = Number(searchParams?.matchWeek);
+  const requestedMatchWeekNumber =
+    Number.isInteger(requestedMatchWeek) && requestedMatchWeek > 0
+      ? requestedMatchWeek
+      : null;
+  const selectedMatchWeek =
+    matchWeeks.find((week) => week.number === requestedMatchWeekNumber) ??
+    activeMatchWeek ??
+    matchWeeks[0] ??
+    null;
+  const selectedMatchWeekNumber = selectedMatchWeek?.number ?? 1;
 
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-16">
@@ -209,19 +229,33 @@ export default async function MyTeamRosterPage({
           </p>
         </div>
 
-        {activeMatchWeek ? (
+        {selectedMatchWeek ? (
           <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-            <p className="text-sm font-semibold text-zinc-900">
-              MatchWeek {activeMatchWeek.number} · {activeMatchWeek.status}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-zinc-900">
+                MatchWeek {selectedMatchWeek.number} ·{" "}
+                {selectedMatchWeek.status}
+              </p>
+              <MatchWeekSelector
+                matchWeeks={matchWeeks}
+                selectedNumber={selectedMatchWeekNumber}
+                activeNumber={activeMatchWeek?.number ?? null}
+              />
+            </div>
+            <p className="text-xs text-zinc-500">
+              Lineup edits lock based on the active MatchWeek.
             </p>
-            {activeMatchWeek.status !== "OPEN" ? (
+            {selectedMatchWeek.status !== "OPEN" ? (
               <p className="text-xs text-zinc-600">Lineups locked.</p>
             ) : null}
           </div>
         ) : null}
 
         <RosterClient leagueId={league.id} initialSlots={slots} />
-        <ScoringCard leagueId={league.id} matchWeekNumber={1} />
+        <ScoringCard
+          leagueId={league.id}
+          matchWeekNumber={selectedMatchWeekNumber}
+        />
       </div>
     </div>
   );

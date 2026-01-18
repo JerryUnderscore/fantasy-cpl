@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import { MatchWeekStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
 import { PlayerPosition } from "@prisma/client";
@@ -187,14 +187,14 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
-const currentMatchWeek = await getCurrentMatchWeekForSeason(league.seasonId);
+    const currentMatchWeek = await getCurrentMatchWeekForSeason(league.seasonId);
 
-if (currentMatchWeek && currentMatchWeek.status !== "OPEN") {
-  return NextResponse.json(
-    { error: `Lineups are locked for MatchWeek ${currentMatchWeek.number}` },
-    { status: 409 },
-  );
-}
+    if (currentMatchWeek && currentMatchWeek.status !== MatchWeekStatus.OPEN) {
+      return NextResponse.json(
+        { error: `Lineups are locked for MatchWeek ${currentMatchWeek.number}` },
+        { status: 409 },
+      );
+    }
 
     await prisma.rosterSlot.createMany({
       data: buildRosterSlots(team.id),

@@ -104,12 +104,27 @@ export default async function ScoringAdminPage() {
     select: { id: true, number: true, name: true, status: true },
   });
 
+  const seasons = await prisma.season.findMany({
+    orderBy: { year: "desc" },
+    select: { id: true, year: true, name: true, isActive: true },
+  });
+
+  const clubs = await prisma.club.findMany({
+    orderBy: { name: "asc" },
+    select: { slug: true, name: true, shortName: true },
+  });
+
   const playerOptions = players.map((player) => ({
     id: player.id,
     name: player.name,
     position: player.position,
     clubLabel: player.club?.shortName ?? player.club?.slug ?? "",
   }));
+
+  const adminEmail = process.env.ADMIN_EMAIL?.toLowerCase();
+  const isAdmin =
+    profile.isAdmin ||
+    (adminEmail && user.email && user.email.toLowerCase() === adminEmail);
 
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-16">
@@ -134,7 +149,10 @@ export default async function ScoringAdminPage() {
           postUrl="/api/scoring/stats"
           players={playerOptions}
           matchWeeks={matchWeeks}
+          seasons={seasons}
+          clubs={clubs}
           canWrite={process.env.ALLOW_DEV_STAT_WRITES === "true"}
+          isAdmin={isAdmin}
         />
       </div>
     </div>

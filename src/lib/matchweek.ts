@@ -25,7 +25,7 @@ export const getActiveMatchWeekForSeason = (seasonId: string) =>
       seasonId,
       status: { in: [MatchWeekStatus.OPEN, MatchWeekStatus.LOCKED] },
     },
-    orderBy: { number: "desc" },
+    orderBy: { number: "asc" },
     select: {
       id: true,
       number: true,
@@ -68,4 +68,45 @@ export const getCurrentMatchWeek = async () => {
   const season = await getActiveSeason();
   if (!season) return null;
   return getCurrentMatchWeekForSeason(season.id);
+};
+
+export const recalculateMatchWeekLockAt = async (matchWeekIds: string[]) => {
+  const uniqueIds = Array.from(new Set(matchWeekIds)).filter(Boolean);
+  if (uniqueIds.length === 0) {
+    return { updatedCount: 0 };
+  }
+
+  const matchWeeks = await prisma.matchWeek.findMany({
+    where: { id: { in: uniqueIds } },
+    select: { id: true, status: true },
+  });
+
+  const eligibleMatchWeekIds = matchWeeks
+    .filter((matchWeek) => matchWeek.status !== MatchWeekStatus.FINALIZED)
+    .map((matchWeek) => matchWeek.id);
+
+  if (eligibleMatchWeekIds.length === 0) {
+    return { updatedCount: 0 };
+  }
+
+  const earliestKickoffs = await prisma.match.groupBy({
+    by: ["matchWeekId"],
+    where: { matchWeekId: { in: eligibleMatchWeekIds } },
+    _min: { kickoffAt: true },
+  });
+
+  const kickoffMap = new Map(
+    earliestKickoffs.map((row) => [row.matchWeekId, row._min.kickoffAt]),
+  );
+
+  await prisma.$transaction(
+    eligibleMatchWeekIds.map((matchWeekId) =>
+      prisma.matchWeek.update({
+        where: { id: matchWeekId },
+        data: { lockAt: kickoffMap.get(matchWeekId) ?? null },
+      }),
+    ),
+  );
+
+  return { updatedCount: eligibleMatchWeekIds.length };
 };
