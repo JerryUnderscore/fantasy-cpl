@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
+import { normalizeLeagueWaiverTimes } from "@/lib/waivers";
 
 export const runtime = "nodejs";
 
@@ -50,6 +51,8 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
     if (!team) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
+
+    await normalizeLeagueWaiverTimes(prisma, leagueId, new Date());
 
     const pendingClaims = await prisma.leagueWaiverClaim.findMany({
       where: { leagueId, fantasyTeamId: team.id, status: "PENDING" },

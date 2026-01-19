@@ -243,7 +243,11 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       updates.standingsMode = standingsMode.value as StandingsMode;
     }
 
-    const draftMode = parseEnumField(body.draftMode, ["ASYNC", "TIMED"]);
+    const draftMode = parseEnumField(body.draftMode, [
+      "ASYNC",
+      "TIMED",
+      "MANUAL",
+    ]);
     if (draftMode.hasValue) {
       if (!draftMode.value) {
         return NextResponse.json(

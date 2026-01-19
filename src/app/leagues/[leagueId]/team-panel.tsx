@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 
 type Props = {
@@ -14,22 +15,15 @@ export default function TeamPanel({ leagueId, initialTeamName }: Props) {
 
   const hasTeam = useMemo(() => !!initialTeamName, [initialTeamName]);
 
-  const submit = (mode: "create" | "rename") => {
+  const submit = () => {
     setError(null);
 
     startTransition(async () => {
-      const res =
-        mode === "create"
-          ? await fetch(`/api/leagues/${leagueId}/team`, {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ name }),
-            })
-          : await fetch(`/api/leagues/${leagueId}/team/name`, {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ name }),
-            });
+      const res = await fetch(`/api/leagues/${leagueId}/team`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
 
       const data = await res.json().catch(() => null);
 
@@ -62,7 +56,7 @@ export default function TeamPanel({ leagueId, initialTeamName }: Props) {
                 className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400"
               />
               <button
-                onClick={() => submit("create")}
+                onClick={submit}
                 disabled={isPending}
                 className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
               >
@@ -73,25 +67,12 @@ export default function TeamPanel({ leagueId, initialTeamName }: Props) {
         ) : (
           <>
             <p className="text-sm text-zinc-600">{initialTeamName}</p>
-
-            <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Rename your team
-            </p>
-
-            <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400"
-              />
-              <button
-                onClick={() => submit("rename")}
-                disabled={isPending}
-                className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-              >
-                {isPending ? "Saving…" : "Save"}
-              </button>
-            </div>
+            <Link
+              href={`/leagues/${leagueId}/team`}
+              className="text-xs font-semibold uppercase tracking-wide text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline"
+            >
+              View roster
+            </Link>
           </>
         )}
 

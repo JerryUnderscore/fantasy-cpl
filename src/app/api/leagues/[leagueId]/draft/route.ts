@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
+import {
+  computeCurrentPick,
+  computePickDeadline,
+  runDraftCatchUp,
+} from "@/lib/draft";
 
 export const runtime = "nodejs";
 
@@ -53,11 +58,19 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "No active season" }, { status: 400 });
     }
 
+    await runDraftCatchUp({ leagueId });
+
     const draft = await prisma.draft.findUnique({
       where: {
         leagueId_seasonId: { leagueId, seasonId: league.season.id },
       },
-      select: { id: true, status: true, rounds: true },
+      select: {
+        id: true,
+        status: true,
+        rounds: true,
+        createdAt: true,
+        currentPickStartedAt: true,
+      },
     });
 
     if (!draft) {
@@ -94,43 +107,29 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
 
     const teamCount = teams.length;
     const totalPicks = teamCount ? draft.rounds * teamCount : 0;
-    const pickNumber = picks.length + 1;
     let computedStatus = draft.status;
-    let onTheClock:
-      | {
-          fantasyTeamId: string;
-          name: string;
-          pickNumber: number;
-          round: number;
-          slotInRound: number;
-        }
-      | null = null;
 
-    if (teamCount && pickNumber > totalPicks) {
+    if (teamCount && picks.length >= totalPicks && totalPicks > 0) {
       computedStatus = "COMPLETE";
-    } else if (teamCount && draft.status === "LIVE") {
-      const round = Math.ceil(pickNumber / teamCount);
-      const slotInRound = ((pickNumber - 1) % teamCount) + 1;
-      const teamIndex =
-        round % 2 === 1 ? slotInRound - 1 : teamCount - slotInRound;
-      const team = teams[teamIndex];
-
-      if (team) {
-        onTheClock = {
-          fantasyTeamId: team.id,
-          name: team.name,
-          pickNumber,
-          round,
-          slotInRound,
-        };
-      }
     }
+
+    const onTheClock = computeCurrentPick(teams, picks, draft.rounds);
+    const deadline = onTheClock
+      ? computePickDeadline({
+          draftStatus: computedStatus,
+          draftMode: league.draftMode,
+          draftPickSeconds: league.draftPickSeconds,
+          currentPickStartedAt: draft.currentPickStartedAt,
+          draftCreatedAt: draft.createdAt,
+        })
+      : null;
 
     return NextResponse.json({
       draft: {
         id: draft.id,
         status: computedStatus,
         rounds: draft.rounds,
+        currentPickStartedAt: draft.currentPickStartedAt,
       },
       settings: {
         draftMode: league.draftMode,
@@ -151,6 +150,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
         },
       })),
       onTheClock,
+      deadline: deadline ? deadline.toISOString() : null,
     });
   } catch (error) {
     if ((error as { status?: number }).status === 401) {

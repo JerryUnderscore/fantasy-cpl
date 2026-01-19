@@ -124,3 +124,37 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
+
+export async function DELETE(_: NextRequest, ctx: Ctx) {
+  try {
+    await requireAdminUser();
+
+    const { matchId } = await ctx.params;
+
+    const existingMatch = await prisma.match.findUnique({
+      where: { id: matchId },
+      select: { id: true, matchWeekId: true },
+    });
+
+    if (!existingMatch) {
+      return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    }
+
+    await prisma.match.delete({ where: { id: existingMatch.id } });
+
+    if (existingMatch.matchWeekId) {
+      await recalculateMatchWeekLockAt([existingMatch.matchWeekId]);
+    }
+
+    return NextResponse.json({ deleted: true });
+  } catch (error) {
+    if ((error as { status?: number }).status === 401) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if ((error as { status?: number }).status === 403) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    console.error("DELETE /api/admin/matches/[matchId] error", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}

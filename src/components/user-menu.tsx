@@ -1,0 +1,156 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+
+type UserMenuProps = {
+  isAuthenticated: boolean;
+  displayName: string;
+  avatarUrl: string | null;
+  hasOwnedLeagues: boolean;
+  isAdmin: boolean;
+};
+
+export default function UserMenu({
+  isAuthenticated,
+  displayName,
+  avatarUrl,
+  hasOwnedLeagues,
+  isAdmin,
+}: UserMenuProps) {
+  const router = useRouter();
+  const supabase = createClient();
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, []);
+
+  const handleSignIn = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "discord",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.refresh();
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <button
+        type="button"
+        onClick={handleSignIn}
+        className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-black/80"
+      >
+        Sign in
+      </button>
+    );
+  }
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex items-center gap-3 rounded-full border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-700 shadow-sm transition hover:border-zinc-300"
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={avatarUrl}
+            alt={displayName}
+            className="h-8 w-8 rounded-full border border-zinc-200 object-cover"
+          />
+        ) : (
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-900 text-xs font-semibold text-white">
+            {displayName.slice(0, 2).toUpperCase()}
+          </span>
+        )}
+        <span className="hidden max-w-[140px] truncate sm:block">
+          {displayName}
+        </span>
+      </button>
+
+      {open ? (
+        <div
+          className="absolute right-0 z-20 mt-3 w-56 rounded-2xl border border-zinc-200 bg-white p-2 shadow-lg"
+          role="menu"
+        >
+          <div className="px-3 pb-2 pt-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            Signed in
+          </div>
+          <Link
+            href="/account"
+            className="block rounded-xl px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
+            role="menuitem"
+          >
+            Account settings
+          </Link>
+          <Link
+            href="/leagues"
+            className="block rounded-xl px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
+            role="menuitem"
+          >
+            My leagues
+          </Link>
+          {hasOwnedLeagues ? (
+            <Link
+              href="/settings/leagues"
+              className="block rounded-xl px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
+              role="menuitem"
+            >
+              League settings
+            </Link>
+          ) : null}
+          {isAdmin ? (
+            <Link
+              href="/admin"
+              className="block rounded-xl px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
+              role="menuitem"
+            >
+              Admin
+            </Link>
+          ) : null}
+          <div className="my-2 h-px bg-zinc-200" />
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="flex w-full items-center rounded-xl px-3 py-2 text-sm text-zinc-700 transition hover:bg-zinc-100"
+            role="menuitem"
+          >
+            Sign out
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}

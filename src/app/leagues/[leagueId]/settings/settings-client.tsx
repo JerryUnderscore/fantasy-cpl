@@ -6,7 +6,7 @@ type Settings = {
   joinMode: "OPEN" | "INVITE_ONLY";
   maxTeams: number;
   standingsMode: "TOTAL_POINTS" | "HEAD_TO_HEAD";
-  draftMode: "ASYNC" | "TIMED";
+  draftMode: "ASYNC" | "TIMED" | "MANUAL";
   draftPickSeconds: number | null;
 };
 
@@ -154,7 +154,10 @@ export default function SettingsClient({ leagueId, leagueName }: Props) {
             <select
               value={form.joinMode}
               onChange={(event) =>
-                updateField("joinMode", event.target.value as SettingsForm["joinMode"])
+                updateField(
+                  "joinMode",
+                  event.target.value as SettingsForm["joinMode"],
+                )
               }
               disabled={locked}
               className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 disabled:bg-zinc-100"
@@ -205,7 +208,7 @@ export default function SettingsClient({ leagueId, leagueName }: Props) {
                 if (value === "TIMED" && !form.draftPickSeconds) {
                   updateField("draftPickSeconds", "60");
                 }
-                if (value === "ASYNC") {
+                if (value !== "TIMED") {
                   updateField("draftPickSeconds", "");
                 }
               }}
@@ -213,6 +216,7 @@ export default function SettingsClient({ leagueId, leagueName }: Props) {
               className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 disabled:bg-zinc-100"
             >
               <option value="ASYNC">Async</option>
+              <option value="MANUAL">Manual</option>
               <option value="TIMED">Timed</option>
             </select>
           </label>

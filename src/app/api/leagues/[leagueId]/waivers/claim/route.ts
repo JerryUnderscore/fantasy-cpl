@@ -87,10 +87,10 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
     const player = await prisma.player.findUnique({
       where: { id: playerId },
-      select: { id: true, seasonId: true },
+      select: { id: true, seasonId: true, active: true },
     });
 
-    if (!player || player.seasonId !== league.seasonId) {
+    if (!player || !player.active || player.seasonId !== league.seasonId) {
       return NextResponse.json(
         { error: "Player not available" },
         { status: 400 },

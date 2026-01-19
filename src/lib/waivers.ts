@@ -1,5 +1,6 @@
 import { MatchWeekStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getNextEasternTimeAt } from "@/lib/time";
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 
@@ -19,6 +20,25 @@ type LeagueWaiverProcessSummary = {
   leagueId: string;
   result: LeagueWaiverProcessResult;
   lockInfo: LockInfo;
+};
+
+export const normalizeLeagueWaiverTimes = async (
+  db: DbClient,
+  leagueId: string,
+  now: Date = new Date(),
+) => {
+  const nextReset = getNextEasternTimeAt(now, 4, 0);
+  if (!nextReset) return null;
+
+  await db.leaguePlayerWaiver.updateMany({
+    where: {
+      leagueId,
+      waiverAvailableAt: { not: nextReset },
+    },
+    data: { waiverAvailableAt: nextReset },
+  });
+
+  return nextReset;
 };
 
 const getSeasonLockInfo = async (db: DbClient, seasonId: string) => {

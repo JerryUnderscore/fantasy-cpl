@@ -59,7 +59,11 @@ export async function GET(request: NextRequest) {
     );
 
     const players = await prisma.player.findMany({
-      where: { seasonId: matchWeek.seasonId, clubId: { in: clubIds } },
+      where: {
+        seasonId: matchWeek.seasonId,
+        clubId: { in: clubIds },
+        active: true,
+      },
       orderBy: { name: "asc" },
       select: {
         id: true,

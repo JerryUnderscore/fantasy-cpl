@@ -7,6 +7,7 @@ export default async function PlayersPage() {
     where: { isActive: true },
     include: {
       players: {
+        where: { active: true },
         include: { club: true },
         orderBy: { name: "asc" },
       },

@@ -1,10 +1,10 @@
 {
   "name": "fantasy-cpl",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint"
@@ -19,7 +19,6 @@
     "@supabase/supabase-js": "^2.90.1",
     "next": "16.1.1",
     "pg": "^8.16.3",
-    "prisma": "^7.2.0",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
@@ -30,6 +29,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
+    "prisma": "^7.2.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5"

@@ -3,7 +3,10 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
-import TeamPanel from "./team-panel";
+import { formatEasternDateTime } from "@/lib/time";
+import { getCurrentMatchWeekForSeason } from "@/lib/matchweek";
+import { normalizeLeagueWaiverTimes } from "@/lib/waivers";
+import TeamRenameLink from "./team-rename-link";
 
 export const runtime = "nodejs";
 
@@ -124,8 +127,86 @@ export default async function LeagueDetailPage({
     ...team,
     filledCount: team.rosterSlots.filter((slot) => slot.playerId).length,
   }));
-  const currentTeam =
-    teamsWithCounts.find((t) => t.profileId === profile.id) ?? null;
+
+  const [currentMatchWeek, latestFinalizedMatchWeek] = await Promise.all([
+    getCurrentMatchWeekForSeason(league.seasonId),
+    prisma.matchWeek.findFirst({
+      where: { seasonId: league.seasonId, status: "FINALIZED" },
+      orderBy: { number: "desc" },
+      select: { number: true },
+    }),
+  ]);
+
+  const teamIds = teamsWithCounts.map((team) => team.id);
+  const scoreAggregates = teamIds.length
+    ? await prisma.teamMatchWeekScore.groupBy({
+        by: ["fantasyTeamId"],
+        where: { fantasyTeamId: { in: teamIds }, status: "FINAL" },
+        _sum: { points: true },
+        _count: { _all: true },
+      })
+    : [];
+  const scoreMap = new Map(
+    scoreAggregates.map((row) => [row.fantasyTeamId, row]),
+  );
+
+  const standings = teamsWithCounts
+    .map((team) => {
+      const summary = scoreMap.get(team.id);
+      return {
+        teamId: team.id,
+        teamName: team.name,
+        ownerName: team.profile.displayName ?? "Unknown",
+        totalPoints: summary?._sum.points ?? 0,
+        playedFinalized: summary?._count._all ?? 0,
+      };
+    })
+    .sort((a, b) => {
+      if (b.totalPoints !== a.totalPoints) {
+        return b.totalPoints - a.totalPoints;
+      }
+      if (b.playedFinalized !== a.playedFinalized) {
+        return b.playedFinalized - a.playedFinalized;
+      }
+      return a.teamName.localeCompare(b.teamName);
+    })
+    .map((row, index) => ({ rank: index + 1, ...row }));
+
+  const scheduleMatches = currentMatchWeek
+    ? await prisma.match.findMany({
+        where: { matchWeekId: currentMatchWeek.id },
+        orderBy: { kickoffAt: "asc" },
+        select: {
+          id: true,
+          kickoffAt: true,
+          status: true,
+          homeClub: { select: { name: true, shortName: true } },
+          awayClub: { select: { name: true, shortName: true } },
+        },
+    })
+    : [];
+
+  const normalizedReset = await normalizeLeagueWaiverTimes(
+    prisma,
+    league.id,
+    new Date(),
+  );
+  const waivers = await prisma.leaguePlayerWaiver.findMany({
+    where: { leagueId, player: { active: true } },
+    orderBy: { waiverAvailableAt: "asc" },
+    select: {
+      id: true,
+      waiverAvailableAt: true,
+      player: {
+        select: {
+          id: true,
+          name: true,
+          position: true,
+          club: { select: { shortName: true, name: true } },
+        },
+      },
+    },
+  });
 
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-16">
@@ -137,36 +218,171 @@ export default async function LeagueDetailPage({
           >
             Back to leagues
           </Link>
-          <h1 className="text-3xl font-semibold text-black">{league.name}</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-semibold text-black">
+              {league.name}
+            </h1>
+            {membership.role === "OWNER" ? (
+              <Link
+                href={`/leagues/${league.id}/settings`}
+                className="inline-flex items-center justify-center rounded-full border border-zinc-200 p-2 text-zinc-500 transition hover:border-zinc-300 hover:text-zinc-900"
+                aria-label="League settings"
+              >
+                <span role="img" aria-hidden="true" className="text-lg">
+                  ⚙️
+                </span>
+              </Link>
+            ) : null}
+          </div>
           <p className="text-sm text-zinc-500">
             {league.season.name} · {league.season.year}
           </p>
-          <Link
-            href={`/leagues/${league.id}/draft`}
-            className="mt-3 w-fit rounded-full bg-black px-4 py-2 text-sm font-semibold text-white"
-          >
-            Go to draft
-          </Link>
-          {membership.role === "OWNER" ? (
+          <div className="mt-3 flex flex-wrap gap-3 text-sm font-semibold text-zinc-500">
             <Link
-              href={`/leagues/${league.id}/settings`}
-              className="mt-2 w-fit text-sm font-semibold text-zinc-500 underline-offset-4 hover:text-black hover:underline"
+              href={`/leagues/${league.id}/players`}
+              className="underline-offset-4 hover:text-zinc-900 hover:underline"
             >
-              League settings
+              Players
             </Link>
-          ) : null}
-          <Link
-            href="/scoring-admin"
-            className="mt-2 w-fit text-sm font-semibold text-zinc-500 underline-offset-4 hover:text-black hover:underline"
-          >
-            Scoring admin
-          </Link>
+            <Link
+              href={`/leagues/${league.id}/draft-prep`}
+              className="underline-offset-4 hover:text-zinc-900 hover:underline"
+            >
+              Draft prep
+            </Link>
+          </div>
         </div>
 
-        <TeamPanel
-          leagueId={league.id}
-          initialTeamName={currentTeam?.name ?? null}
-        />
+        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              Standings
+            </h2>
+            <p className="text-xs text-zinc-500">
+              {latestFinalizedMatchWeek?.number
+                ? `After MatchWeek ${latestFinalizedMatchWeek.number}`
+                : currentMatchWeek?.number
+                  ? `MatchWeek ${currentMatchWeek.number} in progress`
+                  : "No MatchWeek data yet"}
+            </p>
+          </div>
+          {standings.length === 0 ? (
+            <p className="mt-3 text-sm text-zinc-500">No teams yet.</p>
+          ) : (
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="text-xs uppercase tracking-wide text-zinc-500">
+                  <tr>
+                    <th className="py-2 pr-3">#</th>
+                    <th className="py-2 pr-3">Team</th>
+                    <th className="py-2 pr-3">Owner</th>
+                    <th className="py-2 pr-3">Points</th>
+                    <th className="py-2 pr-3">Played</th>
+                  </tr>
+                </thead>
+                <tbody className="text-zinc-800">
+                  {standings.map((row) => (
+                    <tr key={row.teamId} className="border-t border-zinc-200">
+                      <td className="py-2 pr-3 text-zinc-500">{row.rank}</td>
+                      <td className="py-2 pr-3 font-semibold text-zinc-900">
+                        {row.teamName}
+                      </td>
+                      <td className="py-2 pr-3 text-zinc-600">
+                        {row.ownerName}
+                      </td>
+                      <td className="py-2 pr-3 font-semibold text-zinc-900">
+                        {row.totalPoints}
+                      </td>
+                      <td className="py-2 pr-3 text-zinc-600">
+                        {row.playedFinalized}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+                MatchWeek schedule
+              </h2>
+              <p className="text-xs text-zinc-500">
+                {currentMatchWeek?.number
+                  ? `MatchWeek ${currentMatchWeek.number}`
+                  : "No MatchWeek scheduled"}
+              </p>
+            </div>
+            {scheduleMatches.length === 0 ? (
+              <p className="mt-3 text-sm text-zinc-500">
+                No matches scheduled yet.
+              </p>
+            ) : (
+              <ul className="mt-4 flex flex-col gap-3">
+                {scheduleMatches.map((match) => (
+                  <li
+                    key={match.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3"
+                  >
+                    <div className="text-sm font-semibold text-zinc-900">
+                      {match.homeClub.shortName ?? match.homeClub.name} vs{" "}
+                      {match.awayClub.shortName ?? match.awayClub.name}
+                    </div>
+                    <div className="text-xs text-zinc-500">
+                      {formatEasternDateTime(new Date(match.kickoffAt))} ET ·{" "}
+                      {match.status}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+                On waivers
+              </h2>
+              <p className="text-xs text-zinc-500">Claim window</p>
+            </div>
+            {waivers.length === 0 ? (
+              <p className="mt-3 text-sm text-zinc-500">
+                No players on waivers.
+              </p>
+            ) : (
+              <ul className="mt-4 flex flex-col gap-3">
+                {waivers.map((waiver) => (
+                  <li
+                    key={waiver.id}
+                    className="rounded-2xl border border-zinc-200 bg-white px-4 py-3"
+                  >
+                    <p className="text-sm font-semibold text-zinc-900">
+                      {waiver.player.name}
+                    </p>
+                    <p className="text-xs text-zinc-500">
+                      {waiver.player.position} ·{" "}
+                      {waiver.player.club?.shortName ??
+                        waiver.player.club?.name ??
+                        "No club"}
+                    </p>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      Clears:{" "}
+                      {formatEasternDateTime(
+                        new Date(
+                          normalizedReset ?? waiver.waiverAvailableAt,
+                        ),
+                      )}{" "}
+                      ET
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
 
         <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
@@ -182,20 +398,28 @@ export default async function LeagueDetailPage({
                   key={t.id}
                   className="flex flex-col gap-1 rounded-2xl border border-zinc-200 bg-white p-4"
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
                     <p className="text-base font-semibold text-zinc-900">
                       {t.name}
                     </p>
-                    <Link
-                      href={
-                        t.profileId === profile.id
-                          ? `/leagues/${league.id}/team`
-                          : `/leagues/${league.id}/teams/${t.id}`
-                      }
-                      className="text-xs font-semibold uppercase tracking-wide text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline"
-                    >
-                      View roster
-                    </Link>
+                    <div className="flex flex-col items-end gap-1">
+                      <Link
+                        href={
+                          t.profileId === profile.id
+                            ? `/leagues/${league.id}/team`
+                            : `/leagues/${league.id}/teams/${t.id}`
+                        }
+                        className="text-xs font-semibold uppercase tracking-wide text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline"
+                      >
+                        View roster
+                      </Link>
+                      {t.profileId === profile.id ? (
+                        <TeamRenameLink
+                          leagueId={league.id}
+                          initialTeamName={t.name}
+                        />
+                      ) : null}
+                    </div>
                   </div>
                   <p className="text-sm text-zinc-500">
                     Owner: {t.profile.displayName ?? "Unknown"}

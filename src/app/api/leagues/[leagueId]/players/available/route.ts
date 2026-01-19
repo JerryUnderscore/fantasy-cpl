@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
+import { normalizeLeagueWaiverTimes } from "@/lib/waivers";
 
 export const runtime = "nodejs";
 
@@ -74,9 +75,11 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
 
     const now = new Date();
 
+    await normalizeLeagueWaiverTimes(prisma, leagueId, new Date());
+
     const [players, rosterSlots, waivers] = await Promise.all([
       prisma.player.findMany({
-        where: { seasonId: league.seasonId },
+        where: { seasonId: league.seasonId, active: true },
         select: {
           id: true,
           name: true,
@@ -86,7 +89,11 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
         orderBy: [{ position: "asc" }, { name: "asc" }],
       }),
       prisma.rosterSlot.findMany({
-        where: { leagueId, playerId: { not: null } },
+        where: {
+          leagueId,
+          playerId: { not: null },
+          player: { active: true },
+        },
         select: {
           playerId: true,
           fantasyTeam: { select: { id: true, name: true } },

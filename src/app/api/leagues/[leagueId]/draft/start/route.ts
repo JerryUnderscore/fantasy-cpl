@@ -76,12 +76,15 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "Draft already exists" }, { status: 409 });
     }
 
+    const now = new Date();
+
     const draft = await prisma.draft.create({
       data: {
         leagueId,
         seasonId: league.season.id,
         status: "LIVE",
         rounds: 15,
+        currentPickStartedAt: league.draftMode === "TIMED" ? now : null,
       },
       select: { id: true },
     });

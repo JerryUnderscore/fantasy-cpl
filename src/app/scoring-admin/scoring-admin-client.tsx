@@ -76,6 +76,11 @@ type Props = {
   clubs: ClubOption[];
   canWrite: boolean;
   isAdmin: boolean;
+  showMatchWeekControls?: boolean;
+  showStatsEditor?: boolean;
+  showScheduleImport?: boolean;
+  showMatchesEditor?: boolean;
+  showDevTools?: boolean;
 };
 
 type ScheduleSummary = {
@@ -126,7 +131,19 @@ export default function ScoringAdminClient({
   clubs,
   canWrite,
   isAdmin,
+  showMatchWeekControls,
+  showStatsEditor,
+  showScheduleImport,
+  showMatchesEditor,
+  showDevTools,
 }: Props) {
+  const shouldShowMatchWeekControls = showMatchWeekControls ?? true;
+  const shouldShowStatsEditor = showStatsEditor ?? true;
+  const shouldShowScheduleImport = showScheduleImport ?? true;
+  const shouldShowMatchesEditor = showMatchesEditor ?? true;
+  const shouldShowDevTools = showDevTools ?? true;
+  const scheduleEnabled =
+    shouldShowScheduleImport || shouldShowMatchesEditor;
   const initialMatchWeek =
     matchWeeks.length > 0 ? String(matchWeeks[0].number) : "1";
   const initialSeasonId =
@@ -137,7 +154,8 @@ export default function ScoringAdminClient({
     useState<MatchWeekOption[]>(matchWeeks);
   const [scheduleSeasonId, setScheduleSeasonId] =
     useState<string>(initialSeasonId);
-  const [matchesSeasonId] = useState<string>(initialSeasonId);
+  const [matchesSeasonId, setMatchesSeasonId] =
+    useState<string>(initialSeasonId);
   const [rows, setRows] = useState<Row[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -156,7 +174,9 @@ export default function ScoringAdminClient({
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [matchesError, setMatchesError] = useState<string | null>(null);
+  const [matchesMessage, setMatchesMessage] = useState<string | null>(null);
   const [isLoadingMatches, setIsLoadingMatches] = useState(false);
+  const [isDeletingMatches, setIsDeletingMatches] = useState(false);
   const [matchWeekFilter, setMatchWeekFilter] = useState<string>("");
   const [clubFilter, setClubFilter] = useState<string>("");
   const [dateFromFilter, setDateFromFilter] = useState<string>("");
@@ -298,34 +318,41 @@ export default function ScoringAdminClient({
     }
   };
 
+  const buildMatchQueryParams = useCallback(() => {
+    const params = new URLSearchParams();
+    params.set("seasonId", matchesSeasonId);
+
+    const matchWeekValue = parseNumber(matchWeekFilter);
+    if (matchWeekValue && matchWeekValue > 0) {
+      params.set("matchWeekNumber", String(matchWeekValue));
+    }
+
+    if (clubFilter) {
+      params.set("clubSlug", clubFilter);
+    }
+
+    if (dateFromFilter) {
+      params.set("dateFrom", dateFromFilter);
+    }
+
+    if (dateToFilter) {
+      params.set("dateTo", dateToFilter);
+    }
+
+    return params;
+  }, [clubFilter, dateFromFilter, dateToFilter, matchWeekFilter, matchesSeasonId]);
+
   const loadMatches = useCallback(async () => {
+    if (!scheduleEnabled) return;
     if (!matchesSeasonId) return;
     if (!isAdmin) return;
 
     setIsLoadingMatches(true);
     setMatchesError(null);
+    setMatchesMessage(null);
 
     try {
-      const params = new URLSearchParams();
-      params.set("seasonId", matchesSeasonId);
-
-      const matchWeekValue = parseNumber(matchWeekFilter);
-      if (matchWeekValue && matchWeekValue > 0) {
-        params.set("matchWeekNumber", String(matchWeekValue));
-      }
-
-      if (clubFilter) {
-        params.set("clubSlug", clubFilter);
-      }
-
-      if (dateFromFilter) {
-        params.set("dateFrom", dateFromFilter);
-      }
-
-      if (dateToFilter) {
-        params.set("dateTo", dateToFilter);
-      }
-
+      const params = buildMatchQueryParams();
       const res = await fetch(`/api/admin/matches?${params.toString()}`);
       const payload = await res.json().catch(() => null);
 
@@ -341,18 +368,80 @@ export default function ScoringAdminClient({
     } finally {
       setIsLoadingMatches(false);
     }
-  }, [
-    clubFilter,
-    dateFromFilter,
-    dateToFilter,
-    isAdmin,
-    matchWeekFilter,
-    matchesSeasonId,
-  ]);
+  }, [buildMatchQueryParams, isAdmin, matchesSeasonId, scheduleEnabled]);
 
   useEffect(() => {
+    if (!scheduleEnabled) return;
     void loadMatches();
-  }, [loadMatches]);
+  }, [loadMatches, scheduleEnabled]);
+
+  const deleteMatch = async (matchId: string) => {
+    if (!isAdmin) return;
+    const confirmed = window.confirm(
+      "Remove this match? This cannot be undone.",
+    );
+    if (!confirmed) return;
+
+    setIsDeletingMatches(true);
+    setMatchesError(null);
+    setMatchesMessage(null);
+
+    try {
+      const res = await fetch(`/api/admin/matches/${matchId}`, {
+        method: "DELETE",
+      });
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setMatchesError(payload?.error ?? "Unable to delete match.");
+        return;
+      }
+
+      setMatchesMessage("Match removed.");
+      void loadMatches();
+    } finally {
+      setIsDeletingMatches(false);
+    }
+  };
+
+  const deleteFilteredMatches = async () => {
+    if (!isAdmin) return;
+    if (matches.length === 0) {
+      setMatchesError("No matches to delete.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Remove ${matches.length} matches? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    setIsDeletingMatches(true);
+    setMatchesError(null);
+    setMatchesMessage(null);
+
+    try {
+      const params = buildMatchQueryParams();
+      const res = await fetch(`/api/admin/matches?${params.toString()}`, {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirm: true }),
+      });
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setMatchesError(payload?.error ?? "Unable to delete matches.");
+        return;
+      }
+
+      setMatchesMessage(
+        `Removed ${payload?.deletedCount ?? 0} matches from the schedule.`,
+      );
+      void loadMatches();
+    } finally {
+      setIsDeletingMatches(false);
+    }
+  };
 
   const selectedMatchWeekNumber = parseNumber(matchWeekNumber);
   const selectedMatchWeek = selectedMatchWeekNumber
@@ -474,6 +563,7 @@ export default function ScoringAdminClient({
   };
 
   const loadMatchWeekMatches = useCallback(async () => {
+    if (!shouldShowStatsEditor) return;
     if (!selectedMatchWeek?.id) {
       setMatchWeekMatches([]);
       setRows([]);
@@ -510,13 +600,22 @@ export default function ScoringAdminClient({
     } finally {
       setIsLoadingMatchWeekMatches(false);
     }
-  }, [selectedMatchWeek?.id]);
+  }, [selectedMatchWeek?.id, shouldShowStatsEditor]);
 
   useEffect(() => {
+    if (!shouldShowStatsEditor) {
+      setMatchWeekMatches([]);
+      setRows([]);
+      setSelectedMatchId("");
+      return;
+    }
     void loadMatchWeekMatches();
-  }, [loadMatchWeekMatches]);
+  }, [loadMatchWeekMatches, shouldShowStatsEditor]);
 
   useEffect(() => {
+    if (!shouldShowStatsEditor) {
+      return;
+    }
     if (!selectedMatch) {
       setRows([]);
       return;
@@ -586,148 +685,154 @@ export default function ScoringAdminClient({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
-          Dev-only tools
-        </p>
-        <p className="mt-2 text-sm text-zinc-800">
-          This endpoint is gated by `ALLOW_DEV_STAT_WRITES=true`.
-        </p>
-        {!canWrite ? (
-          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
-            Writes are disabled. Set `ALLOW_DEV_STAT_WRITES=true` to enable
-            saving.
-          </p>
-        ) : null}
-      </div>
-
-      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-zinc-900">
-              MatchWeek controls
-            </p>
-            <p className="text-xs text-zinc-700">
-              Manage the lifecycle for the selected MatchWeek.
-            </p>
-          </div>
+      {shouldShowDevTools ? (
+        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
-            Status: {selectedMatchWeek?.status ?? "Unknown"}
+            Dev-only tools
           </p>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => handleMatchWeekAction("open")}
-            disabled={
-              !selectedMatchWeekNumber ||
-              selectedMatchWeekNumber <= 0 ||
-              isUpdatingMatchWeek
-            }
-            className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600 disabled:opacity-60"
-          >
-            Open MatchWeek
-          </button>
-          <button
-            type="button"
-            onClick={() => handleMatchWeekAction("lock")}
-            disabled={
-              !selectedMatchWeek ||
-              selectedMatchWeek.status !== "OPEN" ||
-              isUpdatingMatchWeek
-            }
-            className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600 disabled:opacity-60"
-          >
-            Lock MatchWeek
-          </button>
-          <button
-            type="button"
-            onClick={() => handleMatchWeekAction("finalize")}
-            disabled={
-              !selectedMatchWeek ||
-              selectedMatchWeek.status === "FINALIZED" ||
-              isUpdatingMatchWeek
-            }
-            className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600 disabled:opacity-60"
-          >
-            Finalize MatchWeek
-          </button>
-        </div>
-        {matchWeekError ? (
-          <p className="mt-3 text-sm font-semibold text-red-700">
-            {matchWeekError}
+          <p className="mt-2 text-sm text-zinc-800">
+            This endpoint is gated by `ALLOW_DEV_STAT_WRITES=true`.
           </p>
-        ) : null}
-        {matchWeekMessage ? (
-          <p className="mt-3 text-sm font-semibold text-emerald-700">
-            {matchWeekMessage}
-          </p>
-        ) : null}
-      </div>
-
-      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-zinc-900">MatchWeek</p>
-            <p className="text-xs text-zinc-700">
-              Select the matchweek to upsert stats.
+          {!canWrite ? (
+            <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+              Writes are disabled. Set `ALLOW_DEV_STAT_WRITES=true` to enable
+              saving.
             </p>
-          </div>
-          {matchWeekOptions.length > 0 ? (
-            <select
-              value={matchWeekNumber}
-              onChange={(event) => setMatchWeekNumber(event.target.value)}
-              className="min-w-[180px] rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-            >
-              {matchWeekOptions.map((matchWeek) => (
-                <option key={matchWeek.id} value={matchWeek.number}>
-                  {matchWeek.name
-                    ? `${matchWeek.name} (${matchWeek.number})`
-                    : `MatchWeek ${matchWeek.number}`}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <div className="flex flex-col items-end gap-2 text-right">
-              <input
-                type="number"
-                min="1"
-                value={matchWeekNumber}
-                onChange={(event) => setMatchWeekNumber(event.target.value)}
-                className="w-28 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-              />
+          ) : null}
+        </div>
+      ) : null}
+
+      {shouldShowMatchWeekControls ? (
+        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-zinc-900">
+                MatchWeek controls
+              </p>
               <p className="text-xs text-zinc-700">
-                No MatchWeeks yet. Enter a number.
+                Manage the lifecycle for the selected MatchWeek.
               </p>
             </div>
-          )}
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">
-            Player stats
-          </h2>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
-              Match in MatchWeek
-            </label>
-            <select
-              value={selectedMatchId}
-              onChange={(event) => setSelectedMatchId(event.target.value)}
-              disabled={!matchWeekMatches.length}
-              className="min-w-[220px] rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 disabled:opacity-60"
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+              Status: {selectedMatchWeek?.status ?? "Unknown"}
+            </p>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => handleMatchWeekAction("open")}
+              disabled={
+                !selectedMatchWeekNumber ||
+                selectedMatchWeekNumber <= 0 ||
+                isUpdatingMatchWeek
+              }
+              className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600 disabled:opacity-60"
             >
-              {matchWeekMatches.length === 0 ? (
-                <option value="">
-                  {isLoadingMatchWeekMatches
-                    ? "Loading matches..."
-                    : "No matches found"}
-                </option>
-              ) : null}
+              Open MatchWeek
+            </button>
+            <button
+              type="button"
+              onClick={() => handleMatchWeekAction("lock")}
+              disabled={
+                !selectedMatchWeek ||
+                selectedMatchWeek.status !== "OPEN" ||
+                isUpdatingMatchWeek
+              }
+              className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600 disabled:opacity-60"
+            >
+              Lock MatchWeek
+            </button>
+            <button
+              type="button"
+              onClick={() => handleMatchWeekAction("finalize")}
+              disabled={
+                !selectedMatchWeek ||
+                selectedMatchWeek.status === "FINALIZED" ||
+                isUpdatingMatchWeek
+              }
+              className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600 disabled:opacity-60"
+            >
+              Finalize MatchWeek
+            </button>
+          </div>
+          {matchWeekError ? (
+            <p className="mt-3 text-sm font-semibold text-red-700">
+              {matchWeekError}
+            </p>
+          ) : null}
+          {matchWeekMessage ? (
+            <p className="mt-3 text-sm font-semibold text-emerald-700">
+              {matchWeekMessage}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {shouldShowStatsEditor ? (
+        <>
+          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-zinc-900">MatchWeek</p>
+                <p className="text-xs text-zinc-700">
+                  Select the matchweek to upsert stats.
+                </p>
+              </div>
+              {matchWeekOptions.length > 0 ? (
+                <select
+                  value={matchWeekNumber}
+                  onChange={(event) => setMatchWeekNumber(event.target.value)}
+                  className="min-w-[180px] rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+                >
+                  {matchWeekOptions.map((matchWeek) => (
+                    <option key={matchWeek.id} value={matchWeek.number}>
+                      {matchWeek.name
+                        ? `${matchWeek.name} (${matchWeek.number})`
+                        : `MatchWeek ${matchWeek.number}`}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="flex flex-col items-end gap-2 text-right">
+                  <input
+                    type="number"
+                    min="1"
+                    value={matchWeekNumber}
+                    onChange={(event) => setMatchWeekNumber(event.target.value)}
+                    className="w-28 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+                  />
+                  <p className="text-xs text-zinc-700">
+                    No MatchWeeks yet. Enter a number.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">
+                Player stats
+              </h2>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                  Match in MatchWeek
+                </label>
+                <select
+                  value={selectedMatchId}
+                  onChange={(event) => setSelectedMatchId(event.target.value)}
+                  disabled={!matchWeekMatches.length}
+                  className="min-w-[220px] rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 disabled:opacity-60"
+                >
+                  {matchWeekMatches.length === 0 ? (
+                    <option value="">
+                      {isLoadingMatchWeekMatches
+                        ? "Loading matches..."
+                        : "No matches found"}
+                    </option>
+                  ) : null}
               {matchWeekMatches.map((match) => (
                 <option key={match.id} value={match.id}>
                   {match.homeClub.shortName ?? match.homeClub.name} vs{" "}
@@ -778,125 +883,125 @@ export default function ScoringAdminClient({
                       {sideRows.map((row) => (
                         <div
                           key={row.id}
-                          className="grid min-w-full grid-cols-1 gap-3 rounded-xl border border-zinc-200 bg-white p-4 md:min-w-[1080px] md:grid-cols-[2fr_repeat(6,1fr)_auto]"
+                          className="grid w-full grid-cols-1 gap-3 rounded-xl border border-zinc-200 bg-white p-3 md:grid-cols-[minmax(180px,2fr)_repeat(6,minmax(44px,56px))_minmax(56px,72px)]"
                         >
                           <div className="flex flex-col gap-1">
                             <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
                               Player
                             </label>
-                            <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900">
-                              {row.playerName} · {row.position}
-                              {row.clubLabel ? ` · ${row.clubLabel}` : ""}
-                            </div>
+                          <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900">
+                            {row.playerName} · {row.position}
+                            {row.clubLabel ? ` · ${row.clubLabel}` : ""}
                           </div>
+                        </div>
 
-                          <div className="flex flex-col gap-1">
-                            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
-                              Min
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.minutes}
-                              onChange={(event) =>
-                                updateRow(row.id, { minutes: event.target.value })
-                              }
-                              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-                            />
-                          </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                            Min
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={row.minutes}
+                            onChange={(event) =>
+                              updateRow(row.id, { minutes: event.target.value })
+                            }
+                            className="w-full max-w-[56px] rounded-lg border border-zinc-200 bg-white px-2 py-1 text-center text-sm text-zinc-900"
+                          />
+                        </div>
 
                           <div className="flex flex-col gap-1">
                             <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
                               G
                             </label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.goals}
-                              onChange={(event) =>
-                                updateRow(row.id, { goals: event.target.value })
-                              }
-                              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-                            />
-                          </div>
+                          <input
+                            type="number"
+                            min="0"
+                            value={row.goals}
+                            onChange={(event) =>
+                              updateRow(row.id, { goals: event.target.value })
+                            }
+                            className="w-full max-w-[56px] rounded-lg border border-zinc-200 bg-white px-2 py-1 text-center text-sm text-zinc-900"
+                          />
+                        </div>
 
                           <div className="flex flex-col gap-1">
                             <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
                               A
                             </label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.assists}
-                              onChange={(event) =>
-                                updateRow(row.id, { assists: event.target.value })
-                              }
-                              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-                            />
-                          </div>
+                          <input
+                            type="number"
+                            min="0"
+                            value={row.assists}
+                            onChange={(event) =>
+                              updateRow(row.id, { assists: event.target.value })
+                            }
+                            className="w-full max-w-[56px] rounded-lg border border-zinc-200 bg-white px-2 py-1 text-center text-sm text-zinc-900"
+                          />
+                        </div>
 
                           <div className="flex flex-col gap-1">
                             <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
                               YC
                             </label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.yellowCards}
-                              onChange={(event) =>
-                                updateRow(row.id, {
-                                  yellowCards: event.target.value,
-                                })
-                              }
-                              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-                            />
-                          </div>
+                          <input
+                            type="number"
+                            min="0"
+                            value={row.yellowCards}
+                            onChange={(event) =>
+                              updateRow(row.id, {
+                                yellowCards: event.target.value,
+                              })
+                            }
+                            className="w-full max-w-[56px] rounded-lg border border-zinc-200 bg-white px-2 py-1 text-center text-sm text-zinc-900"
+                          />
+                        </div>
 
                           <div className="flex flex-col gap-1">
                             <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
                               RC
                             </label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.redCards}
-                              onChange={(event) =>
-                                updateRow(row.id, { redCards: event.target.value })
-                              }
-                              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-                            />
-                          </div>
+                          <input
+                            type="number"
+                            min="0"
+                            value={row.redCards}
+                            onChange={(event) =>
+                              updateRow(row.id, { redCards: event.target.value })
+                            }
+                            className="w-full max-w-[56px] rounded-lg border border-zinc-200 bg-white px-2 py-1 text-center text-sm text-zinc-900"
+                          />
+                        </div>
 
                           <div className="flex flex-col gap-1">
                             <label className="text-xs font-semibold uppercase tracking-wide text-zinc-600">
                               OG
                             </label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={row.ownGoals}
-                              onChange={(event) =>
-                                updateRow(row.id, { ownGoals: event.target.value })
-                              }
-                              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-                            />
-                          </div>
+                          <input
+                            type="number"
+                            min="0"
+                            value={row.ownGoals}
+                            onChange={(event) =>
+                              updateRow(row.id, { ownGoals: event.target.value })
+                            }
+                            className="w-full max-w-[56px] rounded-lg border border-zinc-200 bg-white px-2 py-1 text-center text-sm text-zinc-900"
+                          />
+                        </div>
 
-                          <div className="flex items-center gap-2">
-                            <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-zinc-600">
-                              <input
-                                type="checkbox"
-                                checked={row.cleanSheet}
-                                onChange={(event) =>
-                                  updateRow(row.id, {
-                                    cleanSheet: event.target.checked,
-                                  })
-                                }
-                                className="h-4 w-4 rounded border-zinc-300"
-                              />
-                              CS
-                            </label>
-                          </div>
+                        <div className="flex items-center gap-2">
+                          <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-zinc-600">
+                            <input
+                              type="checkbox"
+                              checked={row.cleanSheet}
+                              onChange={(event) =>
+                                updateRow(row.id, {
+                                  cleanSheet: event.target.checked,
+                                })
+                              }
+                              className="h-4 w-4 rounded border-zinc-300"
+                            />
+                            CS
+                          </label>
+                        </div>
                         </div>
                       ))}
                     </div>
@@ -930,110 +1035,114 @@ export default function ScoringAdminClient({
             {isSubmitting ? "Saving…" : "Save stats"}
           </button>
         </div>
-      </div>
+          </div>
+        </>
+      ) : null}
 
-      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">
-            Schedule import
-          </h3>
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            CSV upload
-          </p>
-        </div>
-        <p className="mt-2 text-sm text-zinc-700">
-          Expected columns: seasonYear, externalId, kickoffAtEastern,
-          homeClubSlug, awayClubSlug, matchWeekNumber, status.
-        </p>
-        {!isAdmin ? (
-          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
-            Admin access required to import schedules.
-          </p>
-        ) : null}
-
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <select
-            value={scheduleSeasonId}
-            onChange={(event) => setScheduleSeasonId(event.target.value)}
-            disabled={!isAdmin || isImportingSchedule}
-            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 disabled:opacity-60 sm:max-w-[220px]"
-          >
-            {seasonOptions.map((season) => (
-              <option key={season.id} value={season.id}>
-                {season.year} · {season.name}
-              </option>
-            ))}
-          </select>
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            onChange={(event) =>
-              setScheduleFile(event.target.files?.[0] ?? null)
-            }
-            disabled={!isAdmin || isImportingSchedule}
-            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 disabled:opacity-60"
-          />
-          <button
-            type="button"
-            onClick={submitSchedule}
-            disabled={!isAdmin || !scheduleFile || isImportingSchedule}
-            className="rounded-full bg-black px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white disabled:opacity-60"
-          >
-            {isImportingSchedule ? "Importing…" : "Import schedule CSV"}
-          </button>
-        </div>
-
-        {scheduleError ? (
-          <p className="mt-3 text-sm font-semibold text-red-700">
-            {scheduleError}
-          </p>
-        ) : null}
-
-        {scheduleErrors.length > 0 ? (
-          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            <p className="font-semibold">
-              Fix the following errors and try again:
+      {shouldShowScheduleImport ? (
+        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">
+              Schedule import
+            </h3>
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              CSV upload
             </p>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-              {scheduleErrors.map((issue, index) => (
-                <li key={`${issue.row}-${issue.field}-${index}`}>
-                  Row {issue.row} · {issue.field}: {issue.message}
-                </li>
+          </div>
+          <p className="mt-2 text-sm text-zinc-700">
+            Expected columns: seasonYear, externalId, kickoffAtEastern,
+            homeClubSlug, awayClubSlug, matchWeekNumber, status.
+          </p>
+          {!isAdmin ? (
+            <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+              Admin access required to import schedules.
+            </p>
+          ) : null}
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <select
+              value={scheduleSeasonId}
+              onChange={(event) => setScheduleSeasonId(event.target.value)}
+              disabled={!isAdmin || isImportingSchedule}
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 disabled:opacity-60 sm:max-w-[220px]"
+            >
+              {seasonOptions.map((season) => (
+                <option key={season.id} value={season.id}>
+                  {season.year} · {season.name}
+                </option>
               ))}
-            </ul>
+            </select>
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={(event) =>
+                setScheduleFile(event.target.files?.[0] ?? null)
+              }
+              disabled={!isAdmin || isImportingSchedule}
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 disabled:opacity-60"
+            />
+            <button
+              type="button"
+              onClick={submitSchedule}
+              disabled={!isAdmin || !scheduleFile || isImportingSchedule}
+              className="rounded-full bg-black px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white disabled:opacity-60"
+            >
+              {isImportingSchedule ? "Importing…" : "Import schedule CSV"}
+            </button>
           </div>
-        ) : null}
 
-      {scheduleSummary ? (
-        <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-            <p className="font-semibold">Schedule import complete.</p>
-            <p className="mt-1">
-              {scheduleSummary.season.name} · {scheduleSummary.season.year}
+          {scheduleError ? (
+            <p className="mt-3 text-sm font-semibold text-red-700">
+              {scheduleError}
             </p>
-            <p className="mt-1">
-              Imported {scheduleSummary.importedCount} matches (created{" "}
-              {scheduleSummary.createdCount}, updated{" "}
-              {scheduleSummary.updatedCount}).
-            </p>
-            <p className="mt-1">
-              MatchWeeks created: {scheduleSummary.matchWeeksCreatedCount}. Lock
-              times updated: {scheduleSummary.lockAtUpdatedCount}.
-            </p>
-            {scheduleSummary.createdMatchWeeks &&
-            scheduleSummary.createdMatchWeeks.length > 0 ? (
-              <p className="mt-1">
-                Created MatchWeeks:{" "}
-                {scheduleSummary.createdMatchWeeks
-                  .map((matchWeek) => matchWeek.number)
-                  .join(", ")}
-                .
+          ) : null}
+
+          {scheduleErrors.length > 0 ? (
+            <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <p className="font-semibold">
+                Fix the following errors and try again:
               </p>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                {scheduleErrors.map((issue, index) => (
+                  <li key={`${issue.row}-${issue.field}-${index}`}>
+                    Row {issue.row} · {issue.field}: {issue.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
-      <div className="rounded-2xl border border-zinc-200 bg-white p-5">
+          {scheduleSummary ? (
+            <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+              <p className="font-semibold">Schedule import complete.</p>
+              <p className="mt-1">
+                {scheduleSummary.season.name} · {scheduleSummary.season.year}
+              </p>
+              <p className="mt-1">
+                Imported {scheduleSummary.importedCount} matches (created{" "}
+                {scheduleSummary.createdCount}, updated{" "}
+                {scheduleSummary.updatedCount}).
+              </p>
+              <p className="mt-1">
+                MatchWeeks created: {scheduleSummary.matchWeeksCreatedCount}.
+                Lock times updated: {scheduleSummary.lockAtUpdatedCount}.
+              </p>
+              {scheduleSummary.createdMatchWeeks &&
+              scheduleSummary.createdMatchWeeks.length > 0 ? (
+                <p className="mt-1">
+                  Created MatchWeeks:{" "}
+                  {scheduleSummary.createdMatchWeeks
+                    .map((matchWeek) => matchWeek.number)
+                    .join(", ")}
+                  .
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {shouldShowMatchesEditor ? (
+        <div className="rounded-2xl border border-zinc-200 bg-white p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-600">
             Matches
@@ -1048,7 +1157,19 @@ export default function ScoringAdminClient({
           </p>
         ) : null}
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-4">
+        <div className="mt-4 grid gap-3 sm:grid-cols-5">
+          <select
+            value={matchesSeasonId}
+            onChange={(event) => setMatchesSeasonId(event.target.value)}
+            disabled={!isAdmin}
+            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 disabled:opacity-60"
+          >
+            {seasonOptions.map((season) => (
+              <option key={season.id} value={season.id}>
+                {season.year} · {season.name}
+              </option>
+            ))}
+          </select>
           <select
             value={matchWeekFilter}
             onChange={(event) => setMatchWeekFilter(event.target.value)}
@@ -1091,21 +1212,36 @@ export default function ScoringAdminClient({
           />
         </div>
 
-        <div className="mt-3 flex items-center justify-between gap-2 text-xs text-zinc-600">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-600">
           <p>Filter by MatchWeek, club, or date range.</p>
-          <button
-            type="button"
-            onClick={() => void loadMatches()}
-            disabled={!isAdmin || isLoadingMatches}
-            className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-600 disabled:opacity-60"
-          >
-            {isLoadingMatches ? "Loading…" : "Refresh"}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void loadMatches()}
+              disabled={!isAdmin || isLoadingMatches}
+              className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-600 disabled:opacity-60"
+            >
+              {isLoadingMatches ? "Loading…" : "Refresh"}
+            </button>
+            <button
+              type="button"
+              onClick={deleteFilteredMatches}
+              disabled={!isAdmin || isDeletingMatches || matches.length === 0}
+              className="rounded-full border border-red-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-700 disabled:opacity-60"
+            >
+              {isDeletingMatches ? "Removing…" : "Remove filtered"}
+            </button>
+          </div>
         </div>
 
         {matchesError ? (
           <p className="mt-3 text-sm font-semibold text-red-700">
             {matchesError}
+          </p>
+        ) : null}
+        {matchesMessage ? (
+          <p className="mt-3 text-sm font-semibold text-emerald-700">
+            {matchesMessage}
           </p>
         ) : null}
 
@@ -1207,14 +1343,24 @@ export default function ScoringAdminClient({
                           </button>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => startEditingMatch(match)}
-                          disabled={!isAdmin}
-                          className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-600 disabled:opacity-60"
-                        >
-                          Edit
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => startEditingMatch(match)}
+                            disabled={!isAdmin || isDeletingMatches}
+                            className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-600 disabled:opacity-60"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void deleteMatch(match.id)}
+                            disabled={!isAdmin || isDeletingMatches}
+                            className="rounded-full border border-red-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-700 disabled:opacity-60"
+                          >
+                            Remove
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -1227,6 +1373,7 @@ export default function ScoringAdminClient({
           ) : null}
         </div>
       </div>
+      ) : null}
     </div>
   );
 }

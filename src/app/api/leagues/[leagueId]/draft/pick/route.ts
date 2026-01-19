@@ -2,11 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
-import { PlayerPosition } from "@prisma/client";
+import {
+  buildRosterSlots,
+  computeCurrentPick,
+  runDraftCatchUp,
+} from "@/lib/draft";
 
 export const runtime = "nodejs";
 
 type Ctx = { params: Promise<{ leagueId: string }> };
+
+type DraftError = Error & { status?: number };
+
+const makeError = (message: string, status: number) => {
+  const error = new Error(message) as DraftError;
+  error.status = status;
+  return error;
+};
 
 const getProfile = async (userId: string) => {
   return prisma.profile.findUnique({
@@ -14,14 +26,6 @@ const getProfile = async (userId: string) => {
     select: { id: true },
   });
 };
-
-const buildRosterSlots = (fantasyTeamId: string, leagueId: string) =>
-  Array.from({ length: 15 }, (_, index) => ({
-    fantasyTeamId,
-    leagueId,
-    slotNumber: index + 1,
-    position: PlayerPosition.MID,
-  }));
 
 export async function POST(request: NextRequest, ctx: Ctx) {
   try {
@@ -38,7 +42,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       where: {
         leagueId_profileId: { leagueId, profileId: profile.id },
       },
-      select: { id: true },
+      select: { id: true, role: true },
     });
 
     if (!membership) {
@@ -46,8 +50,8 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     }
 
     const body = await request.json().catch(() => null);
-    const playerId =
-      typeof body?.playerId === "string" ? body.playerId : null;
+    const playerId = typeof body?.playerId === "string" ? body.playerId : null;
+    const forcePick = body?.force === true;
 
     if (!playerId) {
       return NextResponse.json({ error: "Player is required" }, { status: 400 });
@@ -58,6 +62,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       select: {
         id: true,
         season: { select: { id: true, isActive: true } },
+        rosterSize: true,
       },
     });
 
@@ -68,6 +73,8 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     if (!league.season.isActive) {
       return NextResponse.json({ error: "No active season" }, { status: 400 });
     }
+
+    await runDraftCatchUp({ leagueId });
 
     const draft = await prisma.draft.findUnique({
       where: {
@@ -94,127 +101,141 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "No teams in league" }, { status: 400 });
     }
 
-    const picksCount = await prisma.draftPick.count({
-      where: { draftId: draft.id },
-    });
+    const canOverride = membership.role === "OWNER" && forcePick;
 
-    const teamCount = teams.length;
-    const totalPicks = draft.rounds * teamCount;
-    const pickNumber = picksCount + 1;
-
-    if (pickNumber > totalPicks) {
-      return NextResponse.json({ error: "Draft is complete" }, { status: 409 });
-    }
-
-    const round = Math.ceil(pickNumber / teamCount);
-    const slotInRound = ((pickNumber - 1) % teamCount) + 1;
-    const teamIndex =
-      round % 2 === 1 ? slotInRound - 1 : teamCount - slotInRound;
-    const onTheClockTeam = teams[teamIndex];
-
-    if (!onTheClockTeam) {
-      return NextResponse.json({ error: "Draft order error" }, { status: 409 });
-    }
-
-    if (onTheClockTeam.profileId !== profile.id) {
-      return NextResponse.json({ error: "Not your pick" }, { status: 403 });
-    }
-
-    const player = await prisma.player.findUnique({
-      where: { id: playerId },
-      select: { id: true, seasonId: true },
-    });
-
-    if (!player || player.seasonId !== league.season.id) {
-      return NextResponse.json(
-        { error: "Player not available" },
-        { status: 400 },
-      );
-    }
-
-    const existingPick = await prisma.draftPick.findUnique({
-      where: { draftId_playerId: { draftId: draft.id, playerId } },
-      select: { id: true },
-    });
-
-    if (existingPick) {
-      return NextResponse.json(
-        { error: "Player already drafted" },
-        { status: 409 },
-      );
-    }
-
-    await prisma.rosterSlot.createMany({
-      data: buildRosterSlots(onTheClockTeam.id, leagueId),
-      skipDuplicates: true,
-    });
-
-    const openSlot = await prisma.rosterSlot.findFirst({
-      where: { fantasyTeamId: onTheClockTeam.id, playerId: null },
-      orderBy: { slotNumber: "asc" },
-      select: { id: true, slotNumber: true },
-    });
-
-    if (!openSlot) {
-      return NextResponse.json(
-        { error: "Roster is full" },
-        { status: 409 },
-      );
-    }
-
-    const leagueConflict = await prisma.rosterSlot.findFirst({
-      where: {
-        leagueId,
-        playerId,
-        fantasyTeamId: { not: onTheClockTeam.id },
-      },
-      select: { id: true },
-    });
-
-    if (leagueConflict) {
-      return NextResponse.json(
-        { error: "Player already rostered in this league" },
-        { status: 409 },
-      );
-    }
-
-    const result = await prisma.$transaction(async (tx) => {
-      const pick = await tx.draftPick.create({
-        data: {
-          draftId: draft.id,
-          pickNumber,
-          round,
-          slotInRound,
-          fantasyTeamId: onTheClockTeam.id,
-          profileId: profile.id,
-          playerId,
-        },
-        select: {
-          id: true,
-          pickNumber: true,
-          round: true,
-          slotInRound: true,
-          fantasyTeamId: true,
-          playerId: true,
-        },
-      });
-
-      await tx.rosterSlot.update({
-        where: { id: openSlot.id },
-        data: { playerId },
-      });
-
-      let draftStatus = draft.status;
-      if (pickNumber === totalPicks) {
-        await tx.draft.update({
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const freshDraft = await tx.draft.findUnique({
           where: { id: draft.id },
-          data: { status: "COMPLETE" },
+          select: {
+            id: true,
+            status: true,
+            rounds: true,
+            currentPickStartedAt: true,
+          },
         });
-        draftStatus = "COMPLETE";
-      }
 
-      return { pick, draftStatus };
-    });
+        if (!freshDraft) {
+          throw makeError("Draft not started", 400);
+        }
+
+        if (freshDraft.status !== "LIVE") {
+          throw makeError("Draft is not live", 409);
+        }
+
+        const picks = await tx.draftPick.findMany({
+          where: { draftId: freshDraft.id },
+          select: { pickNumber: true, fantasyTeamId: true },
+          orderBy: { pickNumber: "asc" },
+        });
+
+        const currentPick = computeCurrentPick(teams, picks, freshDraft.rounds);
+        const totalPicks = freshDraft.rounds * teams.length;
+
+        if (!currentPick) {
+          throw makeError("Draft is complete", 409);
+        }
+
+        const onTheClockTeam = teams.find(
+          (team) => team.id === currentPick.fantasyTeamId,
+        );
+
+        if (!onTheClockTeam) {
+          throw makeError("Draft order error", 409);
+        }
+
+        if (!canOverride && onTheClockTeam.profileId !== profile.id) {
+          throw makeError("Not your pick", 403);
+        }
+
+        const player = await tx.player.findUnique({
+          where: { id: playerId },
+          select: { id: true, seasonId: true, active: true },
+        });
+
+        if (!player || !player.active || player.seasonId !== league.season.id) {
+          throw makeError("Player not available", 400);
+        }
+
+        const existingPick = await tx.draftPick.findUnique({
+          where: { draftId_playerId: { draftId: freshDraft.id, playerId } },
+          select: { id: true },
+        });
+
+        if (existingPick) {
+          throw makeError("Player already drafted", 409);
+        }
+
+        await tx.rosterSlot.createMany({
+          data: buildRosterSlots(onTheClockTeam.id, leagueId, league.rosterSize),
+          skipDuplicates: true,
+        });
+
+        const openSlot = await tx.rosterSlot.findFirst({
+          where: { fantasyTeamId: onTheClockTeam.id, playerId: null },
+          orderBy: { slotNumber: "asc" },
+          select: { id: true },
+        });
+
+        if (!openSlot) {
+          throw makeError("Roster is full", 409);
+        }
+
+        const pick = await tx.draftPick.create({
+          data: {
+            draftId: freshDraft.id,
+            pickNumber: currentPick.pickNumber,
+            round: currentPick.round,
+            slotInRound: currentPick.slotInRound,
+            fantasyTeamId: onTheClockTeam.id,
+            profileId: onTheClockTeam.profileId,
+            playerId,
+          },
+          select: {
+            id: true,
+            pickNumber: true,
+            round: true,
+            slotInRound: true,
+            fantasyTeamId: true,
+            playerId: true,
+          },
+        });
+
+        await tx.rosterSlot.update({
+          where: { id: openSlot.id },
+          data: { playerId },
+        });
+
+        await tx.draftQueueItem.deleteMany({
+          where: {
+            draftId: freshDraft.id,
+            fantasyTeamId: onTheClockTeam.id,
+            playerId,
+          },
+        });
+
+        const nextStatus =
+          currentPick.pickNumber >= totalPicks ? "COMPLETE" : "LIVE";
+
+        const committedAt = new Date();
+        const safeCommittedAt =
+          freshDraft.currentPickStartedAt &&
+          freshDraft.currentPickStartedAt.getTime() > committedAt.getTime()
+            ? freshDraft.currentPickStartedAt
+            : committedAt;
+
+        await tx.draft.update({
+          where: { id: freshDraft.id },
+          data: {
+            status: nextStatus,
+            currentPickStartedAt: nextStatus === "COMPLETE" ? null : safeCommittedAt,
+          },
+        });
+
+        return { pick, draftStatus: nextStatus };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
 
     return NextResponse.json({
       ok: true,
@@ -224,6 +245,12 @@ export async function POST(request: NextRequest, ctx: Ctx) {
   } catch (error) {
     if ((error as { status?: number }).status === 401) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if ((error as DraftError).status) {
+      return NextResponse.json(
+        { error: (error as DraftError).message },
+        { status: (error as DraftError).status },
+      );
     }
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&

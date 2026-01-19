@@ -48,6 +48,7 @@ const serializeSlots = (
       name: string;
       position: string;
       club: { shortName: string | null; slug: string } | null;
+      active: boolean;
     } | null;
   }>,
 ): RosterSlotView[] =>
@@ -65,6 +66,40 @@ const serializeSlots = (
       : null,
   }));
 
+const clearInactivePlayers = async (
+  slots: Array<{
+    id: string;
+    slotNumber: number;
+    isStarter: boolean;
+    player: {
+      id: string;
+      name: string;
+      position: string;
+      club: { shortName: string | null; slug: string } | null;
+      active: boolean;
+    } | null;
+  }>,
+) => {
+  const inactiveSlotIds = slots
+    .filter((slot) => slot.player && !slot.player.active)
+    .map((slot) => slot.id);
+
+  if (inactiveSlotIds.length === 0) {
+    return slots;
+  }
+
+  await prisma.rosterSlot.updateMany({
+    where: { id: { in: inactiveSlotIds } },
+    data: { playerId: null, isStarter: false },
+  });
+
+  return slots.map((slot) =>
+    inactiveSlotIds.includes(slot.id)
+      ? { ...slot, player: null, isStarter: false }
+      : slot,
+  );
+};
+
 const loadRosterSlots = (fantasyTeamId: string) =>
   prisma.rosterSlot.findMany({
     where: { fantasyTeamId },
@@ -78,6 +113,7 @@ const loadRosterSlots = (fantasyTeamId: string) =>
           id: true,
           name: true,
           position: true,
+          active: true,
           club: { select: { shortName: true, slug: true } },
         },
       },
@@ -155,10 +191,11 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
       : null;
 
     const slots = await loadRosterSlots(team.id);
+    const sanitizedSlots = await clearInactivePlayers(slots);
 
     return NextResponse.json({
       team,
-      slots: serializeSlots(slots),
+      slots: serializeSlots(sanitizedSlots),
       lockInfo,
     });
   } catch (error) {
@@ -276,10 +313,10 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
       const player = await prisma.player.findUnique({
         where: { id: playerId },
-        select: { id: true, seasonId: true },
+        select: { id: true, seasonId: true, active: true },
       });
 
-      if (!player || player.seasonId !== league.seasonId) {
+      if (!player || !player.active || player.seasonId !== league.seasonId) {
         return NextResponse.json({ error: "Player not available" }, { status: 400 });
       }
 
@@ -481,9 +518,10 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
     }
 
     const slots = await loadRosterSlots(team.id);
+    const sanitizedSlots = await clearInactivePlayers(slots);
 
     return NextResponse.json({
-      slots: serializeSlots(slots),
+      slots: serializeSlots(sanitizedSlots),
     });
   } catch (error) {
     if ((error as { status?: number }).status === 401) {
