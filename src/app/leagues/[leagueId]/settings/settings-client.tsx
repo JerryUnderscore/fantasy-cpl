@@ -38,6 +38,8 @@ const buildFormState = (settings: Settings): SettingsForm => {
   };
 };
 
+const presetDraftSeconds = [60, 180, 300, 600];
+
 export default function SettingsClient({ leagueId, leagueName }: Props) {
   const [form, setForm] = useState<SettingsForm | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -145,6 +147,13 @@ export default function SettingsClient({ leagueId, leagueName }: Props) {
     );
   }
 
+  const draftPickSecondsNumber = Number(form.draftPickSeconds);
+  const draftPickMinutesSelection = presetDraftSeconds.includes(
+    draftPickSecondsNumber,
+  )
+    ? String(draftPickSecondsNumber / 60)
+    : "OTHER";
+
   return (
     <div className="flex flex-col gap-6">
       <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
@@ -222,20 +231,52 @@ export default function SettingsClient({ leagueId, leagueName }: Props) {
           </label>
 
           {form.draftMode === "TIMED" ? (
-            <label className="flex flex-col gap-2 text-sm text-zinc-600">
-              Draft pick seconds
-              <input
-                type="number"
-                min={10}
-                max={600}
-                value={form.draftPickSeconds}
-                onChange={(event) =>
-                  updateField("draftPickSeconds", event.target.value)
-                }
-                disabled={locked}
-                className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 disabled:bg-zinc-100"
-              />
-            </label>
+            <div className="flex flex-col gap-3">
+              <label className="flex flex-col gap-2 text-sm text-zinc-600">
+                Draft pick time
+                <select
+                  value={draftPickMinutesSelection}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (value === "OTHER") {
+                      updateField(
+                        "draftPickSeconds",
+                        presetDraftSeconds.includes(draftPickSecondsNumber)
+                          ? ""
+                          : form.draftPickSeconds,
+                      );
+                      return;
+                    }
+                    const minutes = Number(value);
+                    updateField("draftPickSeconds", String(minutes * 60));
+                  }}
+                  disabled={locked}
+                  className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 disabled:bg-zinc-100"
+                >
+                  <option value="1">1 minute</option>
+                  <option value="3">3 minutes</option>
+                  <option value="5">5 minutes</option>
+                  <option value="10">10 minutes</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </label>
+              {draftPickMinutesSelection === "OTHER" ? (
+                <label className="flex flex-col gap-2 text-sm text-zinc-600">
+                  Custom seconds
+                  <input
+                    type="number"
+                    min={10}
+                    max={600}
+                    value={form.draftPickSeconds}
+                    onChange={(event) =>
+                      updateField("draftPickSeconds", event.target.value)
+                    }
+                    disabled={locked}
+                    className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 disabled:bg-zinc-100"
+                  />
+                </label>
+              ) : null}
+            </div>
           ) : null}
         </div>
         {locked ? (

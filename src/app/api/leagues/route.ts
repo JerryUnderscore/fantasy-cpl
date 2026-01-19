@@ -3,7 +3,12 @@ import { randomInt } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
-import { PlayerPosition } from "@prisma/client";
+import {
+  DraftMode,
+  JoinMode,
+  PlayerPosition,
+  StandingsMode,
+} from "@prisma/client";
 
 export const runtime = "nodejs";
 
@@ -15,6 +20,50 @@ const normalizeName = (value: unknown) => {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+};
+
+type ParseResult<T> =
+  | { hasValue: false }
+  | { hasValue: true; value: T | null };
+
+const parseEnumField = <T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+): ParseResult<T> => {
+  if (value === undefined) return { hasValue: false };
+  if (allowed.includes(value as T)) {
+    return { hasValue: true, value: value as T };
+  }
+  return { hasValue: true, value: null };
+};
+
+const parseNullableInt = (value: unknown): ParseResult<number> => {
+  if (value === undefined) return { hasValue: false };
+  if (value === null || value === "") return { hasValue: true, value: null };
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : NaN;
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+    return { hasValue: true, value: null };
+  }
+  return { hasValue: true, value: parsed };
+};
+
+const parseRequiredInt = (value: unknown): ParseResult<number> => {
+  if (value === undefined) return { hasValue: false };
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : NaN;
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+    return { hasValue: true, value: null };
+  }
+  return { hasValue: true, value: parsed };
 };
 
 const buildInviteCode = () => {
@@ -77,6 +126,79 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No active season" }, { status: 400 });
     }
 
+    const joinMode = parseEnumField(body?.joinMode, ["OPEN", "INVITE_ONLY"]);
+    if (joinMode.hasValue && !joinMode.value) {
+      return NextResponse.json({ error: "Invalid join mode" }, { status: 400 });
+    }
+
+    const maxTeams = parseRequiredInt(body?.maxTeams);
+    if (maxTeams.hasValue) {
+      if (maxTeams.value === null) {
+        return NextResponse.json(
+          { error: "Invalid max teams" },
+          { status: 400 },
+        );
+      }
+      if (maxTeams.value < 2 || maxTeams.value > 20) {
+        return NextResponse.json(
+          { error: "Max teams must be between 2 and 20" },
+          { status: 400 },
+        );
+      }
+    }
+
+    const standingsRaw =
+      body?.standingsMode === "H2H" ? "HEAD_TO_HEAD" : body?.standingsMode;
+    const standingsMode = parseEnumField(standingsRaw, [
+      "TOTAL_POINTS",
+      "HEAD_TO_HEAD",
+    ]);
+    if (standingsMode.hasValue && !standingsMode.value) {
+      return NextResponse.json(
+        { error: "Invalid standings mode" },
+        { status: 400 },
+      );
+    }
+
+    const draftMode = parseEnumField(body?.draftMode, [
+      "ASYNC",
+      "MANUAL",
+      "TIMED",
+    ]);
+    if (draftMode.hasValue && !draftMode.value) {
+      return NextResponse.json(
+        { error: "Invalid draft mode" },
+        { status: 400 },
+      );
+    }
+
+    const draftPickSeconds = parseNullableInt(body?.draftPickSeconds);
+    let draftPickSecondsValue: number | null | undefined = undefined;
+    if (draftMode.hasValue) {
+      if (draftMode.value === "TIMED") {
+        if (!draftPickSeconds.hasValue || draftPickSeconds.value === null) {
+          return NextResponse.json(
+            { error: "Draft pick seconds required for timed draft" },
+            { status: 400 },
+          );
+        }
+        if (draftPickSeconds.value < 10 || draftPickSeconds.value > 600) {
+          return NextResponse.json(
+            { error: "Draft pick seconds must be between 10 and 600" },
+            { status: 400 },
+          );
+        }
+        draftPickSecondsValue = draftPickSeconds.value;
+      } else {
+        draftPickSecondsValue = null;
+      }
+    } else if (draftPickSeconds.hasValue) {
+      return NextResponse.json(
+        { error: "Draft mode is required when setting draft pick seconds" },
+        { status: 400 },
+      );
+    }
+
     for (let attempt = 0; attempt < MAX_INVITE_ATTEMPTS; attempt += 1) {
       const inviteCode = buildInviteCode();
 
@@ -88,6 +210,19 @@ export async function POST(request: Request) {
               inviteCode,
               createdById: profile.id, // ✅ FIX: use profile.id
               seasonId: season.id,
+              ...(joinMode.hasValue
+                ? { joinMode: joinMode.value as JoinMode }
+                : {}),
+              ...(maxTeams.hasValue ? { maxTeams: maxTeams.value } : {}),
+              ...(standingsMode.hasValue
+                ? { standingsMode: standingsMode.value as StandingsMode }
+                : {}),
+              ...(draftMode.hasValue
+                ? { draftMode: draftMode.value as DraftMode }
+                : {}),
+              ...(draftPickSecondsValue !== undefined
+                ? { draftPickSeconds: draftPickSecondsValue }
+                : {}),
             },
             select: { id: true, inviteCode: true },
           });
