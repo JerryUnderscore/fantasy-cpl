@@ -48,15 +48,6 @@ export default function UserMenu({
     };
   }, []);
 
-  const handleSignIn = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "discord",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-  };
-
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     router.refresh();
@@ -64,13 +55,12 @@ export default function UserMenu({
 
   if (!isAuthenticated) {
     return (
-      <button
-        type="button"
-        onClick={handleSignIn}
+      <Link
+        href="/auth"
         className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white transition hover:bg-black/80"
       >
         Sign in
-      </button>
+      </Link>
     );
   }
 
