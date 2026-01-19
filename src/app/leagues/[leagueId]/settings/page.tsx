@@ -12,9 +12,9 @@ type SettingsParams = { leagueId: string };
 export default async function LeagueSettingsPage({
   params,
 }: {
-  params: SettingsParams | Promise<SettingsParams>;
+  params: SettingsParams;
 }) {
-  const { leagueId } = await params;
+  const { leagueId } = params;
   if (!leagueId) notFound();
 
   const supabase = await createClient();

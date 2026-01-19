@@ -54,6 +54,7 @@ export default async function Page({
           Coming soon. This space will let you build rankings and a draft board.
         </p>
       </div>
+
       <Link
         href={`/leagues/${leagueId}`}
         className="text-sm font-semibold text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline"

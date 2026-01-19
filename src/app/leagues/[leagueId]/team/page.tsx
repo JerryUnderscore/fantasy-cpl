@@ -41,11 +41,11 @@ export default async function MyTeamRosterPage({
   params,
   searchParams,
 }: {
-  params: TeamParams | Promise<TeamParams>;
+  params: Promise<TeamParams>;
   searchParams?: SearchParamsShape | Promise<SearchParamsShape>;
 }) {
   const { leagueId } = await params;
-  if (!leagueId) notFound();
+    if (!leagueId) notFound();
 
   // Next 16 sometimes provides searchParams as a Promise.
   const sp = searchParams ? await searchParams : undefined;

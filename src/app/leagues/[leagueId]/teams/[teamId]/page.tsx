@@ -22,10 +22,10 @@ type SlotView = {
 export default async function TeamRosterPage({
   params,
 }: {
-  params: TeamParams | Promise<TeamParams>;
+  params: Promise<TeamParams>;
 }) {
   const { leagueId, teamId } = await params;
-  if (!leagueId || !teamId) notFound();
+    if (!leagueId || !teamId) notFound();
 
   const supabase = await createClient();
   const {

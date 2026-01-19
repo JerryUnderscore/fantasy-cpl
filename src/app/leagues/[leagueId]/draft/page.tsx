@@ -14,6 +14,7 @@ export const runtime = "nodejs";
 
 type DraftParams = { leagueId: string };
 
+// NOTE: Club.shortName is nullable in your DB/schema (string | null).
 type DraftPickSummary = {
   id: string;
   pickNumber: number;
@@ -26,16 +27,16 @@ type DraftPickSummary = {
     id: string;
     name: string;
     position: string;
-    club: { shortName: string; slug: string } | null;
+    club: { shortName: string | null; slug: string } | null;
   };
 };
 
 export default async function DraftPage({
   params,
 }: {
-  params: DraftParams | Promise<DraftParams>;
+  params: DraftParams;
 }) {
-  const { leagueId } = await params;
+  const { leagueId } = params;
   if (!leagueId) notFound();
 
   const supabase = await createClient();
@@ -49,9 +50,7 @@ export default async function DraftPage({
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl bg-white p-10 shadow-sm">
           <div className="flex flex-col gap-2">
             <h1 className="text-3xl font-semibold text-black">League draft</h1>
-            <p className="text-sm text-zinc-500">
-              Sign in to view this league draft.
-            </p>
+            <p className="text-sm text-zinc-500">Sign in to view this league draft.</p>
           </div>
           <AuthButtons isAuthenticated={false} />
           <Link
@@ -73,9 +72,7 @@ export default async function DraftPage({
     return (
       <div className="min-h-screen bg-zinc-50 px-6 py-16">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl bg-white p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-black">
-            Profile not synced
-          </h1>
+          <h1 className="text-2xl font-semibold text-black">Profile not synced</h1>
           <p className="text-sm text-zinc-500">
             Please sync your profile from the home page and try again.
           </p>
@@ -102,9 +99,7 @@ export default async function DraftPage({
     },
   });
 
-  if (!league) {
-    notFound();
-  }
+  if (!league) notFound();
 
   const membership = await prisma.leagueMember.findUnique({
     where: {
@@ -117,9 +112,7 @@ export default async function DraftPage({
     return (
       <div className="min-h-screen bg-zinc-50 px-6 py-16">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl bg-white p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-black">
-            Not a league member
-          </h1>
+          <h1 className="text-2xl font-semibold text-black">Not a league member</h1>
           <p className="text-sm text-zinc-500">
             You need to join this league before viewing its draft.
           </p>
@@ -145,9 +138,7 @@ export default async function DraftPage({
             >
               Back to league
             </Link>
-            <h1 className="text-3xl font-semibold text-black">
-              {league.name}
-            </h1>
+            <h1 className="text-3xl font-semibold text-black">{league.name}</h1>
             <p className="text-sm text-zinc-500">
               {league.season.name} · {league.season.year}
             </p>
@@ -167,7 +158,9 @@ export default async function DraftPage({
     select: { id: true, name: true, profileId: true, createdAt: true },
     orderBy: { createdAt: "asc" },
   });
-  const currentTeam = teams.find((team) => team.profileId === profile.id) ?? null;
+
+  const currentTeam =
+    teams.find((team) => team.profileId === profile.id) ?? null;
 
   const draft = await prisma.draft.findUnique({
     where: {
@@ -216,6 +209,7 @@ export default async function DraftPage({
   let draftStatus: "NOT_STARTED" | "LIVE" | "COMPLETE" = draft
     ? draft.status
     : "NOT_STARTED";
+
   if (draft && totalPicks > 0 && draftedCount >= totalPicks) {
     draftStatus = "COMPLETE";
   }
@@ -227,7 +221,7 @@ export default async function DraftPage({
   const draftDeadline =
     draft && currentPick
       ? computePickDeadline({
-          draftStatus: draftStatus,
+          draftStatus,
           draftMode: league.draftMode,
           draftPickSeconds: league.draftPickSeconds,
           currentPickStartedAt: draft.currentPickStartedAt,
@@ -250,14 +244,13 @@ export default async function DraftPage({
     currentPick?.fantasyTeamId === currentTeam.id;
 
   const draftedPlayerIds = picks.map((pick) => pick.player.id);
+
   const availablePlayers = draft
     ? await prisma.player.findMany({
         where: {
           seasonId: league.seasonId,
           active: true,
-          ...(draftedPlayerIds.length
-            ? { id: { notIn: draftedPlayerIds } }
-            : {}),
+          ...(draftedPlayerIds.length ? { id: { notIn: draftedPlayerIds } } : {}),
         },
         orderBy: { name: "asc" },
         select: {
@@ -366,6 +359,7 @@ export default async function DraftPage({
                             currentPick?.fantasyTeamId === team.id &&
                             draftStatus === "LIVE";
                           const isCurrentUserTeam = currentTeam?.id === team.id;
+
                           return (
                             <td
                               key={team.id}
@@ -383,12 +377,14 @@ export default async function DraftPage({
                                     {pick.player.name}
                                   </span>
                                   <span className="text-xs text-zinc-500">
-                                    {pick.player.position} · {pick.player.club?.shortName ?? "—"}
+                                    {pick.player.position} ·{" "}
+                                    {pick.player.club?.shortName ?? "—"}
                                   </span>
                                 </div>
                               ) : (
                                 <span className="text-sm text-zinc-400">—</span>
                               )}
+
                               {isCurrentPick ? (
                                 <div className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
                                   On the clock
@@ -420,6 +416,7 @@ export default async function DraftPage({
                 <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
                   My team
                 </p>
+
                 {currentTeam ? (
                   myTeamPicks.length ? (
                     <ul className="mt-3 flex flex-col gap-3">
@@ -429,7 +426,8 @@ export default async function DraftPage({
                             {pick.player.name}
                           </p>
                           <p className="text-xs text-zinc-500">
-                            {pick.player.position} · {pick.player.club?.shortName ?? "—"}
+                            {pick.player.position} ·{" "}
+                            {pick.player.club?.shortName ?? "—"}
                           </p>
                           <p className="mt-1 text-[10px] uppercase tracking-wide text-zinc-400">
                             Round {pick.round} · Pick {pick.pickNumber}
@@ -438,9 +436,7 @@ export default async function DraftPage({
                       ))}
                     </ul>
                   ) : (
-                    <p className="mt-3 text-sm text-zinc-500">
-                      No picks yet.
-                    </p>
+                    <p className="mt-3 text-sm text-zinc-500">No picks yet.</p>
                   )
                 ) : (
                   <p className="mt-3 text-sm text-zinc-500">

@@ -12,9 +12,9 @@ type LeagueParams = { leagueId: string };
 export default async function LeaguePlayersPage({
   params,
 }: {
-  params: LeagueParams | Promise<LeagueParams>;
+  params: LeagueParams;
 }) {
-  const { leagueId } = await params;
+  const { leagueId } = params;
   if (!leagueId) notFound();
 
   const supabase = await createClient();
