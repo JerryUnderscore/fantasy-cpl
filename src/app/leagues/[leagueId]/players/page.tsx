@@ -14,7 +14,7 @@ export default async function LeaguePlayersPage({
 }: {
   params: LeagueParams;
 }) {
-  const { leagueId } = params;
+  const { leagueId } = await params;
   if (!leagueId) notFound();
 
   const supabase = await createClient();

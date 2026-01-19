@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import PlayersClient from "./players-client";
 
 export const runtime = "nodejs";
 
@@ -16,23 +17,29 @@ export default async function PlayersPage() {
 
   if (!season) {
     return (
-      <main>
-        <h1>Players</h1>
-        <p>No active season found.</p>
-      </main>
+      <div className="min-h-screen bg-zinc-50 px-6 py-16">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl bg-white p-10 shadow-sm">
+          <h1 className="text-2xl font-semibold text-black">Players</h1>
+          <p className="text-sm text-zinc-500">No active season found.</p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <main>
-      <h1>{season.name} Players</h1>
-      <ul>
-        {season.players.map((player) => (
-          <li key={player.id}>
-            {player.name} - {player.position} - {player.club.name}
-          </li>
-        ))}
-      </ul>
-    </main>
+    <div className="min-h-screen bg-zinc-50 px-6 py-16">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 rounded-3xl bg-white p-10 shadow-sm">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-semibold text-black">
+            {season.name} Players
+          </h1>
+          <p className="text-sm text-zinc-500">
+            Active season player pool.
+          </p>
+        </div>
+
+        <PlayersClient players={season.players} />
+      </div>
+    </div>
   );
 }

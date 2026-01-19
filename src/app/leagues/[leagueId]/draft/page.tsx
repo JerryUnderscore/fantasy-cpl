@@ -36,7 +36,7 @@ export default async function DraftPage({
 }: {
   params: DraftParams;
 }) {
-  const { leagueId } = params;
+  const { leagueId } = await params;
   if (!leagueId) notFound();
 
   const supabase = await createClient();

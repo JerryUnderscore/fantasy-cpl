@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 type PlayerAvailabilityStatus = "FREE_AGENT" | "WAIVERS" | "ROSTERED";
 
@@ -104,6 +105,9 @@ const buildRosterClubLabel = (
 };
 
 export default function PlayersClient({ leagueId }: Props) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [data, setData] = useState<AvailablePlayersResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -471,6 +475,72 @@ export default function PlayersClient({ leagueId }: Props) {
       .map(([slug, label]) => ({ slug, label }));
   }, [data]);
 
+  useEffect(() => {
+    const query = searchParams.get("q") ?? "";
+    const statusParam = searchParams.get("status") ?? "ALL";
+    const positionParam = searchParams.get("position") ?? "ALL";
+    const clubParam = searchParams.get("club") ?? "ALL";
+    const sortParam = searchParams.get("sort") ?? "NAME_ASC";
+
+    const nextSearch = query.trim();
+    const nextStatus =
+      statusParam === "FREE_AGENT" ||
+      statusParam === "WAIVERS" ||
+      statusParam === "ROSTERED" ||
+      statusParam === "ALL"
+        ? (statusParam as StatusFilter)
+        : "ALL";
+    const nextPosition =
+      positionParam === "GK" ||
+      positionParam === "DEF" ||
+      positionParam === "MID" ||
+      positionParam === "FWD" ||
+      positionParam === "ALL"
+        ? (positionParam as PositionFilter)
+        : "ALL";
+    const clubKeys = new Set(clubs.map((club) => club.slug));
+    const nextClub =
+      clubParam === "ALL" || clubKeys.has(clubParam) ? clubParam : "ALL";
+    const nextSort =
+      sortParam === "STATUS" ||
+      sortParam === "WAIVER_SOON" ||
+      sortParam === "NAME_ASC"
+        ? (sortParam as SortOption)
+        : "NAME_ASC";
+
+    if (nextSearch !== searchTerm) setSearchTerm(nextSearch);
+    if (nextStatus !== statusFilter) setStatusFilter(nextStatus);
+    if (nextPosition !== positionFilter) setPositionFilter(nextPosition);
+    if (nextClub !== clubFilter) setClubFilter(nextClub);
+    if (nextSort !== sortOption) setSortOption(nextSort);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, clubs]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (searchTerm.trim()) params.set("q", searchTerm.trim());
+    if (statusFilter !== "ALL") params.set("status", statusFilter);
+    if (positionFilter !== "ALL") params.set("position", positionFilter);
+    if (clubFilter !== "ALL") params.set("club", clubFilter);
+    if (sortOption !== "NAME_ASC") params.set("sort", sortOption);
+
+    const nextQuery = params.toString();
+    const currentQuery = searchParams.toString();
+    if (nextQuery === currentQuery) return;
+
+    const url = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+    router.replace(url, { scroll: false });
+  }, [
+    searchTerm,
+    statusFilter,
+    positionFilter,
+    clubFilter,
+    sortOption,
+    pathname,
+    router,
+    searchParams,
+  ]);
+
   const filteredPlayers = useMemo(() => {
     const base = data?.players ?? [];
     const query = searchTerm.trim().toLowerCase();
@@ -622,6 +692,22 @@ export default function PlayersClient({ leagueId }: Props) {
                 <option value="WAIVER_SOON">Waiver clears soonest</option>
               </select>
             </label>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            <span>{filteredPlayers.length} players</span>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm("");
+                setStatusFilter("ALL");
+                setPositionFilter("ALL");
+                setClubFilter("ALL");
+                setSortOption("NAME_ASC");
+              }}
+              className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900"
+            >
+              Clear filters
+            </button>
           </div>
           {rosterError ? (
             <div className="text-xs text-amber-600">{rosterError}</div>
