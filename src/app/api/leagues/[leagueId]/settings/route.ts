@@ -58,6 +58,17 @@ const parseRequiredInt = (value: unknown): ParseResult<number> => {
   return { hasValue: true, value: parsed };
 };
 
+const parseDateTime = (value: unknown): ParseResult<Date> => {
+  if (value === undefined) return { hasValue: false };
+  if (value === null || value === "") return { hasValue: true, value: null };
+  if (typeof value !== "string") return { hasValue: true, value: null };
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return { hasValue: true, value: null };
+  }
+  return { hasValue: true, value: parsed };
+};
+
 const parseBooleanField = (value: unknown): ParseResult<boolean> => {
   if (value === undefined) return { hasValue: false };
   if (value === true || value === false) {
@@ -114,6 +125,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
         standingsMode: true,
         draftMode: true,
         draftPickSeconds: true,
+        draftScheduledAt: true,
         rosterSize: true,
         keepersEnabled: true,
         keeperCount: true,
@@ -133,6 +145,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
         standingsMode: league.standingsMode,
         draftMode: league.draftMode,
         draftPickSeconds: league.draftPickSeconds,
+        draftScheduledAt: league.draftScheduledAt,
         rosterSize: league.rosterSize,
         keepersEnabled: league.keepersEnabled,
         keeperCount: league.keeperCount,
@@ -179,6 +192,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
         standingsMode: true,
         draftMode: true,
         draftPickSeconds: true,
+        draftScheduledAt: true,
         rosterSize: true,
         keepersEnabled: true,
         keeperCount: true,
@@ -200,6 +214,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       standingsMode?: StandingsMode;
       draftMode?: DraftMode;
       draftPickSeconds?: number | null;
+      draftScheduledAt?: Date | null;
       rosterSize?: number;
       keepersEnabled?: boolean;
       keeperCount?: number | null;
@@ -244,9 +259,9 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
     }
 
     const draftMode = parseEnumField(body.draftMode, [
-      "ASYNC",
-      "TIMED",
-      "MANUAL",
+      "LIVE",
+      "CASUAL",
+      "NONE",
     ]);
     if (draftMode.hasValue) {
       if (!draftMode.value) {
@@ -259,6 +274,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
     }
 
     const draftPickSeconds = parseNullableInt(body.draftPickSeconds);
+    const draftScheduledAt = parseDateTime(body.draftScheduledAt);
     if (draftPickSeconds.hasValue) {
       if (draftPickSeconds.value === null && body.draftPickSeconds !== null) {
         return NextResponse.json(
@@ -275,6 +291,15 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
         }
       }
       updates.draftPickSeconds = draftPickSeconds.value;
+    }
+    if (draftScheduledAt.hasValue) {
+      if (draftScheduledAt.value === null && body.draftScheduledAt !== null) {
+        return NextResponse.json(
+          { error: "Invalid draft schedule" },
+          { status: 400 },
+        );
+      }
+      updates.draftScheduledAt = draftScheduledAt.value;
     }
 
     const rosterSize = parseRequiredInt(body.rosterSize);
@@ -324,6 +349,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       "standingsMode",
       "draftMode",
       "draftPickSeconds",
+      "draftScheduledAt",
       "maxTeams",
       "joinMode",
       "rosterSize",
@@ -366,15 +392,31 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
     const nextDraftMode = updates.draftMode ?? league.draftMode;
     const nextDraftPickSeconds =
       updates.draftPickSeconds ?? league.draftPickSeconds;
-    if (nextDraftMode === "TIMED") {
+    const nextDraftScheduledAt =
+      updates.draftScheduledAt ?? league.draftScheduledAt;
+    if (nextDraftMode === "LIVE") {
       if (
         typeof nextDraftPickSeconds !== "number" ||
         !Number.isInteger(nextDraftPickSeconds)
       ) {
         return NextResponse.json(
-          { error: "Draft pick seconds required for timed drafts" },
+          { error: "Draft pick seconds required for live drafts" },
           { status: 400 },
         );
+      }
+      if (!nextDraftScheduledAt) {
+        return NextResponse.json(
+          { error: "Draft schedule required for live drafts" },
+          { status: 400 },
+        );
+      }
+    }
+    if (nextDraftMode !== "LIVE") {
+      if (updates.draftPickSeconds != null) {
+        updates.draftPickSeconds = null;
+      }
+      if (updates.draftScheduledAt != null) {
+        updates.draftScheduledAt = null;
       }
     }
 
@@ -407,6 +449,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
         standingsMode: true,
         draftMode: true,
         draftPickSeconds: true,
+        draftScheduledAt: true,
         rosterSize: true,
         keepersEnabled: true,
         keeperCount: true,

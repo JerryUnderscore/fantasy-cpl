@@ -88,7 +88,7 @@ export const computePickDeadline = ({
   draftCreatedAt: Date;
 }) => {
   if (draftStatus !== "LIVE") return null;
-  if (draftMode !== "TIMED") return null;
+  if (draftMode !== "LIVE") return null;
   if (typeof draftPickSeconds !== "number") return null;
   const startAt = currentPickStartedAt ?? draftCreatedAt;
   return new Date(startAt.getTime() + draftPickSeconds * 1000);
@@ -119,7 +119,7 @@ export const runDraftCatchUp = async ({
     return { updated: false };
   }
 
-  if (league.draftMode !== "TIMED") {
+  if (league.draftMode !== "LIVE") {
     return { updated: false };
   }
 

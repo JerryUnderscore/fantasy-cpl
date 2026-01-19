@@ -96,10 +96,12 @@ export default async function DraftPage({
       seasonId: true,
       draftMode: true,
       draftPickSeconds: true,
+      draftScheduledAt: true,
     },
   });
 
   if (!league) notFound();
+  if (league.draftMode === "NONE") notFound();
 
   const membership = await prisma.leagueMember.findUnique({
     where: {
@@ -294,6 +296,7 @@ export default async function DraftPage({
           }
           draftMode={league.draftMode}
           deadline={draftDeadline ? draftDeadline.toISOString() : null}
+          scheduledAt={league.draftScheduledAt?.toISOString() ?? null}
           canPick={canPick}
           availablePlayers={availablePlayers.map((player) => ({
             id: player.id,

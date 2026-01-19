@@ -62,6 +62,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       select: {
         id: true,
         season: { select: { id: true, isActive: true } },
+        draftMode: true,
         rosterSize: true,
       },
     });
@@ -72,6 +73,13 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
     if (!league.season.isActive) {
       return NextResponse.json({ error: "No active season" }, { status: 400 });
+    }
+
+    if (league.draftMode === "NONE") {
+      return NextResponse.json(
+        { error: "Drafts are disabled for this league" },
+        { status: 409 },
+      );
     }
 
     await runDraftCatchUp({ leagueId });

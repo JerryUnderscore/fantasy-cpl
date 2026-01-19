@@ -17,7 +17,7 @@ type OnTheClock = {
   fantasyTeamName: string;
 };
 
-type DraftMode = "ASYNC" | "TIMED" | "MANUAL";
+type DraftMode = "LIVE" | "CASUAL" | "NONE";
 
 type Props = {
   leagueId: string;
@@ -26,6 +26,7 @@ type Props = {
   onTheClock: OnTheClock | null;
   draftMode: DraftMode;
   deadline: string | null;
+  scheduledAt: string | null;
   canPick: boolean;
   availablePlayers: AvailablePlayer[];
 };
@@ -51,6 +52,7 @@ export default function DraftClient({
   onTheClock,
   draftMode,
   deadline,
+  scheduledAt,
   canPick,
   availablePlayers,
 }: Props) {
@@ -66,10 +68,14 @@ export default function DraftClient({
       : null;
 
   const remainingSeconds =
-    draftMode === "TIMED" &&
+    draftMode === "LIVE" &&
     draftStatus === "LIVE" &&
     deadlineMs !== null
       ? Math.max(0, Math.floor((deadlineMs - now) / 1000))
+      : null;
+  const scheduledLabel =
+    scheduledAt && !Number.isNaN(new Date(scheduledAt).getTime())
+      ? new Date(scheduledAt).toLocaleString()
       : null;
 
   useEffect(() => {
@@ -144,7 +150,7 @@ export default function DraftClient({
     setError(null);
   };
 
-  const showManualTools = isOwner && draftMode === "MANUAL";
+  const showManualTools = isOwner && draftMode !== "NONE";
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
@@ -164,19 +170,23 @@ export default function DraftClient({
           </p>
         </div>
         <div className="text-sm text-zinc-600">
-          {draftMode === "TIMED" ? (
+          {draftMode === "LIVE" ? (
             remainingSeconds !== null ? (
               <span>Time left: {formatSeconds(remainingSeconds)}</span>
             ) : (
-              <span>Timed draft</span>
+              <span>Live draft</span>
             )
-          ) : draftMode === "MANUAL" ? (
-            <span>Manual draft</span>
-          ) : (
-            <span>Untimed draft</span>
-          )}
+          ) : draftMode === "CASUAL" ? (
+            <span>Casual draft</span>
+          ) : null}
         </div>
       </div>
+
+      {draftMode === "LIVE" && scheduledLabel ? (
+        <p className="text-xs text-zinc-500">
+          Scheduled for {scheduledLabel}
+        </p>
+      ) : null}
 
       {canPick ? (
         <div className="flex flex-wrap items-center gap-3">
@@ -212,7 +222,7 @@ export default function DraftClient({
             Force pick
           </button>
           <p className="text-xs text-zinc-500">
-            Commissioner tools for manual drafts.
+            Commissioner tools for this draft.
           </p>
         </div>
       ) : null}

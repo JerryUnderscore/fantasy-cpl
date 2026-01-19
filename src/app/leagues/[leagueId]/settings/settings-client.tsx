@@ -6,8 +6,9 @@ type Settings = {
   joinMode: "OPEN" | "INVITE_ONLY";
   maxTeams: number;
   standingsMode: "TOTAL_POINTS" | "HEAD_TO_HEAD";
-  draftMode: "ASYNC" | "TIMED" | "MANUAL";
+  draftMode: "LIVE" | "CASUAL" | "NONE";
   draftPickSeconds: number | null;
+  draftScheduledAt: string | null;
 };
 
 type SettingsForm = {
@@ -16,6 +17,7 @@ type SettingsForm = {
   standingsMode: Settings["standingsMode"];
   draftMode: Settings["draftMode"];
   draftPickSeconds: string;
+  draftScheduledAt: string;
 };
 
 type Props = {
@@ -23,9 +25,19 @@ type Props = {
   leagueName: string;
 };
 
+const formatLocalDateTimeInput = (value?: string | null) => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const pad = (entry: number) => String(entry).padStart(2, "0");
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(
+    parsed.getDate(),
+  )}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+};
+
 const buildFormState = (settings: Settings): SettingsForm => {
   const draftSeconds =
-    settings.draftMode === "TIMED" && settings.draftPickSeconds == null
+    settings.draftMode === "LIVE" && settings.draftPickSeconds == null
       ? 60
       : settings.draftPickSeconds ?? "";
   return {
@@ -34,7 +46,8 @@ const buildFormState = (settings: Settings): SettingsForm => {
     standingsMode: settings.standingsMode,
     draftMode: settings.draftMode,
     draftPickSeconds:
-      settings.draftMode === "TIMED" ? String(draftSeconds) : "",
+      settings.draftMode === "LIVE" ? String(draftSeconds) : "",
+    draftScheduledAt: formatLocalDateTimeInput(settings.draftScheduledAt),
   };
 };
 
@@ -90,12 +103,23 @@ export default function SettingsClient({ leagueId, leagueName }: Props) {
     }
 
     let draftPickSeconds: number | null = null;
-    if (form.draftMode === "TIMED") {
+    let draftScheduledAt: string | null = null;
+    if (form.draftMode === "LIVE") {
       draftPickSeconds = Number(form.draftPickSeconds);
       if (!Number.isInteger(draftPickSeconds)) {
         setError("Draft pick seconds must be a whole number.");
         return;
       }
+      if (!form.draftScheduledAt) {
+        setError("Draft schedule is required for live drafts.");
+        return;
+      }
+      const parsed = new Date(form.draftScheduledAt);
+      if (Number.isNaN(parsed.getTime())) {
+        setError("Draft schedule is invalid.");
+        return;
+      }
+      draftScheduledAt = parsed.toISOString();
     }
 
     startTransition(async () => {
@@ -108,6 +132,7 @@ export default function SettingsClient({ leagueId, leagueName }: Props) {
           standingsMode: form.standingsMode,
           draftMode: form.draftMode,
           draftPickSeconds,
+          draftScheduledAt,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -214,24 +239,40 @@ export default function SettingsClient({ leagueId, leagueName }: Props) {
               onChange={(event) => {
                 const value = event.target.value as SettingsForm["draftMode"];
                 updateField("draftMode", value);
-                if (value === "TIMED" && !form.draftPickSeconds) {
+                if (value === "LIVE" && !form.draftPickSeconds) {
                   updateField("draftPickSeconds", "60");
                 }
-                if (value !== "TIMED") {
+                if (value !== "LIVE") {
                   updateField("draftPickSeconds", "");
+                  updateField("draftScheduledAt", "");
                 }
               }}
               disabled={locked}
               className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 disabled:bg-zinc-100"
             >
-              <option value="ASYNC">Async</option>
-              <option value="MANUAL">Manual</option>
-              <option value="TIMED">Timed</option>
+              <option value="LIVE">Live (timed)</option>
+              <option value="CASUAL">Casual (untimed)</option>
+              <option value="NONE">No draft</option>
             </select>
           </label>
 
-          {form.draftMode === "TIMED" ? (
+          {form.draftMode === "LIVE" ? (
             <div className="flex flex-col gap-3">
+              <label className="flex flex-col gap-2 text-sm text-zinc-600">
+                Draft start time
+                <input
+                  type="datetime-local"
+                  value={form.draftScheduledAt}
+                  onChange={(event) =>
+                    updateField("draftScheduledAt", event.target.value)
+                  }
+                  disabled={locked}
+                  className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 disabled:bg-zinc-100"
+                />
+                <span className="text-xs text-zinc-400">
+                  Uses your local time.
+                </span>
+              </label>
               <label className="flex flex-col gap-2 text-sm text-zinc-600">
                 Draft pick time
                 <select

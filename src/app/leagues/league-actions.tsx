@@ -7,16 +7,18 @@ type CreateSettingsForm = {
   joinMode: "OPEN" | "INVITE_ONLY";
   maxTeams: string;
   standingsMode: "TOTAL_POINTS" | "HEAD_TO_HEAD";
-  draftMode: "ASYNC" | "TIMED" | "MANUAL";
+  draftMode: "LIVE" | "CASUAL" | "NONE";
   draftPickSeconds: string;
+  draftScheduledAt: string;
 };
 
 const defaultCreateSettings: CreateSettingsForm = {
   joinMode: "OPEN",
   maxTeams: "8",
   standingsMode: "TOTAL_POINTS",
-  draftMode: "ASYNC",
+  draftMode: "CASUAL",
   draftPickSeconds: "",
+  draftScheduledAt: "",
 };
 
 const presetDraftSeconds = [60, 180, 300, 600];
@@ -54,12 +56,23 @@ export default function LeagueActions() {
     }
 
     let draftPickSeconds: number | null = null;
-    if (createSettings.draftMode === "TIMED") {
+    let draftScheduledAt: string | null = null;
+    if (createSettings.draftMode === "LIVE") {
       draftPickSeconds = Number(createSettings.draftPickSeconds);
       if (!Number.isInteger(draftPickSeconds)) {
         setError("Draft pick seconds must be a whole number.");
         return;
       }
+      if (!createSettings.draftScheduledAt) {
+        setError("Draft schedule is required for live drafts.");
+        return;
+      }
+      const parsed = new Date(createSettings.draftScheduledAt);
+      if (Number.isNaN(parsed.getTime())) {
+        setError("Draft schedule is invalid.");
+        return;
+      }
+      draftScheduledAt = parsed.toISOString();
     }
 
     setPending(true);
@@ -75,6 +88,7 @@ export default function LeagueActions() {
           standingsMode: createSettings.standingsMode,
           draftMode: createSettings.draftMode,
           draftPickSeconds,
+          draftScheduledAt,
         }),
       });
 
@@ -275,21 +289,39 @@ export default function LeagueActions() {
                         ...current,
                         draftMode: value,
                         draftPickSeconds:
-                          value === "TIMED"
+                          value === "LIVE"
                             ? current.draftPickSeconds || "60"
                             : "",
+                        draftScheduledAt: value === "LIVE" ? current.draftScheduledAt : "",
                       }));
                     }}
                     className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
                   >
-                    <option value="ASYNC">Async</option>
-                    <option value="MANUAL">Manual</option>
-                    <option value="TIMED">Timed</option>
+                    <option value="LIVE">Live (timed)</option>
+                    <option value="CASUAL">Casual (untimed)</option>
+                    <option value="NONE">No draft</option>
                   </select>
                 </label>
 
-                {createSettings.draftMode === "TIMED" ? (
+                {createSettings.draftMode === "LIVE" ? (
                   <div className="flex flex-col gap-3">
+                    <label className="flex flex-col gap-2 text-sm text-zinc-600">
+                      Draft start time
+                      <input
+                        type="datetime-local"
+                        value={createSettings.draftScheduledAt}
+                        onChange={(event) =>
+                          setCreateSettings((current) => ({
+                            ...current,
+                            draftScheduledAt: event.target.value,
+                          }))
+                        }
+                        className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+                      />
+                      <span className="text-xs text-zinc-400">
+                        Uses your local time.
+                      </span>
+                    </label>
                     <label className="flex flex-col gap-2 text-sm text-zinc-600">
                       Draft pick time
                       <select

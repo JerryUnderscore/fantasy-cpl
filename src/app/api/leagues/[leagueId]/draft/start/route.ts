@@ -31,6 +31,7 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
         season: { select: { id: true, isActive: true } },
         draftMode: true,
         draftPickSeconds: true,
+        draftScheduledAt: true,
       },
     });
 
@@ -42,13 +43,26 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "No active season" }, { status: 400 });
     }
 
-    if (league.draftMode === "TIMED") {
+    if (league.draftMode === "NONE") {
+      return NextResponse.json(
+        { error: "Drafts are disabled for this league" },
+        { status: 409 },
+      );
+    }
+
+    if (league.draftMode === "LIVE") {
       if (
         typeof league.draftPickSeconds !== "number" ||
         !Number.isInteger(league.draftPickSeconds)
       ) {
         return NextResponse.json(
-          { error: "Draft pick seconds required for timed drafts" },
+          { error: "Draft pick seconds required for live drafts" },
+          { status: 400 },
+        );
+      }
+      if (!league.draftScheduledAt) {
+        return NextResponse.json(
+          { error: "Draft schedule required for live drafts" },
           { status: 400 },
         );
       }
@@ -84,7 +98,7 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
         seasonId: league.season.id,
         status: "LIVE",
         rounds: 15,
-        currentPickStartedAt: league.draftMode === "TIMED" ? now : null,
+        currentPickStartedAt: league.draftMode === "LIVE" ? now : null,
       },
       select: { id: true },
     });

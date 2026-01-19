@@ -1,13 +1,15 @@
+// prisma.config.ts
+import { defineConfig, env } from "prisma/config";
 import "dotenv/config";
-import { defineConfig } from "prisma/config";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
-  datasource: {
-    // Use DIRECT_URL for migrations
-    url: process.env.DIRECT_URL!,
-  },
   migrations: {
-    seed: "npx tsx prisma/seed.ts",
+    path: "prisma/migrations",
+  },
+  datasource: {
+    // This must exist or `prisma migrate dev` will fail with:
+    // "The datasource.url property is required..."
+    url: env("DATABASE_URL"),
   },
 });

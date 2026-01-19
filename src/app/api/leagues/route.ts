@@ -52,6 +52,17 @@ const parseNullableInt = (value: unknown): ParseResult<number> => {
   return { hasValue: true, value: parsed };
 };
 
+const parseDateTime = (value: unknown): ParseResult<Date> => {
+  if (value === undefined) return { hasValue: false };
+  if (value === null || value === "") return { hasValue: true, value: null };
+  if (typeof value !== "string") return { hasValue: true, value: null };
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return { hasValue: true, value: null };
+  }
+  return { hasValue: true, value: parsed };
+};
+
 const parseRequiredInt = (value: unknown): ParseResult<number> => {
   if (value === undefined) return { hasValue: false };
   const parsed =
@@ -161,9 +172,9 @@ export async function POST(request: Request) {
     }
 
     const draftMode = parseEnumField(body?.draftMode, [
-      "ASYNC",
-      "MANUAL",
-      "TIMED",
+      "LIVE",
+      "CASUAL",
+      "NONE",
     ]);
     if (draftMode.hasValue && !draftMode.value) {
       return NextResponse.json(
@@ -173,12 +184,14 @@ export async function POST(request: Request) {
     }
 
     const draftPickSeconds = parseNullableInt(body?.draftPickSeconds);
+    const draftScheduledAt = parseDateTime(body?.draftScheduledAt);
     let draftPickSecondsValue: number | null | undefined = undefined;
+    let draftScheduledAtValue: Date | null | undefined = undefined;
     if (draftMode.hasValue) {
-      if (draftMode.value === "TIMED") {
+      if (draftMode.value === "LIVE") {
         if (!draftPickSeconds.hasValue || draftPickSeconds.value === null) {
           return NextResponse.json(
-            { error: "Draft pick seconds required for timed draft" },
+            { error: "Draft pick seconds required for live draft" },
             { status: 400 },
           );
         }
@@ -189,14 +202,30 @@ export async function POST(request: Request) {
           );
         }
         draftPickSecondsValue = draftPickSeconds.value;
+        if (!draftScheduledAt.hasValue || !draftScheduledAt.value) {
+          return NextResponse.json(
+            { error: "Draft schedule required for live draft" },
+            { status: 400 },
+          );
+        }
+        draftScheduledAtValue = draftScheduledAt.value;
       } else {
         draftPickSecondsValue = null;
+        draftScheduledAtValue = null;
       }
     } else if (draftPickSeconds.hasValue) {
       return NextResponse.json(
         { error: "Draft mode is required when setting draft pick seconds" },
         { status: 400 },
       );
+    }
+    if (draftMode.hasValue && draftMode.value !== "LIVE") {
+      if (draftScheduledAt.hasValue && draftScheduledAt.value !== null) {
+        return NextResponse.json(
+          { error: "Draft schedule is only for live drafts" },
+          { status: 400 },
+        );
+      }
     }
 
     for (let attempt = 0; attempt < MAX_INVITE_ATTEMPTS; attempt += 1) {
@@ -222,6 +251,9 @@ export async function POST(request: Request) {
                 : {}),
               ...(draftPickSecondsValue !== undefined
                 ? { draftPickSeconds: draftPickSecondsValue }
+                : {}),
+              ...(draftScheduledAtValue !== undefined
+                ? { draftScheduledAt: draftScheduledAtValue }
                 : {}),
             },
             select: { id: true, inviteCode: true },

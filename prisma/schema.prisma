@@ -150,8 +150,9 @@ model League {
   waiverPeriodHours   Int                    @default(24)
   joinMode            JoinMode               @default(OPEN)
   maxTeams            Int                    @default(8)
-  draftMode           DraftMode              @default(ASYNC)
+  draftMode           DraftMode              @default(CASUAL)
   draftPickSeconds    Int?
+  draftScheduledAt    DateTime?
   rosterSize          Int                    @default(15)
   keepersEnabled      Boolean                @default(false)
   keeperCount         Int?
@@ -221,9 +222,9 @@ model RosterSlot {
   isStarter     Boolean        @default(false)
   position      PlayerPosition @default(MID)
 
-  fantasyTeam   FantasyTeam    @relation(fields: [fantasyTeamId], references: [id])
-  league        League         @relation(fields: [leagueId], references: [id])
-  player        Player?        @relation(fields: [playerId], references: [id])
+  fantasyTeam FantasyTeam @relation(fields: [fantasyTeamId], references: [id])
+  league      League      @relation(fields: [leagueId], references: [id])
+  player      Player?     @relation(fields: [playerId], references: [id])
 
   @@unique([leagueId, playerId])
   @@unique([fantasyTeamId, slotNumber], map: "RosterSlot_fantasyTeamId_slotIndex_key")
@@ -440,9 +441,9 @@ enum JoinMode {
 }
 
 enum DraftMode {
-  ASYNC
-  TIMED
-  MANUAL
+  LIVE
+  CASUAL
+  NONE
 }
 
 enum DraftStatus {

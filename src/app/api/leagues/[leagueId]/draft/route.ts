@@ -47,11 +47,19 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
         season: { select: { id: true, isActive: true } },
         draftMode: true,
         draftPickSeconds: true,
+        draftScheduledAt: true,
       },
     });
 
     if (!league) {
       return NextResponse.json({ error: "League not found" }, { status: 404 });
+    }
+
+    if (league.draftMode === "NONE") {
+      return NextResponse.json(
+        { error: "Drafts are disabled for this league" },
+        { status: 409 },
+      );
     }
 
     if (!league.season.isActive) {
@@ -79,6 +87,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
         settings: {
           draftMode: league.draftMode,
           draftPickSeconds: league.draftPickSeconds,
+          draftScheduledAt: league.draftScheduledAt,
         },
       });
     }
@@ -134,6 +143,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
       settings: {
         draftMode: league.draftMode,
         draftPickSeconds: league.draftPickSeconds,
+        draftScheduledAt: league.draftScheduledAt,
       },
       picks: picks.map((pick) => ({
         id: pick.id,

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
+import AccountSettingsClient from "@/app/account/account-settings-client";
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,19 @@ export default async function AccountPage() {
     select: { displayName: true, discordId: true, avatarUrl: true },
   });
 
+  const identities = user.identities ?? [];
+  const providers = Array.isArray(user.app_metadata?.providers)
+    ? user.app_metadata?.providers
+    : [];
+  const hasEmailProvider =
+    identities.some((identity) => identity.provider === "email") ||
+    providers.includes("email");
+  const hasDiscordProvider =
+    identities.some((identity) => identity.provider === "discord") ||
+    providers.includes("discord") ||
+    Boolean(profile?.discordId);
+  const appVersion = process.env.NEXT_PUBLIC_APP_VERSION ?? "dev";
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -37,32 +51,17 @@ export default async function AccountPage() {
         </p>
       </div>
 
-      <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center gap-4">
-          {profile?.avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={profile.avatarUrl}
-              alt={profile.displayName ?? "Profile avatar"}
-              className="h-14 w-14 rounded-full border border-zinc-200 object-cover"
-            />
-          ) : (
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-zinc-900 text-sm font-semibold text-white">
-              {(profile?.displayName ?? user.email ?? "A")
-                .slice(0, 2)
-                .toUpperCase()}
-            </div>
-          )}
-          <div>
-            <p className="text-sm font-semibold text-zinc-900">
-              {profile?.displayName ?? user.email ?? "Unnamed account"}
-            </p>
-            <p className="text-xs text-zinc-500">
-              Discord ID: {profile?.discordId ?? "-"}
-            </p>
-          </div>
-        </div>
-      </div>
+      <AccountSettingsClient
+        email={user.email ?? ""}
+        displayName={profile?.displayName ?? ""}
+        avatarUrl={profile?.avatarUrl ?? null}
+        discordId={profile?.discordId ?? null}
+        hasEmailProvider={hasEmailProvider}
+        hasDiscordProvider={hasDiscordProvider}
+        createdAt={user.created_at ?? null}
+        lastSignInAt={user.last_sign_in_at ?? null}
+        appVersion={appVersion}
+      />
 
       <Link
         href="/leagues"

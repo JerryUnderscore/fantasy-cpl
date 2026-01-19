@@ -55,9 +55,9 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "No active season" }, { status: 400 });
     }
 
-    if (league.draftMode !== "MANUAL") {
+    if (league.draftMode === "NONE") {
       return NextResponse.json(
-        { error: "Manual draft mode required" },
+        { error: "Drafts are disabled for this league" },
         { status: 409 },
       );
     }
