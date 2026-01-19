@@ -7,10 +7,10 @@ export const runtime = "nodejs";
 
 type LeagueParams = { leagueId: string };
 
-export default async function DraftPrepPage({
+export default async function Page({
   params,
 }: {
-  params: LeagueParams | Promise<LeagueParams>;
+  params: Promise<LeagueParams>;
 }) {
   const { leagueId } = await params;
   if (!leagueId) notFound();
