@@ -365,15 +365,6 @@ export async function GET(request: NextRequest, ctx: Ctx) {
     const slots = await loadRosterSlots(team.id);
     const sanitizedSlots = await clearInactivePlayers(slots);
 
-    if (affectedSlotIds.length > 0) {
-      await syncLineupSlotsForRosterChange({
-        fantasyTeamId: team.id,
-        seasonId: league.seasonId,
-        rosterSlots: sanitizedSlots,
-        affectedSlotIds,
-      });
-    }
-
     if (!selectedMatchWeek) {
       return NextResponse.json({
         team,

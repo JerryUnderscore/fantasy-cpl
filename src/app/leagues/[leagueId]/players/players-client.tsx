@@ -111,6 +111,7 @@ export default function PlayersClient({ leagueId }: Props) {
   const [data, setData] = useState<AvailablePlayersResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [claimingPlayerId, setClaimingPlayerId] = useState<string | null>(null);
   const [rosterSlots, setRosterSlots] = useState<RosterSlot[]>([]);
@@ -173,6 +174,14 @@ export default function PlayersClient({ leagueId }: Props) {
     void loadPlayers(controller.signal);
     return () => controller.abort();
   }, [loadPlayers]);
+
+  useEffect(() => {
+    if (!actionError) return;
+    const timeout = window.setTimeout(() => {
+      setActionError(null);
+    }, 6000);
+    return () => window.clearTimeout(timeout);
+  }, [actionError]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -376,6 +385,7 @@ export default function PlayersClient({ leagueId }: Props) {
 
   const submitClaim = async (playerId: string, dropId?: string | null) => {
     setActionMessage(null);
+    setActionError(null);
     setClaimingPlayerId(playerId);
 
     try {
@@ -396,9 +406,7 @@ export default function PlayersClient({ leagueId }: Props) {
       setActionMessage("Claim submitted.");
       await Promise.all([loadPlayers(), refreshRoster(), refreshClaims()]);
     } catch (err) {
-      setActionMessage(
-        err instanceof Error ? err.message : "Unable to submit claim",
-      );
+      setActionError(err instanceof Error ? err.message : "Unable to submit claim");
     } finally {
       setClaimingPlayerId(null);
     }
@@ -406,6 +414,7 @@ export default function PlayersClient({ leagueId }: Props) {
 
   const submitAdd = async (playerId: string, dropId?: string | null) => {
     setActionMessage(null);
+    setActionError(null);
     setClaimingPlayerId(playerId);
 
     try {
@@ -426,9 +435,7 @@ export default function PlayersClient({ leagueId }: Props) {
       setActionMessage("Player added.");
       await Promise.all([loadPlayers(), refreshRoster(), refreshClaims()]);
     } catch (err) {
-      setActionMessage(
-        err instanceof Error ? err.message : "Unable to add player",
-      );
+      setActionError(err instanceof Error ? err.message : "Unable to add player");
     } finally {
       setClaimingPlayerId(null);
     }
@@ -514,7 +521,15 @@ export default function PlayersClient({ leagueId }: Props) {
     if (nextClub !== clubFilter) setClubFilter(nextClub);
     if (nextSort !== sortOption) setSortOption(nextSort);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, clubs]);
+  }, [
+    searchParams,
+    clubs,
+    searchTerm,
+    statusFilter,
+    positionFilter,
+    clubFilter,
+    sortOption,
+  ]);
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -525,7 +540,10 @@ export default function PlayersClient({ leagueId }: Props) {
     if (sortOption !== "NAME_ASC") params.set("sort", sortOption);
 
     const nextQuery = params.toString();
-    const currentQuery = searchParams.toString();
+    const currentQuery =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).toString()
+        : searchParams.toString();
     if (nextQuery === currentQuery) return;
 
     const url = nextQuery ? `${pathname}?${nextQuery}` : pathname;
@@ -538,7 +556,6 @@ export default function PlayersClient({ leagueId }: Props) {
     sortOption,
     pathname,
     router,
-    searchParams,
   ]);
 
   const filteredPlayers = useMemo(() => {
@@ -595,6 +612,22 @@ export default function PlayersClient({ leagueId }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
+      {actionError ? (
+        <div className="fixed right-6 top-6 z-50 w-full max-w-sm rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-lg">
+          <div className="flex items-start justify-between gap-3">
+            <p className="font-semibold">Roster update blocked</p>
+            <button
+              type="button"
+              onClick={() => setActionError(null)}
+              className="text-xs font-semibold uppercase tracking-wide text-amber-700"
+            >
+              Close
+            </button>
+          </div>
+          <p className="mt-1 text-sm">{actionError}</p>
+        </div>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">

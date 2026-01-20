@@ -53,25 +53,26 @@ export const validateRosterAddition = ({
   const nextCounts = { ...counts, [addPosition]: counts[addPosition] + 1 };
   const maxGoalkeepers = ROSTER_LIMITS.max.GK ?? 1;
   if (nextCounts.GK > maxGoalkeepers) {
-    return { ok: false, error: "Only one goalkeeper is allowed per roster" };
+    return {
+      ok: false,
+      error: `Roster limit reached: you can only carry ${maxGoalkeepers} goalkeeper${maxGoalkeepers === 1 ? "" : "s"}.`,
+    };
   }
 
   const remainingSlots = safeRosterSize - (currentTotal + 1);
-  const requiredPositions = (Object.keys(ROSTER_LIMITS.min) as PlayerPosition[])
-    .filter((position) => {
+  const minShortfall = (Object.keys(ROSTER_LIMITS.min) as PlayerPosition[]).some(
+    (position) => {
       const minRequired = ROSTER_LIMITS.min[position] ?? 0;
       return nextCounts[position] + remainingSlots < minRequired;
-    })
-    .map((position) => position);
+    },
+  );
 
-  if (requiredPositions.length > 0) {
-    const label =
-      requiredPositions.length === 1
-        ? requiredPositions[0]
-        : requiredPositions.join(", ");
+  if (minShortfall) {
+    const min = ROSTER_LIMITS.min;
+    const requirementLabel = `at least ${min.DEF} defenders, ${min.MID} midfielders, and ${min.FWD} forward${min.FWD === 1 ? "" : "s"}`;
     return {
       ok: false,
-      error: `You must add ${label} to meet roster minimums`,
+      error: `Roster requirements not met. Your roster must include ${requirementLabel}.`,
     };
   }
 
