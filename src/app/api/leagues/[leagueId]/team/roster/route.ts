@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { MatchWeekStatus, Prisma } from "@prisma/client";
+import { MatchWeekStatus, PlayerPosition, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
-import { PlayerPosition } from "@prisma/client";
+import { buildRosterSlots, validateRosterAddition } from "@/lib/roster";
 import { getCurrentMatchWeekForSeason } from "@/lib/matchweek";
 import { getNextEasternTimeAt } from "@/lib/time";
 
@@ -22,16 +22,7 @@ type RosterSlotView = {
   } | null;
 };
 
-const ROSTER_SIZE = 15;
 const STARTERS_REQUIRED = 11;
-
-const buildRosterSlots = (fantasyTeamId: string, leagueId: string) =>
-  Array.from({ length: ROSTER_SIZE }, (_, index) => ({
-    fantasyTeamId,
-    leagueId,
-    slotNumber: index + 1,
-    position: PlayerPosition.MID,
-  }));
 
 const getProfile = async (userId: string) =>
   prisma.profile.findUnique({
@@ -313,7 +304,7 @@ export async function GET(request: NextRequest, ctx: Ctx) {
 
     const league = await prisma.league.findUnique({
       where: { id: leagueId },
-      select: { id: true, seasonId: true },
+      select: { id: true, seasonId: true, rosterSize: true },
     });
 
     if (!league) {
@@ -335,7 +326,7 @@ export async function GET(request: NextRequest, ctx: Ctx) {
     }
 
     await prisma.rosterSlot.createMany({
-      data: buildRosterSlots(team.id, leagueId),
+      data: buildRosterSlots(team.id, leagueId, league.rosterSize),
       skipDuplicates: true,
     });
 
@@ -490,7 +481,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
     const league = await prisma.league.findUnique({
       where: { id: leagueId },
-      select: { id: true, seasonId: true, waiverPeriodHours: true },
+      select: { id: true, seasonId: true, waiverPeriodHours: true, rosterSize: true },
     });
 
     if (!league) {
@@ -526,7 +517,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       lockingMatchWeek != null && lockingMatchWeek.status !== MatchWeekStatus.OPEN;
 
     await prisma.rosterSlot.createMany({
-      data: buildRosterSlots(team.id, leagueId),
+      data: buildRosterSlots(team.id, leagueId, league.rosterSize),
       skipDuplicates: true,
     });
 
@@ -588,7 +579,12 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
       const slot = await prisma.rosterSlot.findFirst({
         where: { id: slotId, fantasyTeamId: team.id },
-        select: { id: true, slotNumber: true },
+        select: {
+          id: true,
+          slotNumber: true,
+          playerId: true,
+          player: { select: { position: true } },
+        },
       });
 
       if (!slot) {
@@ -597,7 +593,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
       const player = await prisma.player.findUnique({
         where: { id: playerId },
-        select: { id: true, seasonId: true, active: true },
+        select: { id: true, seasonId: true, active: true, position: true },
       });
 
       if (!player || !player.active || player.seasonId !== league.seasonId) {
@@ -659,9 +655,27 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
         );
       }
 
+      const rosterPositions = await prisma.rosterSlot.findMany({
+        where: { fantasyTeamId: team.id, playerId: { not: null } },
+        select: { player: { select: { position: true } } },
+      });
+      const currentPositions = rosterPositions
+        .map((row) => row.player?.position)
+        .filter((position): position is PlayerPosition => Boolean(position));
+      const validation = validateRosterAddition({
+        rosterSize: league.rosterSize,
+        currentPositions,
+        addPosition: player.position,
+        dropPosition: slot.player?.position ?? null,
+      });
+
+      if (!validation.ok) {
+        return NextResponse.json({ error: validation.error }, { status: 409 });
+      }
+
       await prisma.rosterSlot.update({
         where: { id: slotId },
-        data: { playerId },
+        data: { playerId, position: player.position },
       });
       affectedSlotIds = [slotId];
     } else if (action === "clear") {
@@ -742,7 +756,11 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       await prisma.$transaction(async (tx) => {
         await tx.rosterSlot.update({
           where: { id: slotId },
-          data: { playerId: null, isStarter: false },
+          data: {
+            playerId: null,
+            isStarter: false,
+            position: PlayerPosition.MID,
+          },
         });
 
         if (slot.playerId && waiverAvailableAt) {
@@ -855,7 +873,12 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
       const slots = await prisma.rosterSlot.findMany({
         where: { id: { in: [slotId, targetSlotId] }, fantasyTeamId: team.id },
-        select: { id: true, playerId: true, slotNumber: true },
+        select: {
+          id: true,
+          playerId: true,
+          slotNumber: true,
+          player: { select: { position: true } },
+        },
       });
 
       if (slots.length !== 2) {
@@ -865,18 +888,27 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       const [slotA, slotB] =
         slots[0].id === slotId ? [slots[0], slots[1]] : [slots[1], slots[0]];
 
+      const slotAPosition =
+        slotA.playerId && slotA.player?.position
+          ? slotA.player.position
+          : PlayerPosition.MID;
+      const slotBPosition =
+        slotB.playerId && slotB.player?.position
+          ? slotB.player.position
+          : PlayerPosition.MID;
+
       await prisma.$transaction(async (tx) => {
         await tx.rosterSlot.update({
           where: { id: slotA.id },
-          data: { playerId: null },
+          data: { playerId: null, position: PlayerPosition.MID },
         });
         await tx.rosterSlot.update({
           where: { id: slotB.id },
-          data: { playerId: slotA.playerId },
+          data: { playerId: slotA.playerId, position: slotAPosition },
         });
         await tx.rosterSlot.update({
           where: { id: slotA.id },
-          data: { playerId: slotB.playerId },
+          data: { playerId: slotB.playerId, position: slotBPosition },
         });
       });
       affectedSlotIds = [slotA.id, slotB.id];

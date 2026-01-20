@@ -1,6 +1,7 @@
-import { MatchWeekStatus, Prisma } from "@prisma/client";
+import { MatchWeekStatus, PlayerPosition, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getNextEasternTimeAt } from "@/lib/time";
+import { validateRosterAddition } from "@/lib/roster";
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 
@@ -242,6 +243,7 @@ const processLeagueWaiversInTransaction = async (
   now: Date,
   lockInfo: LockInfo,
   seasonId: string,
+  rosterSize: number,
 ) => {
   const startNumber =
     lockInfo?.matchWeekNumber != null
@@ -282,6 +284,7 @@ const processLeagueWaiversInTransaction = async (
         fantasyTeamId: true,
         dropPlayerId: true,
         createdAt: true,
+        player: { select: { position: true } },
       },
     });
 
@@ -322,16 +325,37 @@ const processLeagueWaiversInTransaction = async (
     let targetSlotId: string | null = null;
 
     for (const claim of sortedClaims) {
+      if (!claim.player?.position) {
+        continue;
+      }
       const slots = await tx.rosterSlot.findMany({
         where: { fantasyTeamId: claim.fantasyTeamId },
-        select: { id: true, slotNumber: true, playerId: true, isStarter: true },
+        select: {
+          id: true,
+          slotNumber: true,
+          playerId: true,
+          isStarter: true,
+          player: { select: { position: true } },
+        },
       });
+      const currentPositions = slots
+        .map((slot) => slot.player?.position)
+        .filter((position): position is PlayerPosition => Boolean(position));
 
       if (claim.dropPlayerId) {
         const dropSlot = slots.find(
           (slot) => slot.playerId === claim.dropPlayerId,
         );
         if (!dropSlot) {
+          continue;
+        }
+        const validation = validateRosterAddition({
+          rosterSize,
+          currentPositions,
+          addPosition: claim.player.position,
+          dropPosition: dropSlot.player?.position ?? null,
+        });
+        if (!validation.ok) {
           continue;
         }
         let dropSlotIsStarter = dropSlot.isStarter;
@@ -363,6 +387,15 @@ const processLeagueWaiversInTransaction = async (
         continue;
       }
 
+      const validation = validateRosterAddition({
+        rosterSize,
+        currentPositions,
+        addPosition: claim.player.position,
+      });
+      if (!validation.ok) {
+        continue;
+      }
+
       winningClaim = claim;
       targetSlotId = emptySlot.id;
       break;
@@ -383,13 +416,18 @@ const processLeagueWaiversInTransaction = async (
 
     await tx.rosterSlot.update({
       where: { id: targetSlotId },
-      data: { playerId },
+      data: { playerId, position: winningClaim.player.position },
     });
 
     if (targetMatchWeeks.length > 0) {
       const rosterSlots = await tx.rosterSlot.findMany({
         where: { fantasyTeamId: winningClaim.fantasyTeamId },
-        select: { id: true, slotNumber: true, playerId: true, isStarter: true },
+        select: {
+          id: true,
+          slotNumber: true,
+          playerId: true,
+          isStarter: true,
+        },
       });
 
       for (const matchWeek of targetMatchWeeks) {
@@ -481,7 +519,7 @@ export const processLeagueWaivers = async (
 ): Promise<LeagueWaiverProcessSummary | null> => {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { id: true, seasonId: true },
+    select: { id: true, seasonId: true, rosterSize: true },
   });
 
   if (!league) {
@@ -491,7 +529,14 @@ export const processLeagueWaivers = async (
   const lockInfo = await getSeasonLockInfo(prisma, league.seasonId);
 
   const result = await prisma.$transaction((tx) =>
-    processLeagueWaiversInTransaction(tx, leagueId, now, lockInfo, league.seasonId),
+    processLeagueWaiversInTransaction(
+      tx,
+      leagueId,
+      now,
+      lockInfo,
+      league.seasonId,
+      league.rosterSize,
+    ),
   );
 
   return { leagueId, result, lockInfo };

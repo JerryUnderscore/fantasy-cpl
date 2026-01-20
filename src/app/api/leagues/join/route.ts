@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
-import { Prisma, PlayerPosition } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import { buildRosterSlots } from "@/lib/roster";
 
 export const runtime = "nodejs";
 
@@ -35,14 +36,6 @@ const buildDefaultTeamName = (profile: {
   const suffixSource = profile.discordId ?? profile.id;
   return `Team ${suffixSource.slice(0, 6)}`;
 };
-
-const buildRosterSlots = (fantasyTeamId: string, leagueId: string) =>
-  Array.from({ length: 15 }, (_, index) => ({
-    fantasyTeamId,
-    leagueId,
-    slotNumber: index + 1,
-    position: PlayerPosition.MID,
-  }));
 
 class LeagueFullError extends Error {
   constructor() {
@@ -91,11 +84,23 @@ export async function POST(request: Request) {
     const league = inviteCode
       ? await prisma.league.findUnique({
           where: { inviteCode },
-          select: { id: true, inviteCode: true, joinMode: true, maxTeams: true },
+          select: {
+            id: true,
+            inviteCode: true,
+            joinMode: true,
+            maxTeams: true,
+            rosterSize: true,
+          },
         })
       : await prisma.league.findUnique({
           where: { id: leagueId ?? undefined },
-          select: { id: true, inviteCode: true, joinMode: true, maxTeams: true },
+          select: {
+            id: true,
+            inviteCode: true,
+            joinMode: true,
+            maxTeams: true,
+            rosterSize: true,
+          },
         });
 
     if (!league) {
@@ -154,7 +159,7 @@ export async function POST(request: Request) {
         ).id;
 
       await tx.rosterSlot.createMany({
-        data: buildRosterSlots(teamId, league.id),
+        data: buildRosterSlots(teamId, league.id, league.rosterSize),
         skipDuplicates: true,
       });
     });

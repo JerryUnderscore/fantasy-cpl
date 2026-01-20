@@ -4,11 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
 import DraftClient from "./draft-client";
+import DraftPrepClient from "../draft-prep/draft-prep-client";
 import {
   computeCurrentPick,
   computePickDeadline,
   runDraftCatchUp,
 } from "@/lib/draft";
+import { ROSTER_LIMITS } from "@/lib/roster";
 
 export const runtime = "nodejs";
 
@@ -97,6 +99,9 @@ export default async function DraftPage({
       draftMode: true,
       draftPickSeconds: true,
       draftScheduledAt: true,
+      rosterSize: true,
+      keepersEnabled: true,
+      keeperCount: true,
     },
   });
 
@@ -163,6 +168,8 @@ export default async function DraftPage({
 
   const currentTeam =
     teams.find((team) => team.profileId === profile.id) ?? null;
+
+  const positionLimits = ROSTER_LIMITS.min;
 
   const draft = await prisma.draft.findUnique({
     where: {
@@ -247,22 +254,20 @@ export default async function DraftPage({
 
   const draftedPlayerIds = picks.map((pick) => pick.player.id);
 
-  const availablePlayers = draft
-    ? await prisma.player.findMany({
-        where: {
-          seasonId: league.seasonId,
-          active: true,
-          ...(draftedPlayerIds.length ? { id: { notIn: draftedPlayerIds } } : {}),
-        },
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          name: true,
-          position: true,
-          club: { select: { shortName: true } },
-        },
-      })
-    : [];
+  const queuePlayers = await prisma.player.findMany({
+    where: {
+      seasonId: league.seasonId,
+      active: true,
+      ...(draftedPlayerIds.length ? { id: { notIn: draftedPlayerIds } } : {}),
+    },
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      position: true,
+      club: { select: { shortName: true, name: true } },
+    },
+  });
 
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-16">
@@ -298,12 +303,23 @@ export default async function DraftPage({
           deadline={draftDeadline ? draftDeadline.toISOString() : null}
           scheduledAt={league.draftScheduledAt?.toISOString() ?? null}
           canPick={canPick}
-          availablePlayers={availablePlayers.map((player) => ({
+          availablePlayers={queuePlayers.map((player) => ({
             id: player.id,
             name: player.name,
             position: player.position,
             club: player.club?.shortName ?? null,
           }))}
+        />
+
+        <DraftPrepClient
+          leagueId={leagueId}
+          constraints={{
+            rosterSize: league.rosterSize,
+            positionLimits,
+            keepersEnabled: league.keepersEnabled,
+            keeperCount: league.keeperCount,
+          }}
+          players={queuePlayers}
         />
 
         {!draft ? (

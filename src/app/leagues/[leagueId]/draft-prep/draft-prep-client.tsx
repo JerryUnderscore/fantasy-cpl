@@ -316,7 +316,10 @@ export default function DraftPrepClient({
       <aside className="flex flex-col gap-6">
         <section className="rounded-2xl border border-zinc-100 bg-white p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            League constraints
+            Roster constraints
+          </p>
+          <p className="mt-1 text-xs text-zinc-500">
+            Minimums (GK max 1)
           </p>
           <div className="mt-3 flex flex-col gap-2 text-sm text-zinc-600">
             <div className="flex items-center justify-between">

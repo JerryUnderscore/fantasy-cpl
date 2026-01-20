@@ -6,7 +6,7 @@ import AuthButtons from "@/components/auth-buttons";
 import RosterClient from "./roster-client";
 import ScoringCard from "./scoring-card";
 import MatchWeekSelector from "./matchweek-selector";
-import { PlayerPosition } from "@prisma/client";
+import { buildRosterSlots } from "@/lib/roster";
 import { getActiveMatchWeekForSeason } from "@/lib/matchweek";
 
 export const runtime = "nodejs";
@@ -24,16 +24,6 @@ type SlotView = {
     club: { shortName: string | null; slug: string } | null;
   } | null;
 };
-
-const ROSTER_SIZE = 15;
-
-const buildRosterSlots = (fantasyTeamId: string, leagueId: string) =>
-  Array.from({ length: ROSTER_SIZE }, (_, index) => ({
-    fantasyTeamId,
-    leagueId,
-    slotNumber: index + 1,
-    position: PlayerPosition.MID,
-  }));
 
 type SearchParamsShape = { matchWeek?: string };
 
@@ -108,6 +98,7 @@ export default async function MyTeamRosterPage({
     select: {
       id: true,
       name: true,
+      rosterSize: true,
       season: { select: { id: true, name: true, year: true } },
     },
   });
@@ -170,7 +161,7 @@ export default async function MyTeamRosterPage({
 
   // Ensure roster slots exist
   await prisma.rosterSlot.createMany({
-    data: buildRosterSlots(team.id, league.id),
+    data: buildRosterSlots(team.id, league.id, league.rosterSize),
     skipDuplicates: true,
   });
 

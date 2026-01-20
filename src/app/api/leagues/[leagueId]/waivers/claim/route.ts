@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
 import { getCurrentMatchWeekForSeason } from "@/lib/matchweek";
 import { ensureLeagueWaiverPriorities } from "@/lib/waivers";
+import { validateRosterAddition } from "@/lib/roster";
 
 export const runtime = "nodejs";
 
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
     const league = await prisma.league.findUnique({
       where: { id: leagueId },
-      select: { id: true, seasonId: true, draftMode: true },
+      select: { id: true, seasonId: true, draftMode: true, rosterSize: true },
     });
 
     if (!league) {
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
     const player = await prisma.player.findUnique({
       where: { id: playerId },
-      select: { id: true, seasonId: true, active: true },
+      select: { id: true, seasonId: true, active: true, position: true },
     });
 
     if (!player || !player.active || player.seasonId !== league.seasonId) {
@@ -166,7 +167,12 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
     const slots = await prisma.rosterSlot.findMany({
       where: { fantasyTeamId: team.id },
-      select: { id: true, playerId: true, isStarter: true },
+      select: {
+        id: true,
+        playerId: true,
+        isStarter: true,
+        player: { select: { position: true } },
+      },
     });
 
     if (!slots.length) {
@@ -193,6 +199,22 @@ export async function POST(request: NextRequest, ctx: Ctx) {
         { error: "dropPlayerId is not on your roster" },
         { status: 409 },
       );
+    }
+
+    const currentPositions = slots
+      .map((slot) => slot.player?.position)
+      .filter((position): position is NonNullable<typeof position> =>
+        Boolean(position),
+      );
+    const validation = validateRosterAddition({
+      rosterSize: league.rosterSize,
+      currentPositions,
+      addPosition: player.position,
+      dropPosition: dropSlot?.player?.position ?? null,
+    });
+
+    if (!validation.ok) {
+      return NextResponse.json({ error: validation.error }, { status: 409 });
     }
 
     const currentMatchWeek = await getCurrentMatchWeekForSeason(league.seasonId);

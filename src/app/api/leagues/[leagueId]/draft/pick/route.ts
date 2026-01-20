@@ -7,6 +7,7 @@ import {
   computeCurrentPick,
   runDraftCatchUp,
 } from "@/lib/draft";
+import { validateRosterAddition } from "@/lib/roster";
 
 export const runtime = "nodejs";
 
@@ -158,7 +159,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
         const player = await tx.player.findUnique({
           where: { id: playerId },
-          select: { id: true, seasonId: true, active: true },
+          select: { id: true, seasonId: true, active: true, position: true },
         });
 
         if (!player || !player.active || player.seasonId !== league.season.id) {
@@ -178,6 +179,25 @@ export async function POST(request: NextRequest, ctx: Ctx) {
           data: buildRosterSlots(onTheClockTeam.id, leagueId, league.rosterSize),
           skipDuplicates: true,
         });
+
+        const rosterPositions = await tx.rosterSlot.findMany({
+          where: { fantasyTeamId: onTheClockTeam.id, playerId: { not: null } },
+          select: { player: { select: { position: true } } },
+        });
+        const currentPositions = rosterPositions
+          .map((row) => row.player?.position)
+          .filter((position): position is NonNullable<typeof position> =>
+            Boolean(position),
+          );
+        const validation = validateRosterAddition({
+          rosterSize: league.rosterSize,
+          currentPositions,
+          addPosition: player.position,
+        });
+
+        if (!validation.ok) {
+          throw makeError(validation.error ?? "Roster rules violation", 409);
+        }
 
         const openSlot = await tx.rosterSlot.findFirst({
           where: { fantasyTeamId: onTheClockTeam.id, playerId: null },
@@ -211,7 +231,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
         await tx.rosterSlot.update({
           where: { id: openSlot.id },
-          data: { playerId },
+          data: { playerId, position: player.position },
         });
 
         await tx.draftQueueItem.deleteMany({

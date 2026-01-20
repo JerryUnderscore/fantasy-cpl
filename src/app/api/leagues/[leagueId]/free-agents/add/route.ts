@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
 import { getCurrentMatchWeekForSeason } from "@/lib/matchweek";
 import { getNextEasternTimeAt } from "@/lib/time";
+import { validateRosterAddition } from "@/lib/roster";
 
 export const runtime = "nodejs";
 
@@ -83,6 +84,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
         seasonId: true,
         waiverPeriodHours: true,
         draftMode: true,
+        rosterSize: true,
       },
     });
 
@@ -140,7 +142,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
     const player = await prisma.player.findUnique({
       where: { id: playerId },
-      select: { id: true, seasonId: true, active: true },
+      select: { id: true, seasonId: true, active: true, position: true },
     });
 
     if (!player || !player.active || player.seasonId !== league.seasonId) {
@@ -182,7 +184,13 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
     const slots = await prisma.rosterSlot.findMany({
       where: { fantasyTeamId: team.id },
-      select: { id: true, slotNumber: true, playerId: true, isStarter: true },
+      select: {
+        id: true,
+        slotNumber: true,
+        playerId: true,
+        isStarter: true,
+        player: { select: { position: true } },
+      },
     });
 
     if (!slots.length) {
@@ -209,6 +217,22 @@ export async function POST(request: NextRequest, ctx: Ctx) {
         { error: "dropPlayerId is not on your roster" },
         { status: 409 },
       );
+    }
+
+    const currentPositions = slots
+      .map((slot) => slot.player?.position)
+      .filter((position): position is NonNullable<typeof position> =>
+        Boolean(position),
+      );
+    const validation = validateRosterAddition({
+      rosterSize: league.rosterSize,
+      currentPositions,
+      addPosition: player.position,
+      dropPosition: dropSlot?.player?.position ?? null,
+    });
+
+    if (!validation.ok) {
+      return NextResponse.json({ error: validation.error }, { status: 409 });
     }
 
     const currentMatchWeek = await getCurrentMatchWeekForSeason(league.seasonId);
@@ -273,7 +297,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     await prisma.$transaction(async (tx) => {
       await tx.rosterSlot.update({
         where: { id: targetSlotId },
-        data: { playerId, isStarter: false },
+        data: { playerId, isStarter: false, position: player.position },
       });
 
       if (dropSlot?.playerId && waiverAvailableAt) {

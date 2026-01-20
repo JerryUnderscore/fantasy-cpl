@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import { PlayerPosition, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
 import { buildRosterSlots, computeCurrentPick } from "@/lib/draft";
+import { validateRosterAddition } from "@/lib/roster";
 
 export const runtime = "nodejs";
 
@@ -123,7 +124,23 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
           return { updated: false };
         }
 
-        const queuedItem = await tx.draftQueueItem.findFirst({
+        const rosterPositions = await tx.rosterSlot.findMany({
+          where: { fantasyTeamId: currentPick.fantasyTeamId, playerId: { not: null } },
+          select: { player: { select: { position: true } } },
+        });
+        const currentPositions = rosterPositions
+          .map((row) => row.player?.position)
+          .filter((position): position is NonNullable<typeof position> =>
+            Boolean(position),
+          );
+        const canAddPosition = (position: PlayerPosition) =>
+          validateRosterAddition({
+            rosterSize: league.rosterSize,
+            currentPositions,
+            addPosition: position,
+          }).ok;
+
+        const queuedItems = await tx.draftQueueItem.findMany({
           where: {
             draftId: txDraft.id,
             fantasyTeamId: currentPick.fantasyTeamId,
@@ -134,26 +151,36 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
             },
           },
           orderBy: { rank: "asc" },
-          select: { playerId: true },
+          select: { playerId: true, player: { select: { position: true } } },
         });
 
-        const queuedPlayerId = queuedItem?.playerId ?? null;
+        const queuedCandidate = queuedItems.find((item) =>
+          item.player?.position ? canAddPosition(item.player.position) : false,
+        );
 
-        const fallbackPlayer = queuedPlayerId
-          ? null
-          : await tx.player.findFirst({
-              where: {
-                seasonId: league.season.id,
-                active: true,
-                draftPicks: { none: { draftId: txDraft.id } },
-              },
-              orderBy: { name: "asc" },
-              select: { id: true },
-            });
+        let fallbackPlayer: { id: string; position: PlayerPosition } | null = null;
+        if (!queuedCandidate) {
+          const fallbackPlayers = await tx.player.findMany({
+            where: {
+              seasonId: league.season.id,
+              active: true,
+              draftPicks: { none: { draftId: txDraft.id } },
+            },
+            orderBy: { name: "asc" },
+            select: { id: true, position: true },
+            take: 200,
+          });
+          fallbackPlayer =
+            fallbackPlayers.find((player) => canAddPosition(player.position)) ??
+            null;
+        }
 
-        const playerId = queuedPlayerId ?? fallbackPlayer?.id ?? null;
+        const playerId =
+          queuedCandidate?.playerId ?? fallbackPlayer?.id ?? null;
+        const playerPosition =
+          queuedCandidate?.player?.position ?? fallbackPlayer?.position ?? null;
 
-        if (!playerId) {
+        if (!playerId || !playerPosition) {
           return { updated: false };
         }
 
@@ -201,7 +228,7 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
 
         await tx.rosterSlot.update({
           where: { id: openSlot.id },
-          data: { playerId },
+          data: { playerId, position: playerPosition },
         });
 
         await tx.draftQueueItem.deleteMany({

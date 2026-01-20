@@ -128,6 +128,23 @@ export default async function LeagueDetailPage({
     filledCount: team.rosterSlots.filter((slot) => slot.playerId).length,
   }));
 
+  const draft = await prisma.draft.findUnique({
+    where: { leagueId_seasonId: { leagueId: league.id, seasonId: league.seasonId } },
+    select: { id: true, status: true, rounds: true },
+  });
+
+  const draftedCount = draft
+    ? await prisma.draftPick.count({ where: { draftId: draft.id } })
+    : 0;
+  const totalDraftPicks =
+    draft && draft.rounds ? draft.rounds * teamsWithCounts.length : 0;
+  const draftComplete =
+    !league.season.isActive ||
+    league.draftMode === "NONE" ||
+    (draft?.status === "COMPLETE") ||
+    (totalDraftPicks > 0 && draftedCount >= totalDraftPicks);
+  const showDraftButton = !draftComplete;
+
   const [currentMatchWeek, latestFinalizedMatchWeek] = await Promise.all([
     getCurrentMatchWeekForSeason(league.seasonId),
     prisma.matchWeek.findFirst({
@@ -222,6 +239,14 @@ export default async function LeagueDetailPage({
             <h1 className="text-3xl font-semibold text-black">
               {league.name}
             </h1>
+            {showDraftButton ? (
+              <Link
+                href={`/leagues/${league.id}/draft`}
+                className="rounded-full bg-zinc-900 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-zinc-800"
+              >
+                Draft
+              </Link>
+            ) : null}
             {membership.role === "OWNER" ? (
               <Link
                 href={`/leagues/${league.id}/settings`}
@@ -243,12 +268,6 @@ export default async function LeagueDetailPage({
               className="underline-offset-4 hover:text-zinc-900 hover:underline"
             >
               Players
-            </Link>
-            <Link
-              href={`/leagues/${league.id}/draft-prep`}
-              className="underline-offset-4 hover:text-zinc-900 hover:underline"
-            >
-              Draft prep
             </Link>
             <Link
               href={`/leagues/${league.id}/rules`}

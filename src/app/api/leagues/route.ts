@@ -3,12 +3,8 @@ import { randomInt } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
-import {
-  DraftMode,
-  JoinMode,
-  PlayerPosition,
-  StandingsMode,
-} from "@prisma/client";
+import { DraftMode, JoinMode, StandingsMode } from "@prisma/client";
+import { buildRosterSlots } from "@/lib/roster";
 
 export const runtime = "nodejs";
 
@@ -85,14 +81,6 @@ const buildInviteCode = () => {
   }
   return result;
 };
-
-const buildRosterSlots = (fantasyTeamId: string, leagueId: string) =>
-  Array.from({ length: 15 }, (_, index) => ({
-    fantasyTeamId,
-    leagueId,
-    slotNumber: index + 1,
-    position: PlayerPosition.MID,
-  }));
 
 const getProfile = async (userId: string) => {
   return prisma.profile.findUnique({
@@ -257,7 +245,7 @@ export async function POST(request: Request) {
                 ? { draftScheduledAt: draftScheduledAtValue }
                 : {}),
             },
-            select: { id: true, inviteCode: true },
+            select: { id: true, inviteCode: true, rosterSize: true },
           });
 
           await tx.leagueMember.create({
@@ -285,7 +273,7 @@ export async function POST(request: Request) {
           });
 
           await tx.rosterSlot.createMany({
-            data: buildRosterSlots(team.id, created.id),
+            data: buildRosterSlots(team.id, created.id, created.rosterSize),
             skipDuplicates: true,
           });
 
