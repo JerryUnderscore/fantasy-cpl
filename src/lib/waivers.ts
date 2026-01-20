@@ -5,6 +5,8 @@ import { validateRosterAddition } from "@/lib/roster";
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 
+const MAX_TRANSFERS_PER_MATCHWEEK = 2;
+
 type LockInfo = {
   isLocked: boolean;
   matchWeekId: string | null;
@@ -245,6 +247,27 @@ const processLeagueWaiversInTransaction = async (
   seasonId: string,
   rosterSize: number,
 ) => {
+  const transferCounts = new Map<string, number>();
+  const getTransferCount = async (fantasyTeamId: string) => {
+    if (!lockInfo?.matchWeekId) return 0;
+    if (transferCounts.has(fantasyTeamId)) {
+      return transferCounts.get(fantasyTeamId) ?? 0;
+    }
+    const count = await tx.teamMatchWeekTransfer.count({
+      where: { fantasyTeamId, matchWeekId: lockInfo.matchWeekId },
+    });
+    transferCounts.set(fantasyTeamId, count);
+    return count;
+  };
+
+  const registerTransfer = (fantasyTeamId: string) => {
+    if (!lockInfo?.matchWeekId) return;
+    transferCounts.set(
+      fantasyTeamId,
+      (transferCounts.get(fantasyTeamId) ?? 0) + 1,
+    );
+  };
+
   const startNumber =
     lockInfo?.matchWeekNumber != null
       ? lockInfo.status === MatchWeekStatus.OPEN
@@ -325,6 +348,10 @@ const processLeagueWaiversInTransaction = async (
     let targetSlotId: string | null = null;
 
     for (const claim of sortedClaims) {
+      const existingTransfers = await getTransferCount(claim.fantasyTeamId);
+      if (existingTransfers >= MAX_TRANSFERS_PER_MATCHWEEK) {
+        continue;
+      }
       if (!claim.player?.position) {
         continue;
       }
@@ -418,6 +445,19 @@ const processLeagueWaiversInTransaction = async (
       where: { id: targetSlotId },
       data: { playerId, position: winningClaim.player.position },
     });
+
+    if (lockInfo?.matchWeekId) {
+      await tx.teamMatchWeekTransfer.create({
+        data: {
+          leagueId,
+          fantasyTeamId: winningClaim.fantasyTeamId,
+          matchWeekId: lockInfo.matchWeekId,
+          playerId,
+          type: "WAIVER",
+        },
+      });
+      registerTransfer(winningClaim.fantasyTeamId);
+    }
 
     if (targetMatchWeeks.length > 0) {
       const rosterSlots = await tx.rosterSlot.findMany({

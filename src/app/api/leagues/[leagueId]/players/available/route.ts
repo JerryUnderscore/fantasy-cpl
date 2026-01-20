@@ -105,6 +105,13 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
       }),
     ]);
 
+    const seenPlayers = new Set<string>();
+    const uniquePlayers = players.filter((player) => {
+      if (seenPlayers.has(player.id)) return false;
+      seenPlayers.add(player.id);
+      return true;
+    });
+
     const rosteredMap = new Map<
       string,
       { fantasyTeamId: string; fantasyTeamName: string }
@@ -128,7 +135,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
       ROSTERED: 0,
     };
 
-    const resultPlayers: AvailablePlayer[] = players.map((player) => {
+    const resultPlayers: AvailablePlayer[] = uniquePlayers.map((player) => {
       const rostered = rosteredMap.get(player.id);
       if (rostered) {
         counts.ROSTERED += 1;

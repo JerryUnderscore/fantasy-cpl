@@ -270,6 +270,12 @@ export default async function LeagueDetailPage({
               Players
             </Link>
             <Link
+              href={`/leagues/${league.id}/trades`}
+              className="underline-offset-4 hover:text-zinc-900 hover:underline"
+            >
+              Trades
+            </Link>
+            <Link
               href={`/leagues/${league.id}/rules`}
               className="underline-offset-4 hover:text-zinc-900 hover:underline"
             >

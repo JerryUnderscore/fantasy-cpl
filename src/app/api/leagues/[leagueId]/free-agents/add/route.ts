@@ -10,6 +10,8 @@ export const runtime = "nodejs";
 
 type Ctx = { params: Promise<{ leagueId: string }> };
 
+const MAX_TRANSFERS_PER_MATCHWEEK = 2;
+
 const getProfile = async (userId: string) =>
   prisma.profile.findUnique({
     where: { id: userId },
@@ -182,6 +184,22 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       );
     }
 
+    const currentMatchWeek = await getCurrentMatchWeekForSeason(league.seasonId);
+    if (currentMatchWeek) {
+      const transferCount = await prisma.teamMatchWeekTransfer.count({
+        where: {
+          fantasyTeamId: team.id,
+          matchWeekId: currentMatchWeek.id,
+        },
+      });
+      if (transferCount >= MAX_TRANSFERS_PER_MATCHWEEK) {
+        return NextResponse.json(
+          { error: "Transfer limit reached for this matchweek" },
+          { status: 409 },
+        );
+      }
+    }
+
     const slots = await prisma.rosterSlot.findMany({
       where: { fantasyTeamId: team.id },
       select: {
@@ -235,7 +253,6 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: validation.error }, { status: 409 });
     }
 
-    const currentMatchWeek = await getCurrentMatchWeekForSeason(league.seasonId);
     const finalizedMatchWeek = currentMatchWeek
       ? null
       : await prisma.matchWeek.findFirst({
@@ -299,6 +316,18 @@ export async function POST(request: NextRequest, ctx: Ctx) {
         where: { id: targetSlotId },
         data: { playerId, isStarter: false, position: player.position },
       });
+
+      if (currentMatchWeek) {
+        await tx.teamMatchWeekTransfer.create({
+          data: {
+            leagueId,
+            fantasyTeamId: team.id,
+            matchWeekId: currentMatchWeek.id,
+            playerId,
+            type: "FREE_AGENT",
+          },
+        });
+      }
 
       if (dropSlot?.playerId && waiverAvailableAt) {
         await tx.leaguePlayerWaiver.upsert({

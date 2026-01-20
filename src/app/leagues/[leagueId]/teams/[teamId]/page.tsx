@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
 import { getActiveMatchWeekForSeason } from "@/lib/matchweek";
+import TradeRosterClient from "./trade-roster-client";
 
 export const runtime = "nodejs";
 
@@ -144,6 +145,33 @@ export default async function TeamRosterPage({
     notFound();
   }
 
+  const viewerTeam = await prisma.fantasyTeam.findUnique({
+    where: {
+      leagueId_profileId: { leagueId, profileId: profile.id },
+    },
+    select: { id: true, name: true },
+  });
+
+  const viewerRoster = viewerTeam
+    ? await prisma.rosterSlot.findMany({
+        where: { fantasyTeamId: viewerTeam.id, playerId: { not: null } },
+        select: {
+          player: {
+            select: {
+              id: true,
+              name: true,
+              position: true,
+              club: { select: { shortName: true } },
+            },
+          },
+        },
+      })
+    : [];
+
+  const viewerPlayers = viewerRoster
+    .map((slot) => slot.player)
+    .filter((player): player is NonNullable<typeof player> => Boolean(player));
+
   const activeMatchWeek = await getActiveMatchWeekForSeason(league.season.id);
   let lineupSlots:
     | Array<{
@@ -258,6 +286,10 @@ export default async function TeamRosterPage({
 
   const starters = roster.filter((slot) => slot.isStarter);
   const bench = roster.filter((slot) => !slot.isStarter);
+  const targetPlayers = roster
+    .map((slot) => slot.player)
+    .filter((player): player is NonNullable<typeof player> => Boolean(player));
+  const allowTrade = Boolean(viewerTeam && viewerTeam.id !== team.id);
 
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-16">
@@ -278,78 +310,16 @@ export default async function TeamRosterPage({
           </p>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-              Starters ({starters.length}/11)
-            </h2>
-            <ul className="mt-4 flex flex-col gap-3">
-              {starters.map((slot) => (
-                <li
-                  key={slot.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-200 bg-white p-4"
-                >
-                  <div className="flex flex-col">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                      Slot {slot.slotNumber}
-                    </p>
-                    {slot.player ? (
-                      <p className="text-base font-semibold text-zinc-900">
-                        {slot.player.name}
-                      </p>
-                    ) : (
-                      <p className="text-sm text-zinc-500">Empty slot</p>
-                    )}
-                  </div>
-                  {slot.player ? (
-                    <p className="text-sm text-zinc-500">
-                      {slot.player.position} ·{" "}
-                      {slot.player.club?.shortName ?? ""}
-                    </p>
-                  ) : null}
-                </li>
-              ))}
-              {starters.length === 0 ? (
-                <li className="rounded-2xl border border-dashed border-zinc-200 bg-white p-4 text-sm text-zinc-500">
-                  No starters selected yet.
-                </li>
-              ) : null}
-            </ul>
-          </div>
-
-          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-              Bench ({bench.length}/4)
-            </h2>
-            <ul className="mt-4 flex flex-col gap-3">
-              {bench.map((slot) => (
-                <li
-                  key={slot.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-200 bg-white p-4"
-                >
-                  <div className="flex flex-col">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                      Slot {slot.slotNumber}
-                    </p>
-                    {slot.player ? (
-                      <p className="text-base font-semibold text-zinc-900">
-                        {slot.player.name}
-                      </p>
-                    ) : (
-                      <p className="text-sm text-zinc-500">Empty slot</p>
-                    )}
-                  </div>
-                  {slot.player ? (
-                    <p className="text-sm text-zinc-500">
-                      {slot.player.position} ·{" "}
-                      {slot.player.club?.shortName ?? ""}
-                    </p>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
+        <TradeRosterClient
+          leagueId={leagueId}
+          allowTrade={allowTrade}
+          targetTeam={{ id: team.id, name: team.name }}
+          viewerTeam={viewerTeam}
+          starters={starters}
+          bench={bench}
+          viewerPlayers={viewerPlayers}
+          targetPlayers={targetPlayers}
+        />
       </div>
     </div>
   );

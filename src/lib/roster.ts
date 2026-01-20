@@ -79,6 +79,50 @@ export const validateRosterAddition = ({
   return { ok: true };
 };
 
+export const validateRosterComposition = ({
+  rosterSize,
+  positions,
+}: {
+  rosterSize: number;
+  positions: PlayerPosition[];
+}) => {
+  const safeRosterSize = Number.isFinite(rosterSize)
+    ? Math.max(0, Math.floor(rosterSize))
+    : 0;
+  const counts = buildPositionCounts(positions);
+
+  if (positions.length > safeRosterSize) {
+    return { ok: false, error: "Roster is full" };
+  }
+
+  const maxGoalkeepers = ROSTER_LIMITS.max.GK ?? 1;
+  if (counts.GK > maxGoalkeepers) {
+    return {
+      ok: false,
+      error: `Roster limit reached: you can only carry ${maxGoalkeepers} goalkeeper${maxGoalkeepers === 1 ? "" : "s"}.`,
+    };
+  }
+
+  const remainingSlots = safeRosterSize - positions.length;
+  const minShortfall = (Object.keys(ROSTER_LIMITS.min) as PlayerPosition[]).some(
+    (position) => {
+      const minRequired = ROSTER_LIMITS.min[position] ?? 0;
+      return counts[position] + remainingSlots < minRequired;
+    },
+  );
+
+  if (minShortfall) {
+    const min = ROSTER_LIMITS.min;
+    const requirementLabel = `at least ${min.DEF} defenders, ${min.MID} midfielders, and ${min.FWD} forward${min.FWD === 1 ? "" : "s"}`;
+    return {
+      ok: false,
+      error: `Roster requirements not met. Your roster must include ${requirementLabel}.`,
+    };
+  }
+
+  return { ok: true };
+};
+
 const DEFAULT_POSITION_LAYOUT: PlayerPosition[] = [
   PlayerPosition.GK,
   PlayerPosition.GK,

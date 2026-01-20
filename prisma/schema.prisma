@@ -67,9 +67,11 @@ model Player {
   matchStats          PlayerMatchStat[]
   rosterSlots         RosterSlot[]
   matchWeekScores     TeamMatchWeekPlayerScore[]
+  tradeItems          TradeItem[]
 
   // Back-relation for TeamMatchWeekLineupSlot.player
   teamMatchWeekLineupSlots TeamMatchWeekLineupSlot[]
+  teamMatchWeekTransfers   TeamMatchWeekTransfer[]
 
   @@unique([seasonId, name])
   @@index([seasonId])
@@ -92,6 +94,7 @@ model MatchWeek {
   playerStats      PlayerMatchStat[]
   teamPlayerScores TeamMatchWeekPlayerScore[]
   teamScores       TeamMatchWeekScore[]
+  teamTransfers    TeamMatchWeekTransfer[]
 
   // Back-relation for TeamMatchWeekLineupSlot.matchWeek
   teamLineupSlots TeamMatchWeekLineupSlot[]
@@ -145,35 +148,37 @@ model PlayerMatchStat {
 }
 
 model League {
-  id                  String                 @id @default(cuid())
-  name                String
-  inviteCode          String                 @unique
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
-  createdById         String                 @db.Uuid
-  seasonId            String
-  standingsMode       StandingsMode          @default(TOTAL_POINTS)
-  waiverPeriodHours   Int                    @default(24)
-  joinMode            JoinMode               @default(OPEN)
-  maxTeams            Int                    @default(8)
-  teamCount           Int                    @default(0)
-  draftMode           DraftMode              @default(CASUAL)
-  draftPickSeconds    Int?
-  draftScheduledAt    DateTime?
-  rosterSize          Int                    @default(15)
-  keepersEnabled      Boolean                @default(false)
-  keeperCount         Int?
-  drafts              Draft[]
-  teams               FantasyTeam[]
-  createdBy           Profile                @relation(fields: [createdById], references: [id])
-  season              Season                 @relation(fields: [seasonId], references: [id])
-  matchups            LeagueMatchup[]
-  members             LeagueMember[]
-  leaguePlayerWaivers LeaguePlayerWaiver[]
-  teamRecords         LeagueTeamRecord[]
-  waiverClaims        LeagueWaiverClaim[]
-  waiverPriorities    LeagueWaiverPriority[]
-  rosterSlots         RosterSlot[]
+  id                     String                  @id @default(cuid())
+  name                   String
+  inviteCode             String                  @unique
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  createdById            String                  @db.Uuid
+  seasonId               String
+  standingsMode          StandingsMode           @default(TOTAL_POINTS)
+  waiverPeriodHours      Int                     @default(24)
+  joinMode               JoinMode                @default(OPEN)
+  maxTeams               Int                     @default(8)
+  teamCount              Int                     @default(0)
+  draftMode              DraftMode               @default(CASUAL)
+  draftPickSeconds       Int?
+  draftScheduledAt       DateTime?
+  rosterSize             Int                     @default(15)
+  keepersEnabled         Boolean                 @default(false)
+  keeperCount            Int?
+  drafts                 Draft[]
+  teams                  FantasyTeam[]
+  createdBy              Profile                 @relation(fields: [createdById], references: [id])
+  season                 Season                  @relation(fields: [seasonId], references: [id])
+  matchups               LeagueMatchup[]
+  members                LeagueMember[]
+  leaguePlayerWaivers    LeaguePlayerWaiver[]
+  teamRecords            LeagueTeamRecord[]
+  waiverClaims           LeagueWaiverClaim[]
+  waiverPriorities       LeagueWaiverPriority[]
+  rosterSlots            RosterSlot[]
+  trades                 Trade[]
+  teamMatchWeekTransfers TeamMatchWeekTransfer[]
 
   @@index([createdById])
   @@index([seasonId])
@@ -212,6 +217,9 @@ model FantasyTeam {
   rosterSlots           RosterSlot[]
   matchWeekPlayerScores TeamMatchWeekPlayerScore[]
   matchWeekScores       TeamMatchWeekScore[]
+  matchWeekTransfers    TeamMatchWeekTransfer[]
+  tradeOffersSent       Trade[]                    @relation("TradeOfferedBy")
+  tradeOffersReceived   Trade[]                    @relation("TradeOfferedTo")
 
   // Back-relation for TeamMatchWeekLineupSlot.fantasyTeam
   matchWeekLineupSlots TeamMatchWeekLineupSlot[]
@@ -312,6 +320,57 @@ model LeagueWaiverClaim {
   @@index([leagueId, status])
   @@index([leagueId, playerId, status])
   @@index([leagueId, fantasyTeamId, status])
+}
+
+model TeamMatchWeekTransfer {
+  id            String       @id @default(cuid())
+  leagueId      String
+  fantasyTeamId String
+  matchWeekId   String
+  playerId      String
+  type          TransferType
+  createdAt     DateTime     @default(now())
+  fantasyTeam   FantasyTeam  @relation(fields: [fantasyTeamId], references: [id])
+  league        League       @relation(fields: [leagueId], references: [id])
+  matchWeek     MatchWeek    @relation(fields: [matchWeekId], references: [id])
+  player        Player       @relation(fields: [playerId], references: [id])
+
+  @@index([fantasyTeamId, matchWeekId])
+  @@index([leagueId, matchWeekId])
+}
+
+model Trade {
+  id              String      @id @default(cuid())
+  leagueId        String
+  offeredByTeamId String
+  offeredToTeamId String
+  status          TradeStatus @default(PENDING)
+  parentTradeId   String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  league          League      @relation(fields: [leagueId], references: [id])
+  offeredByTeam   FantasyTeam @relation("TradeOfferedBy", fields: [offeredByTeamId], references: [id])
+  offeredToTeam   FantasyTeam @relation("TradeOfferedTo", fields: [offeredToTeamId], references: [id])
+  parentTrade     Trade?      @relation("TradeParent", fields: [parentTradeId], references: [id])
+  counters        Trade[]     @relation("TradeParent")
+  items           TradeItem[]
+
+  @@index([leagueId, status])
+  @@index([offeredByTeamId])
+  @@index([offeredToTeamId])
+}
+
+model TradeItem {
+  id        String             @id @default(cuid())
+  tradeId   String
+  playerId  String
+  direction TradeItemDirection
+  createdAt DateTime           @default(now())
+  trade     Trade              @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  player    Player             @relation(fields: [playerId], references: [id])
+
+  @@unique([tradeId, playerId])
+  @@index([tradeId, direction])
 }
 
 model TeamMatchWeekScore {
@@ -523,4 +582,22 @@ enum WaiverClaimStatus {
   LOST
   CANCELED
   EXPIRED
+}
+
+enum TransferType {
+  FREE_AGENT
+  WAIVER
+}
+
+enum TradeStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELED
+  COUNTERED
+}
+
+enum TradeItemDirection {
+  FROM_OFFERING
+  FROM_RECEIVING
 }

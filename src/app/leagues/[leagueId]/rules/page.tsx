@@ -179,6 +179,22 @@ export default async function LeagueRulesPage({
 
             <div className="flex flex-col gap-3">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+                Transfers & trades
+              </h3>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-zinc-600">
+                <li>Each team gets two transfer additions per matchweek.</li>
+                <li>Transfers include free agents and won waiver claims.</li>
+                <li>Unsuccessful waiver claims do not count.</li>
+                <li>Trades do not count toward the transfer limit.</li>
+                <li>
+                  Players added after lock stay on the bench until the next open
+                  matchweek.
+                </li>
+              </ul>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
                 Lineups
               </h3>
               <ul className="list-disc space-y-1 pl-5 text-sm text-zinc-600">
