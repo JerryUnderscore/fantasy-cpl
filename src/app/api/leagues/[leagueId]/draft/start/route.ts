@@ -83,14 +83,44 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
       where: {
         leagueId_seasonId: { leagueId, seasonId: league.season.id },
       },
-      select: { id: true },
+      select: { id: true, status: true, isPaused: true },
     });
 
-    if (existing) {
-      return NextResponse.json({ error: "Draft already exists" }, { status: 409 });
-    }
-
     const now = new Date();
+
+    if (existing) {
+      if (existing.status === "LIVE") {
+        if (existing.isPaused) {
+          return NextResponse.json(
+            { error: "Draft is paused. Resume instead." },
+            { status: 409 },
+          );
+        }
+        return NextResponse.json(
+          { error: "Draft already live" },
+          { status: 409 },
+        );
+      }
+      if (existing.status === "COMPLETE") {
+        return NextResponse.json(
+          { error: "Draft already complete" },
+          { status: 409 },
+        );
+      }
+
+      const updated = await prisma.draft.update({
+        where: { id: existing.id },
+        data: {
+          status: "LIVE",
+          currentPickStartedAt: league.draftMode === "LIVE" ? now : null,
+          isPaused: false,
+          pausedRemainingSeconds: null,
+        },
+        select: { id: true },
+      });
+
+      return NextResponse.json({ draftId: updated.id });
+    }
 
     const draft = await prisma.draft.create({
       data: {
@@ -99,6 +129,8 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
         status: "LIVE",
         rounds: 15,
         currentPickStartedAt: league.draftMode === "LIVE" ? now : null,
+        isPaused: false,
+        pausedRemainingSeconds: null,
       },
       select: { id: true },
     });

@@ -466,6 +466,8 @@ model Draft {
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
   currentPickStartedAt DateTime?
+  isPaused             Boolean          @default(false)
+  pausedRemainingSeconds Int?
   league               League           @relation(fields: [leagueId], references: [id])
   season               Season           @relation(fields: [seasonId], references: [id])
   picks                DraftPick[]

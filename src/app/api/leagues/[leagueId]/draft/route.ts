@@ -78,6 +78,8 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
         rounds: true,
         createdAt: true,
         currentPickStartedAt: true,
+        isPaused: true,
+        pausedRemainingSeconds: true,
       },
     });
 
@@ -130,6 +132,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
           draftPickSeconds: league.draftPickSeconds,
           currentPickStartedAt: draft.currentPickStartedAt,
           draftCreatedAt: draft.createdAt,
+          isPaused: draft.isPaused,
         })
       : null;
 
@@ -139,6 +142,8 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
         status: computedStatus,
         rounds: draft.rounds,
         currentPickStartedAt: draft.currentPickStartedAt,
+        isPaused: draft.isPaused,
+        pausedRemainingSeconds: draft.pausedRemainingSeconds,
       },
       settings: {
         draftMode: league.draftMode,

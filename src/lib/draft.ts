@@ -72,15 +72,18 @@ export const computePickDeadline = ({
   draftPickSeconds,
   currentPickStartedAt,
   draftCreatedAt,
+  isPaused,
 }: {
   draftStatus: DraftStatus;
   draftMode: DraftMode;
   draftPickSeconds: number | null;
   currentPickStartedAt: Date | null;
   draftCreatedAt: Date;
+  isPaused?: boolean;
 }) => {
   if (draftStatus !== "LIVE") return null;
   if (draftMode !== "LIVE") return null;
+  if (isPaused) return null;
   if (typeof draftPickSeconds !== "number") return null;
   const startAt = currentPickStartedAt ?? draftCreatedAt;
   return new Date(startAt.getTime() + draftPickSeconds * 1000);
@@ -122,18 +125,22 @@ export const runDraftCatchUp = async ({
     return { updated: false };
   }
 
-  const draft = await prisma.draft.findUnique({
-    where: { leagueId_seasonId: { leagueId, seasonId: league.seasonId } },
-    select: {
-      id: true,
-      status: true,
-      rounds: true,
-      createdAt: true,
-      currentPickStartedAt: true,
-    },
-  });
+    const draft = await prisma.draft.findUnique({
+      where: { leagueId_seasonId: { leagueId, seasonId: league.seasonId } },
+      select: {
+        id: true,
+        status: true,
+        rounds: true,
+        createdAt: true,
+        currentPickStartedAt: true,
+        isPaused: true,
+      },
+    });
 
   if (!draft || draft.status !== "LIVE") {
+    return { updated: false };
+  }
+  if (draft.isPaused) {
     return { updated: false };
   }
 
@@ -158,6 +165,7 @@ export const runDraftCatchUp = async ({
             rounds: true,
             createdAt: true,
             currentPickStartedAt: true,
+            isPaused: true,
           },
         });
 
@@ -192,6 +200,7 @@ export const runDraftCatchUp = async ({
           draftPickSeconds: league.draftPickSeconds,
           currentPickStartedAt: pickStartAt,
           draftCreatedAt: txDraft.createdAt,
+          isPaused: txDraft.isPaused,
         });
 
         if (!deadline || now.getTime() <= deadline.getTime()) {

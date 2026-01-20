@@ -181,6 +181,8 @@ export default async function DraftPage({
       rounds: true,
       createdAt: true,
       currentPickStartedAt: true,
+      isPaused: true,
+      pausedRemainingSeconds: true,
     },
   });
 
@@ -235,6 +237,7 @@ export default async function DraftPage({
           draftPickSeconds: league.draftPickSeconds,
           currentPickStartedAt: draft.currentPickStartedAt,
           draftCreatedAt: draft.createdAt,
+          isPaused: draft.isPaused,
         })
       : null;
 
@@ -250,7 +253,8 @@ export default async function DraftPage({
   const canPick =
     draftStatus === "LIVE" &&
     !!currentTeam &&
-    currentPick?.fantasyTeamId === currentTeam.id;
+    currentPick?.fantasyTeamId === currentTeam.id &&
+    !draft?.isPaused;
 
   const draftedPlayerIds = picks.map((pick) => pick.player.id);
 
@@ -268,6 +272,35 @@ export default async function DraftPage({
       club: { select: { shortName: true, name: true } },
     },
   });
+
+  const rosterSlots = currentTeam
+    ? await prisma.rosterSlot.findMany({
+        where: { fantasyTeamId: currentTeam.id, playerId: { not: null } },
+        select: { player: { select: { position: true } } },
+      })
+    : [];
+
+  const rosterCounts = rosterSlots.reduce(
+    (acc, slot) => {
+      const position = slot.player?.position;
+      if (position) {
+        acc[position] += 1;
+      }
+      return acc;
+    },
+    { GK: 0, DEF: 0, MID: 0, FWD: 0 },
+  );
+
+  const queueItems =
+    draft && currentTeam
+      ? await prisma.draftQueueItem.findMany({
+          where: { draftId: draft.id, fantasyTeamId: currentTeam.id },
+          orderBy: { rank: "asc" },
+          select: { playerId: true },
+        })
+      : [];
+
+  const queuePlayerIds = queueItems.map((item) => item.playerId);
 
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-16">
@@ -289,6 +322,9 @@ export default async function DraftPage({
           leagueId={leagueId}
           isOwner={membership.role === "OWNER"}
           draftStatus={draftStatus}
+          isPaused={draft?.isPaused ?? false}
+          pausedRemainingSeconds={draft?.pausedRemainingSeconds ?? null}
+          queuedPlayerIds={queuePlayerIds}
           onTheClock={
             currentPick
               ? {
@@ -311,11 +347,52 @@ export default async function DraftPage({
           }))}
         />
 
+        <section className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              Draft history
+            </h2>
+            <span className="text-xs text-zinc-500">
+              {draftedCount} picks
+            </span>
+          </div>
+          {picks.length === 0 ? (
+            <p className="mt-3 text-sm text-zinc-500">No picks yet.</p>
+          ) : (
+            <ul className="mt-4 flex flex-col gap-2">
+              {picks.map((pick) => (
+                <li
+                  key={pick.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3"
+                >
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                      Pick {pick.pickNumber} · Round {pick.round}
+                    </span>
+                    <span className="text-sm font-semibold text-zinc-900">
+                      {pick.player.name}
+                    </span>
+                    <span className="text-xs text-zinc-500">
+                      {pick.player.position} ·{" "}
+                      {pick.player.club?.shortName ?? "—"}
+                    </span>
+                  </div>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                    {pick.fantasyTeam.name}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         <DraftPrepClient
           leagueId={leagueId}
           constraints={{
             rosterSize: league.rosterSize,
             positionLimits,
+            rosterCounts,
+            maxGoalkeepers: ROSTER_LIMITS.max.GK ?? 1,
             keepersEnabled: league.keepersEnabled,
             keeperCount: league.keeperCount,
           }}

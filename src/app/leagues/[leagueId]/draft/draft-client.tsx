@@ -23,6 +23,9 @@ type Props = {
   leagueId: string;
   isOwner: boolean;
   draftStatus: "NOT_STARTED" | "LIVE" | "COMPLETE";
+  isPaused: boolean;
+  pausedRemainingSeconds: number | null;
+  queuedPlayerIds: string[];
   onTheClock: OnTheClock | null;
   draftMode: DraftMode;
   deadline: string | null;
@@ -49,6 +52,9 @@ export default function DraftClient({
   leagueId,
   isOwner,
   draftStatus,
+  isPaused,
+  pausedRemainingSeconds,
+  queuedPlayerIds,
   onTheClock,
   draftMode,
   deadline,
@@ -61,6 +67,9 @@ export default function DraftClient({
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [now, setNow] = useState<number>(() => Date.now());
+  const [positionFilter, setPositionFilter] = useState("ALL");
+  const [clubFilter, setClubFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "QUEUED">("ALL");
 
   const deadlineMs =
     deadline && !Number.isNaN(new Date(deadline).getTime())
@@ -73,32 +82,85 @@ export default function DraftClient({
     deadlineMs !== null
       ? Math.max(0, Math.floor((deadlineMs - now) / 1000))
       : null;
+  const pausedSeconds =
+    typeof pausedRemainingSeconds === "number"
+      ? Math.max(0, Math.floor(pausedRemainingSeconds))
+      : null;
   const scheduledLabel =
     scheduledAt && !Number.isNaN(new Date(scheduledAt).getTime())
       ? new Date(scheduledAt).toLocaleString()
       : null;
 
   useEffect(() => {
-    if (deadlineMs === null || draftStatus !== "LIVE") return;
+    if (deadlineMs === null || draftStatus !== "LIVE" || isPaused) return;
     const interval = window.setInterval(() => {
       setNow(Date.now());
     }, 1000);
     return () => window.clearInterval(interval);
-  }, [deadlineMs, draftStatus]);
+  }, [deadlineMs, draftStatus, isPaused]);
 
   const filteredPlayers = useMemo(() => {
     const query = modal?.search.trim().toLowerCase() ?? "";
-    if (!query) return availablePlayers;
-    return availablePlayers.filter((player) =>
-      `${player.name} ${player.position} ${player.club ?? ""}`
+    const queuedSet = new Set(queuedPlayerIds);
+    const filtered = availablePlayers.filter((player) => {
+      if (
+        positionFilter !== "ALL" &&
+        player.position !== positionFilter
+      ) {
+        return false;
+      }
+      if (clubFilter !== "ALL" && player.club !== clubFilter) {
+        return false;
+      }
+      if (statusFilter === "QUEUED" && !queuedSet.has(player.id)) {
+        return false;
+      }
+      if (!query) return true;
+      return `${player.name} ${player.position} ${player.club ?? ""}`
         .toLowerCase()
-        .includes(query),
+        .includes(query);
+    });
+
+    const queueOrder = new Map(
+      queuedPlayerIds.map((id, index) => [id, index]),
     );
-  }, [availablePlayers, modal?.search]);
+    const queued: AvailablePlayer[] = [];
+    const others: AvailablePlayer[] = [];
+    for (const player of filtered) {
+      if (queueOrder.has(player.id)) {
+        queued.push(player);
+      } else {
+        others.push(player);
+      }
+    }
+    queued.sort(
+      (a, b) =>
+        (queueOrder.get(a.id) ?? 0) - (queueOrder.get(b.id) ?? 0),
+    );
+    return [...queued, ...others];
+  }, [
+    availablePlayers,
+    modal?.search,
+    positionFilter,
+    clubFilter,
+    statusFilter,
+    queuedPlayerIds,
+  ]);
+
+  const clubOptions = useMemo(() => {
+    const clubs = new Set<string>();
+    availablePlayers.forEach((player) => {
+      if (player.club) clubs.add(player.club);
+    });
+    return ["ALL", ...Array.from(clubs).sort()];
+  }, [availablePlayers]);
 
   const closeModal = () => {
     setModal(null);
     setError(null);
+    setPositionFilter("ALL");
+    setClubFilter("ALL");
+    setStatusFilter("ALL");
   };
 
   const submitPick = async (mode: ModalMode) => {
@@ -148,16 +210,85 @@ export default function DraftClient({
   const openModal = (mode: ModalMode) => {
     setModal({ mode, selectedPlayerId: null, search: "" });
     setError(null);
+    setPositionFilter("ALL");
+    setClubFilter("ALL");
+    setStatusFilter("ALL");
   };
 
   const showManualTools = isOwner && draftMode !== "NONE";
+  const canStart = showManualTools && draftStatus === "NOT_STARTED";
+  const canPause = showManualTools && draftStatus === "LIVE" && !isPaused;
+  const canResume = showManualTools && draftStatus === "LIVE" && isPaused;
+
+  const startDraft = async () => {
+    setError(null);
+    setIsPending(true);
+    try {
+      const res = await fetch(`/api/leagues/${leagueId}/draft/start`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(data?.error ?? "Unable to start draft");
+        return;
+      }
+      router.refresh();
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  const pauseDraft = async () => {
+    setError(null);
+    setIsPending(true);
+    try {
+      const res = await fetch(`/api/leagues/${leagueId}/draft/pause`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(data?.error ?? "Unable to pause draft");
+        return;
+      }
+      router.refresh();
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  const resumeDraft = async () => {
+    setError(null);
+    setIsPending(true);
+    try {
+      const res = await fetch(`/api/leagues/${leagueId}/draft/resume`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(data?.error ?? "Unable to resume draft");
+        return;
+      }
+      router.refresh();
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  const statusLabel = isPaused ? "PAUSED" : draftStatus;
+  const clockLabel = isPaused
+    ? pausedSeconds !== null
+      ? `Paused · ${formatSeconds(pausedSeconds)} left`
+      : "Paused"
+    : remainingSeconds !== null
+      ? `Time left: ${formatSeconds(remainingSeconds)}`
+      : "Live draft";
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <span className="rounded-full border border-zinc-300 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-700">
-            {draftStatus}
+            {statusLabel}
           </span>
           <p className="text-sm text-zinc-700">
             Pick {onTheClock?.pickNumber ?? "—"}
@@ -171,24 +302,20 @@ export default function DraftClient({
         </div>
         <div className="text-sm text-zinc-600">
           {draftMode === "LIVE" ? (
-            remainingSeconds !== null ? (
-              <span>Time left: {formatSeconds(remainingSeconds)}</span>
-            ) : (
-              <span>Live draft</span>
-            )
+            <span>{clockLabel}</span>
           ) : draftMode === "CASUAL" ? (
             <span>Casual draft</span>
           ) : null}
         </div>
       </div>
 
-      {draftMode === "LIVE" && scheduledLabel ? (
+      {draftMode === "LIVE" && scheduledLabel && draftStatus === "NOT_STARTED" ? (
         <p className="text-xs text-zinc-500">
-          Scheduled for {scheduledLabel}
+          Draft starts at: {scheduledLabel}
         </p>
       ) : null}
 
-      {canPick ? (
+      {canPick && !isPaused ? (
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
@@ -205,22 +332,56 @@ export default function DraftClient({
 
       {showManualTools ? (
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={advanceDraft}
-            disabled={isPending}
-            className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 disabled:opacity-60"
-          >
-            Auto-pick now
-          </button>
-          <button
-            type="button"
-            onClick={() => openModal("FORCE_PICK")}
-            disabled={isPending}
-            className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            Force pick
-          </button>
+          {canStart ? (
+            <button
+              type="button"
+              onClick={startDraft}
+              disabled={isPending}
+              className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              Start draft
+            </button>
+          ) : null}
+          {canResume ? (
+            <button
+              type="button"
+              onClick={resumeDraft}
+              disabled={isPending}
+              className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              Resume draft
+            </button>
+          ) : null}
+          {canPause ? (
+            <button
+              type="button"
+              onClick={pauseDraft}
+              disabled={isPending}
+              className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 disabled:opacity-60"
+            >
+              Pause draft
+            </button>
+          ) : null}
+          {draftStatus === "LIVE" ? (
+            <>
+              <button
+                type="button"
+                onClick={advanceDraft}
+                disabled={isPending}
+                className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 disabled:opacity-60"
+              >
+                Auto-pick now
+              </button>
+              <button
+                type="button"
+                onClick={() => openModal("FORCE_PICK")}
+                disabled={isPending}
+                className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                Force pick
+              </button>
+            </>
+          ) : null}
           <p className="text-xs text-zinc-500">
             Commissioner tools for this draft.
           </p>
@@ -263,6 +424,52 @@ export default function DraftClient({
                 placeholder="Search players"
                 className="w-full rounded-full border border-zinc-200 px-4 py-2 text-sm"
               />
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-3">
+              <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                Status
+                <select
+                  value={statusFilter}
+                  onChange={(event) =>
+                    setStatusFilter(
+                      event.target.value === "QUEUED" ? "QUEUED" : "ALL",
+                    )
+                  }
+                  className="rounded-full border border-zinc-200 px-3 py-1 text-sm text-zinc-800"
+                >
+                  <option value="ALL">All</option>
+                  <option value="QUEUED">Queued</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                Position
+                <select
+                  value={positionFilter}
+                  onChange={(event) => setPositionFilter(event.target.value)}
+                  className="rounded-full border border-zinc-200 px-3 py-1 text-sm text-zinc-800"
+                >
+                  <option value="ALL">All</option>
+                  <option value="GK">GK</option>
+                  <option value="DEF">DEF</option>
+                  <option value="MID">MID</option>
+                  <option value="FWD">FWD</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                Team
+                <select
+                  value={clubFilter}
+                  onChange={(event) => setClubFilter(event.target.value)}
+                  className="rounded-full border border-zinc-200 px-3 py-1 text-sm text-zinc-800"
+                >
+                  {clubOptions.map((club) => (
+                    <option key={club} value={club}>
+                      {club}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
 
             <div className="mt-4 max-h-80 overflow-y-auto">

@@ -14,6 +14,8 @@ type Player = {
 type Constraints = {
   rosterSize: number;
   positionLimits: Record<PlayerPosition, number> | null;
+  rosterCounts: Record<PlayerPosition, number>;
+  maxGoalkeepers: number;
   keepersEnabled?: boolean;
   keeperCount?: number | null;
 };
@@ -110,6 +112,11 @@ export default function DraftPrepClient({
       .map((id) => playersById.get(id))
       .filter((player): player is Player => Boolean(player));
   }, [queueIds, playersById]);
+
+  useEffect(() => {
+    if (!hasLoadedQueue.current) return;
+    setQueueIds((prev) => prev.filter((id) => playersById.has(id)));
+  }, [playersById]);
 
   const canSaveQueue = Boolean(draftId);
 
@@ -293,18 +300,20 @@ export default function DraftPrepClient({
                   </div>
                   <button
                     type="button"
+                    title={queued ? "Remove from queue" : "Add to queue"}
+                    aria-label={queued ? "Remove from queue" : "Add to queue"}
                     onClick={() =>
                       queued
                         ? removeFromQueue(player.id)
                         : addToQueue(player.id)
                     }
-                    className={`rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition ${
+                    className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold transition ${
                       queued
-                        ? "border border-zinc-200 bg-zinc-100 text-zinc-700 hover:border-zinc-300"
-                        : "bg-zinc-900 text-white hover:bg-zinc-800"
+                        ? "border border-zinc-200 bg-zinc-100 text-zinc-600 hover:border-zinc-300"
+                        : "border border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300"
                     }`}
                   >
-                    {queued ? "Queued" : "Add to queue"}
+                    {queued ? "✓" : "➕"}
                   </button>
                 </div>
               );
@@ -318,9 +327,7 @@ export default function DraftPrepClient({
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
             Roster constraints
           </p>
-          <p className="mt-1 text-xs text-zinc-500">
-            Minimums (GK max 1)
-          </p>
+          <p className="mt-1 text-xs text-zinc-500">Current roster</p>
           <div className="mt-3 flex flex-col gap-2 text-sm text-zinc-600">
             <div className="flex items-center justify-between">
               <span>Roster size</span>
@@ -334,9 +341,16 @@ export default function DraftPrepClient({
                   .sort((a, b) => positionOrder[a] - positionOrder[b])
                   .map((position) => (
                     <div key={position} className="flex justify-between">
-                      <span>{positionLabel(position)}</span>
+                      <span>
+                        {positionLabel(position)}{" "}
+                        <span className="text-[10px] uppercase tracking-wide text-zinc-400">
+                          {position === "GK"
+                            ? `(max ${constraints.maxGoalkeepers})`
+                            : `(min ${constraints.positionLimits?.[position] ?? 0})`}
+                        </span>
+                      </span>
                       <span className="font-semibold text-zinc-800">
-                        {constraints.positionLimits?.[position] ?? 0}
+                        {constraints.rosterCounts[position] ?? 0}
                       </span>
                     </div>
                   ))}

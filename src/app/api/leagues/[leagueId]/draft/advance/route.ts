@@ -67,7 +67,7 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
       where: {
         leagueId_seasonId: { leagueId, seasonId: league.season.id },
       },
-      select: { id: true, status: true, rounds: true },
+      select: { id: true, status: true, rounds: true, isPaused: true },
     });
 
     if (!draft) {
@@ -76,6 +76,10 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
 
     if (draft.status !== "LIVE") {
       return NextResponse.json({ error: "Draft is not live" }, { status: 409 });
+    }
+
+    if (draft.isPaused) {
+      return NextResponse.json({ error: "Draft is paused" }, { status: 409 });
     }
 
     const teams = await prisma.fantasyTeam.findMany({
@@ -97,10 +101,14 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
             status: true,
             rounds: true,
             currentPickStartedAt: true,
+            isPaused: true,
           },
         });
 
         if (!txDraft || txDraft.status !== "LIVE") {
+          return { updated: false };
+        }
+        if (txDraft.isPaused) {
           return { updated: false };
         }
 
