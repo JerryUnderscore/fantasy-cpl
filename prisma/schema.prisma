@@ -156,6 +156,7 @@ model League {
   waiverPeriodHours   Int                    @default(24)
   joinMode            JoinMode               @default(OPEN)
   maxTeams            Int                    @default(8)
+  teamCount           Int                    @default(0)
   draftMode           DraftMode              @default(CASUAL)
   draftPickSeconds    Int?
   draftScheduledAt    DateTime?

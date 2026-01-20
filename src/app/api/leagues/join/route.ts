@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
-import { PlayerPosition } from "@prisma/client";
+import { Prisma, PlayerPosition } from "@prisma/client";
 
 export const runtime = "nodejs";
 
@@ -44,7 +44,31 @@ const buildRosterSlots = (fantasyTeamId: string, leagueId: string) =>
     position: PlayerPosition.MID,
   }));
 
+class LeagueFullError extends Error {
+  constructor() {
+    super("League is full");
+    this.name = "LeagueFullError";
+  }
+}
+
+const reserveTeamSlot = async (
+  tx: Prisma.TransactionClient,
+  leagueId: string,
+  maxTeams: number,
+) => {
+  const updated = await tx.league.updateMany({
+    where: { id: leagueId, teamCount: { lt: maxTeams } },
+    data: { teamCount: { increment: 1 } },
+  });
+  if (updated.count === 0) {
+    throw new LeagueFullError();
+  }
+};
+
 export async function POST(request: Request) {
+  let resolvedLeagueId: string | null = null;
+  let resolvedProfileId: string | null = null;
+
   try {
     const user = await requireSupabaseUser();
     const body = await request.json().catch(() => null);
@@ -62,6 +86,7 @@ export async function POST(request: Request) {
     if (!profile) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    resolvedProfileId = profile.id;
 
     const league = inviteCode
       ? await prisma.league.findUnique({
@@ -79,6 +104,7 @@ export async function POST(request: Request) {
         { status: 404 },
       );
     }
+    resolvedLeagueId = league.id;
 
     if (league.joinMode === "INVITE_ONLY" && !inviteCode) {
       return NextResponse.json(
@@ -87,23 +113,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const existingTeam = await prisma.fantasyTeam.findUnique({
-      where: {
-        leagueId_profileId: { leagueId: league.id, profileId: profile.id },
-      },
-      select: { id: true },
-    });
-
-    if (!existingTeam) {
-      const count = await prisma.fantasyTeam.count({
-        where: { leagueId: league.id },
-      });
-      if (count >= league.maxTeams) {
-        return NextResponse.json({ error: "League is full" }, { status: 409 });
-      }
-    }
-
     await prisma.$transaction(async (tx) => {
+      const existingTeam = await tx.fantasyTeam.findUnique({
+        where: {
+          leagueId_profileId: { leagueId: league.id, profileId: profile.id },
+        },
+        select: { id: true },
+      });
+
+      if (!existingTeam) {
+        await reserveTeamSlot(tx, league.id, league.maxTeams);
+      }
+
       await tx.leagueMember.upsert({
         where: {
           leagueId_profileId: {
@@ -119,30 +140,52 @@ export async function POST(request: Request) {
         },
       });
 
-      const team = await tx.fantasyTeam.upsert({
-        where: {
-          leagueId_profileId: {
-            leagueId: league.id,
-            profileId: profile.id,
-          },
-        },
-        update: {},
-        create: {
-          leagueId: league.id,
-          profileId: profile.id,
-          name: buildDefaultTeamName(profile),
-        },
-        select: { id: true },
-      });
+      const teamId =
+        existingTeam?.id ??
+        (
+          await tx.fantasyTeam.create({
+            data: {
+              leagueId: league.id,
+              profileId: profile.id,
+              name: buildDefaultTeamName(profile),
+            },
+            select: { id: true },
+          })
+        ).id;
 
       await tx.rosterSlot.createMany({
-        data: buildRosterSlots(team.id, league.id),
+        data: buildRosterSlots(teamId, league.id),
         skipDuplicates: true,
       });
     });
 
     return NextResponse.json({ leagueId: league.id });
   } catch (error) {
+    if (error instanceof LeagueFullError) {
+      return NextResponse.json({ error: "League is full" }, { status: 409 });
+    }
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002" &&
+      resolvedLeagueId &&
+      resolvedProfileId
+    ) {
+      await prisma.leagueMember.upsert({
+        where: {
+          leagueId_profileId: {
+            leagueId: resolvedLeagueId,
+            profileId: resolvedProfileId,
+          },
+        },
+        update: {},
+        create: {
+          leagueId: resolvedLeagueId,
+          profileId: resolvedProfileId,
+          role: "MEMBER",
+        },
+      });
+      return NextResponse.json({ leagueId: resolvedLeagueId });
+    }
     if ((error as { status?: number }).status === 401) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

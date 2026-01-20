@@ -250,6 +250,12 @@ export default async function LeagueDetailPage({
             >
               Draft prep
             </Link>
+            <Link
+              href={`/leagues/${league.id}/rules`}
+              className="underline-offset-4 hover:text-zinc-900 hover:underline"
+            >
+              League rules
+            </Link>
           </div>
         </div>
 

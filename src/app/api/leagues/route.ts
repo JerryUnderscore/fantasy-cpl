@@ -239,6 +239,7 @@ export async function POST(request: Request) {
               inviteCode,
               createdById: profile.id, // ✅ FIX: use profile.id
               seasonId: season.id,
+              teamCount: 1,
               ...(joinMode.hasValue
                 ? { joinMode: joinMode.value as JoinMode }
                 : {}),

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
-import { PlayerPosition } from "@prisma/client";
+import { Prisma, PlayerPosition } from "@prisma/client";
 
 export const runtime = "nodejs";
 
@@ -38,7 +38,30 @@ const buildRosterSlots = (fantasyTeamId: string, leagueId: string) =>
     position: PlayerPosition.MID,
   }));
 
+class LeagueFullError extends Error {
+  constructor() {
+    super("League is full");
+    this.name = "LeagueFullError";
+  }
+}
+
+const reserveTeamSlot = async (
+  tx: Prisma.TransactionClient,
+  leagueId: string,
+  maxTeams: number,
+) => {
+  const updated = await tx.league.updateMany({
+    where: { id: leagueId, teamCount: { lt: maxTeams } },
+    data: { teamCount: { increment: 1 } },
+  });
+  if (updated.count === 0) {
+    throw new LeagueFullError();
+  }
+};
+
 export async function POST(request: NextRequest, ctx: Ctx) {
+  let resolvedProfileId: string | null = null;
+
   try {
     const { leagueId } = await ctx.params;
 
@@ -48,6 +71,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     if (!profile) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    resolvedProfileId = profile.id;
 
     const membership = await prisma.leagueMember.findUnique({
       where: {
@@ -72,51 +96,71 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "League not found" }, { status: 404 });
     }
 
-    const existing = await prisma.fantasyTeam.findUnique({
-      where: {
-        leagueId_profileId: {
-          leagueId,
-          profileId: profile.id,
-        },
-      },
-      select: { id: true },
-    });
-
-    if (!existing) {
-      const count = await prisma.fantasyTeam.count({ where: { leagueId } });
-      if (count >= league.maxTeams) {
-        return NextResponse.json({ error: "League is full" }, { status: 409 });
-      }
-    }
-
     const body = await request.json().catch(() => null);
     const requestedName = normalizeName(body?.name);
+    const team = await prisma.$transaction(async (tx) => {
+      const existing = await tx.fantasyTeam.findUnique({
+        where: {
+          leagueId_profileId: {
+            leagueId,
+            profileId: profile.id,
+          },
+        },
+        select: { id: true, name: true },
+      });
 
-    const team = await prisma.fantasyTeam.upsert({
-      where: {
-        leagueId_profileId: {
+      if (existing) {
+        const updated = await tx.fantasyTeam.update({
+          where: { id: existing.id },
+          data: { name: requestedName ?? undefined },
+          select: { id: true, name: true },
+        });
+        return updated;
+      }
+
+      await reserveTeamSlot(tx, leagueId, league.maxTeams);
+
+      const created = await tx.fantasyTeam.create({
+        data: {
           leagueId,
           profileId: profile.id,
+          name: requestedName ?? buildDefaultTeamName(profile),
         },
-      },
-      update: {
-        name: requestedName ?? undefined,
-      },
-      create: {
-        leagueId,
-        profileId: profile.id,
-        name: requestedName ?? buildDefaultTeamName(profile),
-      },
-      select: { id: true, name: true },
-    });
+        select: { id: true, name: true },
+      });
 
-    await prisma.rosterSlot.createMany({
-      data: buildRosterSlots(team.id, leagueId),
-      skipDuplicates: true,
+      await tx.rosterSlot.createMany({
+        data: buildRosterSlots(created.id, leagueId),
+        skipDuplicates: true,
+      });
+
+      return created;
     });
 
     return NextResponse.json({ team });
   } catch (error) {
+    if (error instanceof LeagueFullError) {
+      return NextResponse.json({ error: "League is full" }, { status: 409 });
+    }
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002" &&
+      resolvedProfileId
+    ) {
+      const { leagueId } = await ctx.params;
+      const existing = await prisma.fantasyTeam.findUnique({
+        where: {
+          leagueId_profileId: {
+            leagueId,
+            profileId: resolvedProfileId,
+          },
+        },
+        select: { id: true, name: true },
+      });
+      if (existing) {
+        return NextResponse.json({ team: existing });
+      }
+    }
     if ((error as { status?: number }).status === 401) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
