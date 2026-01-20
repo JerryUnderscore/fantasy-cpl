@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 
 type Slot = {
   id: string;
@@ -33,6 +34,15 @@ export default function RosterClient({
   const [lineupError, setLineupError] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [starterSwapOpen, setStarterSwapOpen] = useState(false);
+  const [pendingStarter, setPendingStarter] = useState<Slot | null>(null);
+
+  useEffect(() => {
+    setSlots(initialSlots);
+    setSelectedSlotId(null);
+    setUpdateError(null);
+    setLineupError(null);
+  }, [initialSlots, matchWeekNumber]);
 
   const sortedSlots = useMemo(
     () => [...slots].sort((a, b) => a.slotNumber - b.slotNumber),
@@ -44,15 +54,20 @@ export default function RosterClient({
     [sortedSlots],
   );
 
-  const bench = useMemo(
-    () => sortedSlots.filter((slot) => !slot.isStarter),
-    [sortedSlots],
-  );
+  const bench = useMemo(() => {
+    const benchSlots = sortedSlots.filter((slot) => !slot.isStarter);
+    return benchSlots.sort((a, b) => {
+      const aEmpty = a.player ? 0 : 1;
+      const bEmpty = b.player ? 0 : 1;
+      if (aEmpty !== bEmpty) return aEmpty - bEmpty;
+      return a.slotNumber - b.slotNumber;
+    });
+  }, [sortedSlots]);
 
   const updateRoster = async (payload: Record<string, unknown>) => {
     if (isLocked) {
       setUpdateError("Lineups are locked for this MatchWeek");
-      return;
+      return false;
     }
 
     setUpdateError(null);
@@ -69,12 +84,14 @@ export default function RosterClient({
 
       if (!res.ok) {
         setUpdateError(data?.error ?? "Unable to update roster");
-        return;
+        return false;
       }
 
       if (Array.isArray(data?.slots)) {
         setSlots(data.slots);
       }
+
+      return true;
     } finally {
       setIsUpdating(false);
     }
@@ -141,6 +158,45 @@ export default function RosterClient({
     }
   };
 
+  const requestStarterChange = (slot: Slot) => {
+    if (slot.isStarter || starters.length < 11) {
+      toggleStarter(slot, !slot.isStarter);
+      return;
+    }
+
+    setPendingStarter(slot);
+    setStarterSwapOpen(true);
+  };
+
+  const confirmStarterSwap = async (starterSlotId: string) => {
+    if (!pendingStarter) return;
+    if (isUpdating) return;
+
+    const starterToBench = starters.find((slot) => slot.id === starterSlotId);
+    if (!starterToBench) {
+      setUpdateError("Select a starter to move to the bench.");
+      return;
+    }
+
+    const benchSuccess = await updateRoster({
+      action: "starter",
+      slotId: starterToBench.id,
+      isStarter: false,
+    });
+    if (!benchSuccess) return;
+
+    const startSuccess = await updateRoster({
+      action: "starter",
+      slotId: pendingStarter.id,
+      isStarter: true,
+    });
+
+    if (startSuccess) {
+      setStarterSwapOpen(false);
+      setPendingStarter(null);
+    }
+  };
+
   const renderSlot = (slot: Slot) => {
     const selected = selectedSlotId === slot.id;
     return (
@@ -154,15 +210,12 @@ export default function RosterClient({
         }`}
       >
         <div className="flex flex-col">
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            Slot {slot.slotNumber}
-          </p>
           {slot.player ? (
             <p className="text-base font-semibold text-zinc-900">
               {slot.player.name}
             </p>
           ) : (
-            <p className="text-sm text-zinc-500">Empty slot</p>
+            <p className="text-sm text-zinc-500">Open roster spot</p>
           )}
           {slot.player ? (
             <p className="text-xs text-zinc-500">
@@ -171,21 +224,31 @@ export default function RosterClient({
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              toggleStarter(slot, !slot.isStarter);
-            }}
-            disabled={!slot.player || isUpdating || isLocked}
-            className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide transition ${
-              slot.isStarter
-                ? "bg-zinc-900 text-white"
-                : "border border-zinc-200 text-zinc-600"
-            } disabled:opacity-60`}
-          >
-            {slot.isStarter ? "Bench" : "Starter"}
-          </button>
+          {slot.player ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                requestStarterChange(slot);
+              }}
+              disabled={isUpdating || isLocked}
+              className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide transition ${
+                slot.isStarter
+                  ? "bg-zinc-900 text-white"
+                  : "border border-zinc-200 text-zinc-600"
+              } disabled:opacity-60`}
+            >
+              {slot.isStarter ? "Bench" : "Starter"}
+            </button>
+          ) : (
+            <Link
+              href={`/leagues/${leagueId}/players`}
+              onClick={(event) => event.stopPropagation()}
+              className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-600 transition hover:border-zinc-300"
+            >
+              Add Player
+            </Link>
+          )}
           {slot.player && !slot.isStarter ? (
             <button
               type="button"
@@ -196,7 +259,7 @@ export default function RosterClient({
               disabled={isUpdating || isLocked}
               className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-500 disabled:opacity-60"
             >
-              Clear
+              Drop
             </button>
           ) : null}
         </div>
@@ -206,12 +269,59 @@ export default function RosterClient({
 
   return (
     <div className="flex flex-col gap-6">
+      {starterSwapOpen && pendingStarter ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-lg">
+            <h3 className="text-lg font-semibold text-zinc-900">
+              Starter limit reached
+            </h3>
+            <p className="mt-2 text-sm text-zinc-600">
+              Choose a starter to move to the bench so{" "}
+              {pendingStarter.player?.name ?? "this player"} can start.
+            </p>
+            <div className="mt-4 flex flex-col gap-2">
+              {starters.map((slot) => (
+                <button
+                  key={slot.id}
+                  type="button"
+                  onClick={() => confirmStarterSwap(slot.id)}
+                  disabled={isUpdating}
+                  className="flex w-full items-center justify-between rounded-2xl border border-zinc-200 px-4 py-3 text-left text-sm font-medium text-zinc-800 transition hover:border-zinc-300 disabled:opacity-60"
+                >
+                  <span>
+                    {slot.player?.name ?? "Unknown player"} ·{" "}
+                    {slot.player?.position ?? "MID"}
+                  </span>
+                  <span className="text-xs uppercase tracking-wide text-zinc-400">
+                    Bench
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setStarterSwapOpen(false);
+                  setPendingStarter(null);
+                }}
+                className="rounded-full border border-zinc-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600 transition hover:border-zinc-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-zinc-900">Lineup rules</p>
             <p className="text-xs text-zinc-500">
               11 starters · max 1 GK · min 3 DEF · min 3 MID · min 1 FWD
+            </p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              Viewing MatchWeek {matchWeekNumber} lineup
             </p>
           </div>
           <button

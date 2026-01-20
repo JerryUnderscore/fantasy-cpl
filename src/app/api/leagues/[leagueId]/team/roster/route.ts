@@ -23,6 +23,7 @@ type RosterSlotView = {
 };
 
 const ROSTER_SIZE = 15;
+const STARTERS_REQUIRED = 11;
 
 const buildRosterSlots = (fantasyTeamId: string, leagueId: string) =>
   Array.from({ length: ROSTER_SIZE }, (_, index) => ({
@@ -798,6 +799,24 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
       if (isStarter && !slot.playerId) {
         return NextResponse.json({ error: "Slot has no player" }, { status: 400 });
+      }
+
+      if (isStarter) {
+        const startersCount = await prisma.teamMatchWeekLineupSlot.count({
+          where: {
+            fantasyTeamId: team.id,
+            matchWeekId: selectedMatchWeek.id,
+            isStarter: true,
+            rosterSlotId: { not: slot.id },
+          },
+        });
+
+        if (startersCount >= STARTERS_REQUIRED) {
+          return NextResponse.json(
+            { error: "Starter limit reached", details: { limit: STARTERS_REQUIRED } },
+            { status: 409 },
+          );
+        }
       }
 
       await prisma.teamMatchWeekLineupSlot.upsert({
