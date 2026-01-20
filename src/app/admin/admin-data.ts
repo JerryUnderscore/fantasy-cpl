@@ -34,6 +34,7 @@ export async function getAdminConsoleData() {
         select: {
           id: true,
           name: true,
+          jerseyNumber: true,
           position: true,
           club: { select: { shortName: true, slug: true } },
         },
@@ -43,6 +44,7 @@ export async function getAdminConsoleData() {
   const playerOptions = players.map((player) => ({
     id: player.id,
     name: player.name,
+    jerseyNumber: player.jerseyNumber,
     position: player.position,
     clubLabel: player.club?.shortName ?? player.club?.slug ?? "",
   }));

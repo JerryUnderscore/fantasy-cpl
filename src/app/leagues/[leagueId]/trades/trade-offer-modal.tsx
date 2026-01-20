@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { formatPlayerName } from "@/lib/players";
 
 type TradePlayer = {
   id: string;
   name: string;
+  jerseyNumber: number | null;
   position: string;
   club: { shortName: string | null } | null;
 };
@@ -182,7 +184,7 @@ export default function TradeOfferModal({
                       />
                       <span className="flex flex-col">
                         <span className="font-semibold text-zinc-900">
-                          {player.name}
+                          {formatPlayerName(player.name, player.jerseyNumber)}
                         </span>
                         <span className="text-xs text-zinc-500">
                           {buildPlayerLabel(player)}
@@ -225,7 +227,7 @@ export default function TradeOfferModal({
                       />
                       <span className="flex flex-col">
                         <span className="font-semibold text-zinc-900">
-                          {player.name}
+                          {formatPlayerName(player.name, player.jerseyNumber)}
                         </span>
                         <span className="text-xs text-zinc-500">
                           {buildPlayerLabel(player)}

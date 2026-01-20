@@ -88,6 +88,7 @@ export async function GET(_: NextRequest, ctx: Ctx) {
               select: {
                 id: true,
                 name: true,
+                jerseyNumber: true,
                 position: true,
                 club: { select: { shortName: true } },
               },

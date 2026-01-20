@@ -11,6 +11,7 @@ import {
   runDraftCatchUp,
 } from "@/lib/draft";
 import { ROSTER_LIMITS } from "@/lib/roster";
+import { formatPlayerName } from "@/lib/players";
 
 export const runtime = "nodejs";
 
@@ -28,6 +29,7 @@ type DraftPickSummary = {
   player: {
     id: string;
     name: string;
+    jerseyNumber: number | null;
     position: string;
     club: { shortName: string | null; slug: string } | null;
   };
@@ -202,6 +204,7 @@ export default async function DraftPage({
             select: {
               id: true,
               name: true,
+              jerseyNumber: true,
               position: true,
               club: { select: { shortName: true, slug: true } },
             },
@@ -268,6 +271,7 @@ export default async function DraftPage({
     select: {
       id: true,
       name: true,
+      jerseyNumber: true,
       position: true,
       club: { select: { shortName: true, name: true } },
     },
@@ -342,6 +346,7 @@ export default async function DraftPage({
           availablePlayers={queuePlayers.map((player) => ({
             id: player.id,
             name: player.name,
+            jerseyNumber: player.jerseyNumber,
             position: player.position,
             club: player.club?.shortName ?? null,
           }))}
@@ -370,7 +375,10 @@ export default async function DraftPage({
                       Pick {pick.pickNumber} · Round {pick.round}
                     </span>
                     <span className="text-sm font-semibold text-zinc-900">
-                      {pick.player.name}
+                      {formatPlayerName(
+                        pick.player.name,
+                        pick.player.jerseyNumber,
+                      )}
                     </span>
                     <span className="text-xs text-zinc-500">
                       {pick.player.position} ·{" "}
@@ -470,7 +478,10 @@ export default async function DraftPage({
                               {pick ? (
                                 <div className="flex flex-col gap-1">
                                   <span className="font-semibold text-zinc-900">
-                                    {pick.player.name}
+                                    {formatPlayerName(
+                                      pick.player.name,
+                                      pick.player.jerseyNumber,
+                                    )}
                                   </span>
                                   <span className="text-xs text-zinc-500">
                                     {pick.player.position} ·{" "}
@@ -519,7 +530,10 @@ export default async function DraftPage({
                       {myTeamPicks.map((pick) => (
                         <li key={pick.id} className="rounded-xl bg-white p-3">
                           <p className="text-sm font-semibold text-zinc-900">
-                            {pick.player.name}
+                            {formatPlayerName(
+                              pick.player.name,
+                              pick.player.jerseyNumber,
+                            )}
                           </p>
                           <p className="text-xs text-zinc-500">
                             {pick.player.position} ·{" "}

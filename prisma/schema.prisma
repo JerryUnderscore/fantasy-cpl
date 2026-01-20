@@ -53,6 +53,7 @@ model Player {
   clubId              String
   name                String
   position            PlayerPosition
+  jerseyNumber        Int?
   active              Boolean                    @default(true)
   slug                String?                    @unique
   createdAt           DateTime                   @default(now())

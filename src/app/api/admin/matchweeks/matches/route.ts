@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         name: true,
+        jerseyNumber: true,
         position: true,
         clubId: true,
         club: { select: { slug: true, shortName: true, name: true } },
@@ -104,6 +105,7 @@ export async function GET(request: NextRequest) {
       return {
         id: player.id,
         name: player.name,
+        jerseyNumber: player.jerseyNumber,
         position: player.position,
         clubLabel: player.club?.shortName ?? player.club?.slug ?? "",
         minutes: stat?.minutes ?? 0,

@@ -10,6 +10,7 @@ type Slot = {
   player: {
     id: string;
     name: string;
+    jerseyNumber: number | null;
     position: string;
     club: { shortName: string | null; slug: string } | null;
   } | null;
@@ -199,6 +200,11 @@ export default function RosterClient({
 
   const renderSlot = (slot: Slot) => {
     const selected = selectedSlotId === slot.id;
+    const playerLabel = slot.player
+      ? slot.player.jerseyNumber != null
+        ? `${slot.player.name} (${slot.player.jerseyNumber})`
+        : slot.player.name
+      : null;
     return (
       <li
         key={slot.id}
@@ -212,7 +218,7 @@ export default function RosterClient({
         <div className="flex flex-col">
           {slot.player ? (
             <p className="text-base font-semibold text-zinc-900">
-              {slot.player.name}
+              {playerLabel}
             </p>
           ) : (
             <p className="text-sm text-zinc-500">Open roster spot</p>

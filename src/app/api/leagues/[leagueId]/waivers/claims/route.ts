@@ -63,8 +63,12 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
         createdAt: true,
         priorityNumberAtSubmit: true,
         playerId: true,
-        player: { select: { id: true, name: true, position: true } },
-        dropPlayer: { select: { id: true, name: true, position: true } },
+        player: {
+          select: { id: true, name: true, jerseyNumber: true, position: true },
+        },
+        dropPlayer: {
+          select: { id: true, name: true, jerseyNumber: true, position: true },
+        },
       },
     });
 
@@ -92,7 +96,9 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
         id: true,
         status: true,
         processedAt: true,
-        player: { select: { id: true, name: true, position: true } },
+        player: {
+          select: { id: true, name: true, jerseyNumber: true, position: true },
+        },
       },
     });
 

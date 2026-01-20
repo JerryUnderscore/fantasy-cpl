@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { formatPlayerName } from "@/lib/players";
 
 type PlayerPosition = "GK" | "DEF" | "MID" | "FWD";
 
 type Player = {
   id: string;
   name: string;
+  jerseyNumber: number | null;
   position: PlayerPosition;
   club: { shortName: string | null; name: string } | null;
 };
@@ -292,7 +294,7 @@ export default function DraftPrepClient({
                 >
                   <div>
                     <p className="text-sm font-medium text-zinc-900">
-                      {player.name}
+                      {formatPlayerName(player.name, player.jerseyNumber)}
                     </p>
                     <p className="text-xs uppercase tracking-wide text-zinc-500">
                       {positionLabel(player.position)} - {clubLabel}
@@ -413,7 +415,8 @@ export default function DraftPrepClient({
                 >
                   <div>
                     <p className="text-sm font-medium text-zinc-900">
-                      {index + 1}. {player.name}
+                      {index + 1}.{" "}
+                      {formatPlayerName(player.name, player.jerseyNumber)}
                     </p>
                     <p className="text-xs uppercase tracking-wide text-zinc-500">
                       {positionLabel(player.position)} - {buildClubLabel(

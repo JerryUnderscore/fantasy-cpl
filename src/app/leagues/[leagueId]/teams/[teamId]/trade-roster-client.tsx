@@ -10,6 +10,7 @@ type SlotView = {
   player: {
     id: string;
     name: string;
+    jerseyNumber: number | null;
     position: string;
     club: { shortName: string | null } | null;
   } | null;
@@ -18,6 +19,7 @@ type SlotView = {
 type TradePlayer = {
   id: string;
   name: string;
+  jerseyNumber: number | null;
   position: string;
   club: { shortName: string | null } | null;
 };
@@ -75,12 +77,11 @@ export default function TradeRosterClient({
       className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-200 bg-white p-4"
     >
       <div className="flex flex-col">
-        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-          Slot {slot.slotNumber}
-        </p>
         {slot.player ? (
           <p className="text-base font-semibold text-zinc-900">
-            {slot.player.name}
+            {slot.player.jerseyNumber != null
+              ? `${slot.player.name} (${slot.player.jerseyNumber})`
+              : slot.player.name}
           </p>
         ) : (
           <p className="text-sm text-zinc-500">Empty slot</p>

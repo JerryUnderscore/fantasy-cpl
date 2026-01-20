@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { formatPlayerName } from "@/lib/players";
 
 type ScoreComponents = {
   appearance: number;
@@ -15,6 +16,7 @@ type ScoreComponents = {
 type BreakdownItem = {
   playerId: string;
   playerName: string;
+  jerseyNumber: number | null;
   position: string;
   clubSlug: string | null;
   minutes: number;
@@ -105,7 +107,7 @@ export default function ScoringCard({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold text-zinc-900">
-                    {entry.playerName}
+                    {formatPlayerName(entry.playerName, entry.jerseyNumber)}
                   </p>
                   <p className="text-xs text-zinc-500">
                     {entry.position} · {entry.clubSlug ?? ""} · {entry.minutes}m

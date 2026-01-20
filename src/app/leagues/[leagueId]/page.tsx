@@ -6,7 +6,7 @@ import AuthButtons from "@/components/auth-buttons";
 import { formatEasternDateTime } from "@/lib/time";
 import { getCurrentMatchWeekForSeason } from "@/lib/matchweek";
 import { normalizeLeagueWaiverTimes } from "@/lib/waivers";
-import TeamRenameLink from "./team-rename-link";
+import { formatPlayerName } from "@/lib/players";
 
 export const runtime = "nodejs";
 
@@ -172,6 +172,7 @@ export default async function LeagueDetailPage({
       const summary = scoreMap.get(team.id);
       return {
         teamId: team.id,
+        profileId: team.profileId,
         teamName: team.name,
         ownerName: team.profile.displayName ?? "Unknown",
         totalPoints: summary?._sum.points ?? 0,
@@ -218,6 +219,7 @@ export default async function LeagueDetailPage({
         select: {
           id: true,
           name: true,
+          jerseyNumber: true,
           position: true,
           club: { select: { shortName: true, name: true } },
         },
@@ -316,7 +318,16 @@ export default async function LeagueDetailPage({
                     <tr key={row.teamId} className="border-t border-zinc-200">
                       <td className="py-2 pr-3 text-zinc-500">{row.rank}</td>
                       <td className="py-2 pr-3 font-semibold text-zinc-900">
-                        {row.teamName}
+                        <Link
+                          href={
+                            row.profileId === profile.id
+                              ? `/leagues/${league.id}/team`
+                              : `/leagues/${league.id}/teams/${row.teamId}`
+                          }
+                          className="underline-offset-4 hover:text-zinc-900 hover:underline"
+                        >
+                          {row.teamName}
+                        </Link>
                       </td>
                       <td className="py-2 pr-3 text-zinc-600">
                         {row.ownerName}
@@ -391,7 +402,10 @@ export default async function LeagueDetailPage({
                     className="rounded-2xl border border-zinc-200 bg-white px-4 py-3"
                   >
                     <p className="text-sm font-semibold text-zinc-900">
-                      {waiver.player.name}
+                      {formatPlayerName(
+                        waiver.player.name,
+                        waiver.player.jerseyNumber,
+                      )}
                     </p>
                     <p className="text-xs text-zinc-500">
                       {waiver.player.position} ·{" "}
@@ -415,54 +429,6 @@ export default async function LeagueDetailPage({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-            League teams
-          </h2>
-
-          {teamsWithCounts.length === 0 ? (
-            <p className="mt-3 text-sm text-zinc-500">No teams yet.</p>
-          ) : (
-            <ul className="mt-4 flex flex-col gap-3">
-              {teamsWithCounts.map((t) => (
-                <li
-                  key={t.id}
-                  className="flex flex-col gap-1 rounded-2xl border border-zinc-200 bg-white p-4"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <p className="text-base font-semibold text-zinc-900">
-                      {t.name}
-                    </p>
-                    <div className="flex flex-col items-end gap-1">
-                      <Link
-                        href={
-                          t.profileId === profile.id
-                            ? `/leagues/${league.id}/team`
-                            : `/leagues/${league.id}/teams/${t.id}`
-                        }
-                        className="text-xs font-semibold uppercase tracking-wide text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline"
-                      >
-                        View roster
-                      </Link>
-                      {t.profileId === profile.id ? (
-                        <TeamRenameLink
-                          leagueId={league.id}
-                          initialTeamName={t.name}
-                        />
-                      ) : null}
-                    </div>
-                  </div>
-                  <p className="text-sm text-zinc-500">
-                    Owner: {t.profile.displayName ?? "Unknown"}
-                  </p>
-                  <p className="text-xs text-zinc-500">
-                    Filled: {t.filledCount}/15
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
       </div>
     </div>
   );

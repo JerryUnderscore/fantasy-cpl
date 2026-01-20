@@ -83,6 +83,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
           select: {
             id: true,
             name: true,
+            jerseyNumber: true,
             position: true,
             club: { select: { shortName: true } },
           },
@@ -98,6 +99,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
         player: {
           id: item.player.id,
           name: item.player.name,
+          jerseyNumber: item.player.jerseyNumber,
           position: item.player.position,
           club: item.player.club?.shortName ?? null,
         },

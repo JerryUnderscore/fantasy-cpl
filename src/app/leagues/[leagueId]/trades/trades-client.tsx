@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { formatPlayerName } from "@/lib/players";
 import TradeOfferModal from "./trade-offer-modal";
 
 type TradePlayer = {
   id: string;
   name: string;
+  jerseyNumber: number | null;
   position: string;
   club: { shortName: string | null } | null;
 };
@@ -246,7 +248,10 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
                       {offeredPlayers.map((item) => (
                         <li key={item.id}>
                           <span className="font-semibold text-zinc-900">
-                            {item.player.name}
+                            {formatPlayerName(
+                              item.player.name,
+                              item.player.jerseyNumber,
+                            )}
                           </span>
                           <span className="text-xs text-zinc-500">
                             {" "}· {buildRosterLabel(item.player)}
@@ -263,7 +268,10 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
                       {requestedPlayers.map((item) => (
                         <li key={item.id}>
                           <span className="font-semibold text-zinc-900">
-                            {item.player.name}
+                            {formatPlayerName(
+                              item.player.name,
+                              item.player.jerseyNumber,
+                            )}
                           </span>
                           <span className="text-xs text-zinc-500">
                             {" "}· {buildRosterLabel(item.player)}

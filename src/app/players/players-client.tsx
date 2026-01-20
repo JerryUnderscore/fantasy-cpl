@@ -2,10 +2,12 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { formatPlayerName } from "@/lib/players";
 
 type Player = {
   id: string;
   name: string;
+  jerseyNumber: number | null;
   position: "GK" | "DEF" | "MID" | "FWD";
   club: { name: string; shortName: string | null };
 };
@@ -107,6 +109,8 @@ export default function PlayersClient({ players }: Props) {
       const matchesSearch =
         query.length === 0 ||
         player.name.toLowerCase().includes(query) ||
+        (player.jerseyNumber !== null &&
+          String(player.jerseyNumber).includes(query)) ||
         player.club.name.toLowerCase().includes(query) ||
         player.club.shortName?.toLowerCase().includes(query);
       return matchesPosition && matchesClub && matchesSearch;
@@ -219,7 +223,7 @@ export default function PlayersClient({ players }: Props) {
             {filteredPlayers.map((player) => (
               <tr key={player.id} className="text-zinc-800">
                 <td className="px-4 py-3 font-semibold text-zinc-900">
-                  {player.name}
+                  {formatPlayerName(player.name, player.jerseyNumber)}
                 </td>
                 <td className="px-4 py-3">{player.position}</td>
                 <td className="px-4 py-3">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { formatPlayerName } from "@/lib/players";
 import { formatEasternDateTime } from "@/lib/time";
 
 type MatchWeekOption = {
@@ -26,6 +27,7 @@ type ClubOption = {
 type MatchWeekPlayer = {
   id: string;
   name: string;
+  jerseyNumber: number | null;
   position: string;
   clubLabel: string;
   minutes: number;
@@ -51,6 +53,7 @@ type Row = {
   id: string;
   playerId: string;
   playerName: string;
+  jerseyNumber: number | null;
   position: string;
   clubLabel: string;
   side: "home" | "away";
@@ -68,6 +71,7 @@ type Props = {
   players: Array<{
     id: string;
     name: string;
+    jerseyNumber: number | null;
     position: string;
     clubLabel: string;
   }>;
@@ -208,6 +212,7 @@ export default function ScoringAdminClient({
         id: player.id,
         playerId: player.id,
         playerName: player.name,
+        jerseyNumber: player.jerseyNumber ?? null,
         position: player.position,
         clubLabel: player.clubLabel,
         side,
@@ -890,7 +895,11 @@ export default function ScoringAdminClient({
                               Player
                             </label>
                           <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900">
-                            {row.playerName} · {row.position}
+                            {formatPlayerName(
+                              row.playerName,
+                              row.jerseyNumber,
+                            )}{" "}
+                            · {row.position}
                             {row.clubLabel ? ` · ${row.clubLabel}` : ""}
                           </div>
                         </div>

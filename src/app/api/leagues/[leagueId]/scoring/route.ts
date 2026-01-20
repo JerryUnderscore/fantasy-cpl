@@ -104,6 +104,7 @@ export async function GET(request: NextRequest, ctx: Ctx) {
           player: {
             select: {
               name: true,
+              jerseyNumber: true,
               position: true,
               club: { select: { slug: true } },
             },
@@ -116,6 +117,7 @@ export async function GET(request: NextRequest, ctx: Ctx) {
         return {
           playerId: score.playerId,
           playerName: score.player?.name ?? "Unknown",
+          jerseyNumber: score.player?.jerseyNumber ?? null,
           position: score.player?.position ?? "MID",
           clubSlug: score.player?.club?.slug ?? null,
           minutes: breakdown.minutes,
@@ -140,6 +142,7 @@ export async function GET(request: NextRequest, ctx: Ctx) {
     const breakdown = computed.playerResults.map((entry) => ({
       playerId: entry.playerId,
       playerName: entry.playerName,
+      jerseyNumber: entry.jerseyNumber ?? null,
       position: entry.position,
       clubSlug: entry.clubSlug,
       minutes: entry.breakdown.minutes,

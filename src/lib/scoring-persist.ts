@@ -31,6 +31,7 @@ type PlayerScoreBreakdown = {
 type PlayerInfo = {
   id: string;
   name: string;
+  jerseyNumber: number | null;
   position: PlayerPosition;
   clubSlug: string | null;
 };
@@ -38,6 +39,7 @@ type PlayerInfo = {
 type ComputedPlayerScore = {
   playerId: string;
   playerName: string;
+  jerseyNumber: number | null;
   position: PlayerPosition;
   clubSlug: string | null;
   points: number;
@@ -103,6 +105,7 @@ export async function computeTeamMatchWeekScore(
           select: {
             id: true,
             name: true,
+            jerseyNumber: true,
             position: true,
             club: { select: { slug: true } },
           },
@@ -130,6 +133,7 @@ export async function computeTeamMatchWeekScore(
               select: {
                 id: true,
                 name: true,
+                jerseyNumber: true,
                 position: true,
                 club: { select: { slug: true } },
               },
@@ -143,6 +147,7 @@ export async function computeTeamMatchWeekScore(
       {
         id: slot.player.id,
         name: slot.player.name,
+        jerseyNumber: slot.player.jerseyNumber,
         position: slot.player.position,
         clubSlug: slot.player.club?.slug ?? null,
       },
@@ -171,6 +176,7 @@ export async function computeTeamMatchWeekScore(
     return {
       playerId: player.id,
       playerName: player.name,
+      jerseyNumber: player.jerseyNumber,
       position: player.position,
       clubSlug: player.clubSlug,
       points,

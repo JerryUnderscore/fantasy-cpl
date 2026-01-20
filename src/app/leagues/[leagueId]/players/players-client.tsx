@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { formatPlayerName } from "@/lib/players";
 
 type PlayerAvailabilityStatus = "FREE_AGENT" | "WAIVERS" | "ROSTERED";
 
 type AvailablePlayer = {
   id: string;
   name: string;
+  jerseyNumber: number | null;
   position: "GK" | "DEF" | "MID" | "FWD";
   club: { slug: string; shortName: string | null; name: string } | null;
   status: PlayerAvailabilityStatus;
@@ -28,10 +30,16 @@ type PendingWaiverClaim = {
   status: "PENDING";
   createdAt: string;
   priorityNumberAtSubmit: number;
-  player: { id: string; name: string; position: AvailablePlayer["position"] };
+  player: {
+    id: string;
+    name: string;
+    jerseyNumber: number | null;
+    position: AvailablePlayer["position"];
+  };
   dropPlayer: {
     id: string;
     name: string;
+    jerseyNumber: number | null;
     position: AvailablePlayer["position"];
   } | null;
   waiverAvailableAt: string | null;
@@ -41,7 +49,12 @@ type ResolvedWaiverClaim = {
   id: string;
   status: "WON" | "LOST";
   processedAt: string | null;
-  player: { id: string; name: string; position: AvailablePlayer["position"] };
+  player: {
+    id: string;
+    name: string;
+    jerseyNumber: number | null;
+    position: AvailablePlayer["position"];
+  };
 };
 
 type Props = {
@@ -58,6 +71,7 @@ type RosterSlot = {
   player: {
     id: string;
     name: string;
+    jerseyNumber: number | null;
     position: AvailablePlayer["position"];
     club: { slug: string; shortName: string | null } | null;
   } | null;
@@ -266,8 +280,14 @@ export default function PlayersClient({ leagueId }: Props) {
       shownResolvedIds.current.add(claim.id);
       const message =
         claim.status === "WON"
-          ? `Waiver won: ${claim.player.name} added`
-          : `Waiver lost: ${claim.player.name} (higher priority team)`;
+          ? `Waiver won: ${formatPlayerName(
+              claim.player.name,
+              claim.player.jerseyNumber,
+            )} added`
+          : `Waiver lost: ${formatPlayerName(
+              claim.player.name,
+              claim.player.jerseyNumber,
+            )} (higher priority team)`;
       newNotifications.push({ id: claim.id, message });
     });
 
@@ -310,6 +330,7 @@ export default function PlayersClient({ leagueId }: Props) {
         .map((slot) => ({
           id: slot.player!.id,
           name: slot.player!.name,
+          jerseyNumber: slot.player!.jerseyNumber ?? null,
           position: slot.player!.position,
           club: slot.player!.club,
           isStarter: slot.isStarter,
@@ -793,11 +814,18 @@ export default function PlayersClient({ leagueId }: Props) {
               >
                 <div className="flex flex-col">
                   <span className="text-sm font-semibold text-zinc-900">
-                    {claim.player.name}
+                    {formatPlayerName(
+                      claim.player.name,
+                      claim.player.jerseyNumber,
+                    )}
                   </span>
                   {claim.dropPlayer ? (
                     <span className="text-xs text-zinc-500">
-                      Drop: {claim.dropPlayer.name}
+                      Drop:{" "}
+                      {formatPlayerName(
+                        claim.dropPlayer.name,
+                        claim.dropPlayer.jerseyNumber,
+                      )}
                     </span>
                   ) : (
                     <span className="text-xs text-zinc-500">Drop: None</span>
@@ -848,7 +876,7 @@ export default function PlayersClient({ leagueId }: Props) {
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div className="flex flex-col gap-1">
                     <p className="text-base font-semibold text-zinc-900">
-                      {player.name}
+                      {formatPlayerName(player.name, player.jerseyNumber)}
                     </p>
                     <p className="text-xs text-zinc-500">
                       {player.position} · {clubLabel}
@@ -960,7 +988,7 @@ export default function PlayersClient({ leagueId }: Props) {
                         />
                         <span className="flex flex-col">
                           <span className="font-semibold text-zinc-900">
-                            {player.name}
+                            {formatPlayerName(player.name, player.jerseyNumber)}
                           </span>
                           <span className="text-xs text-zinc-500">
                             {player.position} · {clubLabel ?? "Unknown club"}

@@ -12,6 +12,7 @@ type PlayerAvailabilityStatus = "FREE_AGENT" | "WAIVERS" | "ROSTERED";
 type AvailablePlayer = {
   id: string;
   name: string;
+  jerseyNumber: number | null;
   position: string;
   club: { slug: string; shortName: string | null; name: string } | null;
   status: PlayerAvailabilityStatus;
@@ -83,6 +84,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
         select: {
           id: true,
           name: true,
+          jerseyNumber: true,
           position: true,
           club: { select: { slug: true, shortName: true, name: true } },
         },
@@ -142,6 +144,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
         return {
           id: player.id,
           name: player.name,
+          jerseyNumber: player.jerseyNumber,
           position: player.position,
           club: player.club,
           status: "ROSTERED",
@@ -156,6 +159,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
         return {
           id: player.id,
           name: player.name,
+          jerseyNumber: player.jerseyNumber,
           position: player.position,
           club: player.club,
           status: "WAIVERS",
@@ -167,6 +171,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
       return {
         id: player.id,
         name: player.name,
+        jerseyNumber: player.jerseyNumber,
         position: player.position,
         club: player.club,
         status: "FREE_AGENT",

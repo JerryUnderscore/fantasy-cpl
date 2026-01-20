@@ -2,10 +2,12 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { formatPlayerName } from "@/lib/players";
 
 type AvailablePlayer = {
   id: string;
   name: string;
+  jerseyNumber: number | null;
   position: string;
   club: string | null;
 };
@@ -116,7 +118,9 @@ export default function DraftClient({
         return false;
       }
       if (!query) return true;
-      return `${player.name} ${player.position} ${player.club ?? ""}`
+      const jerseyLabel =
+        player.jerseyNumber !== null ? String(player.jerseyNumber) : "";
+      return `${player.name} ${jerseyLabel} ${player.position} ${player.club ?? ""}`
         .toLowerCase()
         .includes(query);
     });
@@ -490,7 +494,10 @@ export default function DraftClient({
                       >
                         <div className="flex flex-col">
                           <span className="font-semibold text-zinc-900">
-                            {player.name}
+                            {formatPlayerName(
+                              player.name,
+                              player.jerseyNumber,
+                            )}
                           </span>
                           <span className="text-xs text-zinc-500">
                             {player.position} · {player.club ?? "—"}

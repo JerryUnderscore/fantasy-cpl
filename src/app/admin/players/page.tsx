@@ -1,10 +1,55 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdminUser } from "@/lib/admin";
+import PlayersTableClient from "./players-table-client";
 
 export const runtime = "nodejs";
 
 const positions = ["GK", "DEF", "MID", "FWD"] as const;
+const positionSet = new Set(positions);
+
+const parseCsv = (input: string) => {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentField = "";
+  let inQuotes = false;
+  const text = input.replace(/^\uFEFF/, "");
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (char === "\"") {
+      const nextChar = text[i + 1];
+      if (inQuotes && nextChar === "\"") {
+        currentField += "\"";
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (!inQuotes && (char === "," || char === "\n" || char === "\r")) {
+      currentRow.push(currentField.trim());
+      currentField = "";
+      if (char === "\r" && text[i + 1] === "\n") {
+        i += 1;
+      }
+      if (char === "," ) {
+        continue;
+      }
+      rows.push(currentRow);
+      currentRow = [];
+      continue;
+    }
+    currentField += char;
+  }
+
+  if (currentField.length > 0 || currentRow.length > 0) {
+    currentRow.push(currentField.trim());
+    rows.push(currentRow);
+  }
+
+  return rows.filter((row) => row.some((value) => value !== ""));
+};
 
 async function createPlayer(formData: FormData) {
   "use server";
@@ -14,6 +59,7 @@ async function createPlayer(formData: FormData) {
   const position = formData.get("position");
   const clubId = formData.get("clubId");
   const seasonId = formData.get("seasonId");
+  const jerseyNumber = formData.get("jerseyNumber");
 
   if (
     typeof name !== "string" ||
@@ -25,6 +71,11 @@ async function createPlayer(formData: FormData) {
     return;
   }
 
+  const parsedJersey =
+    typeof jerseyNumber === "string" && jerseyNumber.trim() !== ""
+      ? Number(jerseyNumber)
+      : null;
+
   await prisma.player.create({
     data: {
       name: name.trim(),
@@ -32,6 +83,10 @@ async function createPlayer(formData: FormData) {
       clubId,
       seasonId,
       active: true,
+      jerseyNumber:
+        parsedJersey !== null && Number.isFinite(parsedJersey)
+          ? Math.floor(parsedJersey)
+          : null,
     },
   });
 
@@ -45,6 +100,7 @@ async function updatePlayer(formData: FormData) {
   const playerId = formData.get("playerId");
   const position = formData.get("position");
   const clubId = formData.get("clubId");
+  const jerseyNumber = formData.get("jerseyNumber");
 
   if (
     typeof playerId !== "string" ||
@@ -54,9 +110,21 @@ async function updatePlayer(formData: FormData) {
     return;
   }
 
+  const parsedJersey =
+    typeof jerseyNumber === "string" && jerseyNumber.trim() !== ""
+      ? Number(jerseyNumber)
+      : null;
+
   await prisma.player.update({
     where: { id: playerId },
-    data: { position, clubId },
+    data: {
+      position,
+      clubId,
+      jerseyNumber:
+        parsedJersey !== null && Number.isFinite(parsedJersey)
+          ? Math.floor(parsedJersey)
+          : null,
+    },
   });
 
   revalidatePath("/admin/players");
@@ -96,6 +164,111 @@ async function togglePlayerActive(formData: FormData) {
   revalidatePath("/admin/players");
 }
 
+async function importPlayersCsv(formData: FormData) {
+  "use server";
+  await requireAdminUser();
+
+  const file = formData.get("csvFile");
+  const seasonId = formData.get("seasonId");
+
+  if (!(file instanceof File) || typeof seasonId !== "string") {
+    return;
+  }
+
+  const csv = await file.text();
+  const rows = parseCsv(csv);
+  if (rows.length < 2) {
+    return;
+  }
+
+  const headers = rows[0].map((header) => header.toLowerCase());
+  const headerIndex = new Map(headers.map((header, index) => [header, index]));
+  const nameIndex = headerIndex.get("name");
+  const positionIndex = headerIndex.get("position");
+  const clubIndex =
+    headerIndex.get("club") ??
+    headerIndex.get("clubname") ??
+    headerIndex.get("clubshortname");
+  const jerseyIndex =
+    headerIndex.get("jerseynumber") ?? headerIndex.get("jersey");
+
+  if (
+    nameIndex === undefined ||
+    positionIndex === undefined ||
+    clubIndex === undefined
+  ) {
+    return;
+  }
+
+  const clubs = await prisma.club.findMany({
+    select: { id: true, name: true, shortName: true },
+  });
+  const clubMap = new Map<string, string>();
+  clubs.forEach((club) => {
+    if (club.shortName) {
+      clubMap.set(club.shortName.toLowerCase(), club.id);
+    }
+    clubMap.set(club.name.toLowerCase(), club.id);
+  });
+
+  const operations: Array<ReturnType<typeof prisma.player.upsert>> = [];
+
+  for (const row of rows.slice(1)) {
+    const name = row[nameIndex]?.trim();
+    const positionRaw = row[positionIndex]?.trim().toUpperCase();
+    const clubLabel = row[clubIndex]?.trim().toLowerCase();
+    if (!name || !positionRaw || !clubLabel) {
+      continue;
+    }
+    if (!positionSet.has(positionRaw as (typeof positions)[number])) {
+      continue;
+    }
+    const clubId = clubMap.get(clubLabel);
+    if (!clubId) {
+      continue;
+    }
+
+    const jerseyValue = jerseyIndex !== undefined ? row[jerseyIndex] : null;
+    const jerseyParsed =
+      typeof jerseyValue === "string" && jerseyValue.trim() !== ""
+        ? Number(jerseyValue)
+        : null;
+    const jerseyNumber =
+      jerseyParsed !== null && Number.isFinite(jerseyParsed)
+        ? Math.floor(jerseyParsed)
+        : null;
+
+    operations.push(
+      prisma.player.upsert({
+        where: {
+          seasonId_name: { seasonId, name },
+        },
+        update: {
+          position: positionRaw as (typeof positions)[number],
+          clubId,
+          jerseyNumber,
+          active: true,
+        },
+        create: {
+          name,
+          seasonId,
+          clubId,
+          position: positionRaw as (typeof positions)[number],
+          jerseyNumber,
+          active: true,
+        },
+      }),
+    );
+  }
+
+  if (operations.length === 0) {
+    return;
+  }
+
+  await prisma.$transaction(operations);
+  revalidatePath("/admin/players");
+}
+
 export default async function AdminPlayersPage() {
   const season = await prisma.season.findFirst({
     where: { isActive: true },
@@ -122,6 +295,7 @@ export default async function AdminPlayersPage() {
           position: true,
           active: true,
           clubId: true,
+          jerseyNumber: true,
           club: { select: { name: true, shortName: true } },
         },
       })
@@ -158,6 +332,13 @@ export default async function AdminPlayersPage() {
             placeholder="Player name"
             className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
             required
+          />
+          <input
+            type="number"
+            name="jerseyNumber"
+            placeholder="Jersey #"
+            min="0"
+            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
           />
           <select
             name="position"
@@ -199,93 +380,49 @@ export default async function AdminPlayersPage() {
         </form>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-zinc-200">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
-            <tr>
-              <th className="px-4 py-3">Player</th>
-              <th className="px-4 py-3">Club</th>
-              <th className="px-4 py-3">Position</th>
-              <th className="px-4 py-3">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100">
-            {players.map((player) => (
-              <tr key={player.id} className="text-zinc-800">
-                <td className="px-4 py-3 font-semibold text-zinc-900">
-                  <div className="flex items-center gap-2">
-                    <span>{player.name}</span>
-                    {!player.active ? (
-                      <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-600">
-                        Hidden
-                      </span>
-                    ) : null}
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-sm text-zinc-600">
-                  {player.club?.shortName ?? player.club?.name}
-                </td>
-                <td className="px-4 py-3 text-xs font-semibold text-zinc-600">
-                  {player.position}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <form action={updatePlayer} className="flex items-center gap-2">
-                      <input type="hidden" name="playerId" value={player.id} />
-                      <select
-                        name="clubId"
-                        defaultValue={player.clubId}
-                        className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900"
-                      >
-                        {clubs.map((club) => (
-                          <option key={club.id} value={club.id}>
-                            {club.shortName ?? club.name}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        name="position"
-                        defaultValue={player.position}
-                        className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-900"
-                      >
-                        {positions.map((position) => (
-                          <option key={position} value={position}>
-                            {position}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="submit"
-                        className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-600"
-                      >
-                        Save
-                      </button>
-                    </form>
-                    <form action={togglePlayerActive}>
-                      <input type="hidden" name="playerId" value={player.id} />
-                      <input
-                        type="hidden"
-                        name="nextActive"
-                        value={player.active ? "false" : "true"}
-                      />
-                      <button
-                        type="submit"
-                        className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
-                          player.active
-                            ? "border-amber-200 text-amber-700"
-                            : "border-emerald-200 text-emerald-700"
-                        }`}
-                      >
-                        {player.active ? "Hide" : "Show"}
-                      </button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
+      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+        <p className="text-sm font-semibold text-zinc-900">Import players</p>
+        <p className="mt-1 text-xs text-zinc-500">
+          CSV columns: name, position, club (shortName or name), jerseyNumber.
+        </p>
+        <form
+          action={importPlayersCsv}
+          className="mt-4 grid gap-3 sm:grid-cols-[2fr_1fr_auto]"
+        >
+          <input
+            type="file"
+            name="csvFile"
+            accept=".csv,text/csv"
+            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+            required
+          />
+          <select
+            name="seasonId"
+            defaultValue={season.id}
+            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+          >
+            {seasons.map((seasonOption) => (
+              <option key={seasonOption.id} value={seasonOption.id}>
+                {seasonOption.year} - {seasonOption.name}
+              </option>
             ))}
-          </tbody>
-        </table>
+          </select>
+          <button
+            type="submit"
+            className="rounded-full bg-black px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white"
+          >
+            Upload CSV
+          </button>
+        </form>
       </div>
+
+      <PlayersTableClient
+        players={players}
+        clubs={clubs}
+        positions={positions}
+        updatePlayer={updatePlayer}
+        togglePlayerActive={togglePlayerActive}
+      />
     </div>
   );
 }

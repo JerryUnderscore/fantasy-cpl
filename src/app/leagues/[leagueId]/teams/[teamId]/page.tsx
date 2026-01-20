@@ -16,6 +16,7 @@ type SlotView = {
   isStarter: boolean;
   player: {
     name: string;
+    jerseyNumber: number | null;
     position: string;
     club: { shortName: string | null } | null;
   } | null;
@@ -132,6 +133,7 @@ export default async function TeamRosterPage({
           player: {
             select: {
               name: true,
+              jerseyNumber: true,
               position: true,
               club: { select: { shortName: true } },
             },
@@ -160,6 +162,7 @@ export default async function TeamRosterPage({
             select: {
               id: true,
               name: true,
+              jerseyNumber: true,
               position: true,
               club: { select: { shortName: true } },
             },
@@ -244,6 +247,7 @@ export default async function TeamRosterPage({
         player: {
           select: {
             name: true,
+            jerseyNumber: true,
             position: true,
             club: { select: { shortName: true } },
           },

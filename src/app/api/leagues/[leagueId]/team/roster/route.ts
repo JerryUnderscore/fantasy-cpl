@@ -17,6 +17,7 @@ type RosterSlotView = {
   player: {
     id: string;
     name: string;
+    jerseyNumber: number | null;
     position: string;
     club: { shortName: string | null; slug: string } | null;
   } | null;
@@ -38,6 +39,7 @@ const serializeSlots = (
     player: {
       id: string;
       name: string;
+      jerseyNumber: number | null;
       position: string;
       club: { shortName: string | null; slug: string } | null;
       active: boolean;
@@ -50,12 +52,13 @@ const serializeSlots = (
     isStarter: slot.isStarter,
     player: slot.player
       ? {
-          id: slot.player.id,
-          name: slot.player.name,
-          position: slot.player.position,
-          club: slot.player.club,
-        }
-      : null,
+        id: slot.player.id,
+        name: slot.player.name,
+        jerseyNumber: slot.player.jerseyNumber,
+        position: slot.player.position,
+        club: slot.player.club,
+      }
+    : null,
   }));
 
 const clearInactivePlayers = async (
@@ -106,6 +109,7 @@ const loadRosterSlots = (fantasyTeamId: string) =>
         select: {
           id: true,
           name: true,
+          jerseyNumber: true,
           position: true,
           active: true,
           club: { select: { shortName: true, slug: true } },
@@ -127,6 +131,7 @@ const loadLineupSlots = (fantasyTeamId: string, matchWeekId: string) =>
         select: {
           id: true,
           name: true,
+          jerseyNumber: true,
           position: true,
           active: true,
           club: { select: { shortName: true, slug: true } },
@@ -392,6 +397,7 @@ export async function GET(request: NextRequest, ctx: Ctx) {
           ? {
               id: slot.player.id,
               name: slot.player.name,
+              jerseyNumber: slot.player.jerseyNumber,
               position: slot.player.position,
               club: slot.player.club,
             }
@@ -424,6 +430,7 @@ export async function GET(request: NextRequest, ctx: Ctx) {
           ? {
               id: slot.player.id,
               name: slot.player.name,
+              jerseyNumber: slot.player.jerseyNumber,
               position: slot.player.position,
               club: slot.player.club,
             }
