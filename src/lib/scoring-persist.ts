@@ -93,24 +93,49 @@ export async function computeTeamMatchWeekScore(
   fantasyTeamId: string,
   matchWeekId: string,
 ): Promise<TeamScoreComputation> {
-  const starters = await prisma.rosterSlot.findMany({
-    where: {
-      fantasyTeamId,
-      isStarter: true,
-      playerId: { not: null },
-    },
-    select: {
-      playerId: true,
-      player: {
-        select: {
-          id: true,
-          name: true,
-          position: true,
-          club: { select: { slug: true } },
+  const [lineupSlots, rosterSlotCount] = await Promise.all([
+    prisma.teamMatchWeekLineupSlot.findMany({
+      where: { fantasyTeamId, matchWeekId },
+      select: {
+        playerId: true,
+        isStarter: true,
+        player: {
+          select: {
+            id: true,
+            name: true,
+            position: true,
+            club: { select: { slug: true } },
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.rosterSlot.count({ where: { fantasyTeamId } }),
+  ]);
+
+  const hasFullLineup =
+    rosterSlotCount > 0 && lineupSlots.length >= rosterSlotCount;
+
+  const starters =
+    hasFullLineup
+      ? lineupSlots.filter((slot) => slot.isStarter && slot.playerId)
+      : await prisma.rosterSlot.findMany({
+          where: {
+            fantasyTeamId,
+            isStarter: true,
+            playerId: { not: null },
+          },
+          select: {
+            playerId: true,
+            player: {
+              select: {
+                id: true,
+                name: true,
+                position: true,
+                club: { select: { slug: true } },
+              },
+            },
+          },
+        });
 
   const players: PlayerInfo[] = starters.flatMap((slot) => {
     if (!slot.player || !slot.playerId) return [];

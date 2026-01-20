@@ -68,6 +68,9 @@ model Player {
   rosterSlots         RosterSlot[]
   matchWeekScores     TeamMatchWeekPlayerScore[]
 
+  // Back-relation for TeamMatchWeekLineupSlot.player
+  teamMatchWeekLineupSlots TeamMatchWeekLineupSlot[]
+
   @@unique([seasonId, name])
   @@index([seasonId])
   @@index([clubId])
@@ -89,6 +92,9 @@ model MatchWeek {
   playerStats      PlayerMatchStat[]
   teamPlayerScores TeamMatchWeekPlayerScore[]
   teamScores       TeamMatchWeekScore[]
+
+  // Back-relation for TeamMatchWeekLineupSlot.matchWeek
+  teamLineupSlots TeamMatchWeekLineupSlot[]
 
   @@unique([seasonId, number])
   @@index([seasonId])
@@ -206,6 +212,9 @@ model FantasyTeam {
   matchWeekPlayerScores TeamMatchWeekPlayerScore[]
   matchWeekScores       TeamMatchWeekScore[]
 
+  // Back-relation for TeamMatchWeekLineupSlot.fantasyTeam
+  matchWeekLineupSlots TeamMatchWeekLineupSlot[]
+
   @@unique([leagueId, profileId])
   @@index([leagueId])
   @@index([profileId])
@@ -222,14 +231,36 @@ model RosterSlot {
   isStarter     Boolean        @default(false)
   position      PlayerPosition @default(MID)
 
-  fantasyTeam FantasyTeam @relation(fields: [fantasyTeamId], references: [id])
-  league      League      @relation(fields: [leagueId], references: [id])
-  player      Player?     @relation(fields: [playerId], references: [id])
+  fantasyTeam      FantasyTeam               @relation(fields: [fantasyTeamId], references: [id])
+  league           League                    @relation(fields: [leagueId], references: [id])
+  player           Player?                   @relation(fields: [playerId], references: [id])
+  matchWeekLineups TeamMatchWeekLineupSlot[]
 
   @@unique([leagueId, playerId])
   @@unique([fantasyTeamId, slotNumber], map: "RosterSlot_fantasyTeamId_slotIndex_key")
   @@index([fantasyTeamId])
   @@index([leagueId])
+}
+
+model TeamMatchWeekLineupSlot {
+  id            String   @id @default(cuid())
+  fantasyTeamId String
+  matchWeekId   String
+  rosterSlotId  String
+  slotNumber    Int
+  playerId      String?
+  isStarter     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  fantasyTeam FantasyTeam @relation(fields: [fantasyTeamId], references: [id], onDelete: Cascade)
+  matchWeek   MatchWeek   @relation(fields: [matchWeekId], references: [id], onDelete: Cascade)
+  rosterSlot  RosterSlot  @relation(fields: [rosterSlotId], references: [id], onDelete: Cascade)
+  player      Player?     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([fantasyTeamId, matchWeekId, rosterSlotId])
+  @@index([fantasyTeamId, matchWeekId])
+  @@index([matchWeekId])
 }
 
 model LeaguePlayerWaiver {

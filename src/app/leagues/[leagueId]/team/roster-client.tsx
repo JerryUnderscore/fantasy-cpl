@@ -17,9 +17,16 @@ type Slot = {
 type Props = {
   leagueId: string;
   initialSlots: Slot[];
+  matchWeekNumber: number;
+  isLocked?: boolean;
 };
 
-export default function RosterClient({ leagueId, initialSlots }: Props) {
+export default function RosterClient({
+  leagueId,
+  initialSlots,
+  matchWeekNumber,
+  isLocked = false,
+}: Props) {
   const [slots, setSlots] = useState<Slot[]>(initialSlots);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
@@ -43,6 +50,11 @@ export default function RosterClient({ leagueId, initialSlots }: Props) {
   );
 
   const updateRoster = async (payload: Record<string, unknown>) => {
+    if (isLocked) {
+      setUpdateError("Lineups are locked for this MatchWeek");
+      return;
+    }
+
     setUpdateError(null);
     setIsUpdating(true);
 
@@ -50,7 +62,7 @@ export default function RosterClient({ leagueId, initialSlots }: Props) {
       const res = await fetch(`/api/leagues/${leagueId}/team/roster`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, matchWeekNumber }),
       });
 
       const data = await res.json().catch(() => null);
@@ -77,6 +89,11 @@ export default function RosterClient({ leagueId, initialSlots }: Props) {
   };
 
   const handleSlotClick = (slot: Slot) => {
+    if (isLocked) {
+      setUpdateError("Lineups are locked for this MatchWeek");
+      return;
+    }
+
     setLineupError(null);
 
     if (selectedSlotId === slot.id) {
@@ -98,12 +115,19 @@ export default function RosterClient({ leagueId, initialSlots }: Props) {
   };
 
   const saveLineup = async () => {
+    if (isLocked) {
+      setLineupError("Lineups are locked for this MatchWeek");
+      return;
+    }
+
     setLineupError(null);
     setIsSaving(true);
 
     try {
       const res = await fetch(`/api/leagues/${leagueId}/team/lineup`, {
         method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ matchWeekNumber }),
       });
 
       const data = await res.json().catch(() => null);
@@ -153,7 +177,7 @@ export default function RosterClient({ leagueId, initialSlots }: Props) {
               event.stopPropagation();
               toggleStarter(slot, !slot.isStarter);
             }}
-            disabled={!slot.player || isUpdating}
+            disabled={!slot.player || isUpdating || isLocked}
             className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide transition ${
               slot.isStarter
                 ? "bg-zinc-900 text-white"
@@ -169,7 +193,7 @@ export default function RosterClient({ leagueId, initialSlots }: Props) {
                 event.stopPropagation();
                 clearSlot(slot);
               }}
-              disabled={isUpdating}
+              disabled={isUpdating || isLocked}
               className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-500 disabled:opacity-60"
             >
               Clear
@@ -193,7 +217,7 @@ export default function RosterClient({ leagueId, initialSlots }: Props) {
           <button
             type="button"
             onClick={saveLineup}
-            disabled={isSaving}
+            disabled={isSaving || isLocked}
             className="rounded-full bg-black px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white disabled:opacity-60"
           >
             {isSaving ? "Saving…" : "Save lineup"}

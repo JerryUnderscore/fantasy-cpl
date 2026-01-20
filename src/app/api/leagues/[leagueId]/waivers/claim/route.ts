@@ -44,7 +44,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
     const league = await prisma.league.findUnique({
       where: { id: leagueId },
-      select: { id: true, seasonId: true },
+      select: { id: true, seasonId: true, draftMode: true },
     });
 
     if (!league) {
@@ -76,6 +76,20 @@ export async function POST(request: NextRequest, ctx: Ctx) {
         { error: "playerId is required" },
         { status: 400 },
       );
+    }
+
+    if (league.draftMode !== "NONE") {
+      const draft = await prisma.draft.findUnique({
+        where: { leagueId_seasonId: { leagueId, seasonId: league.seasonId } },
+        select: { status: true },
+      });
+
+      if (!draft || draft.status !== "COMPLETE") {
+        return NextResponse.json(
+          { error: "Rosters are locked until the draft completes" },
+          { status: 409 },
+        );
+      }
     }
 
     if (dropPlayerId && dropPlayerId === playerId) {
@@ -187,13 +201,31 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       : await prisma.matchWeek.findFirst({
           where: { seasonId: league.seasonId, status: MatchWeekStatus.FINALIZED },
           orderBy: { number: "asc" },
-          select: { number: true, status: true },
+          select: { id: true, number: true, status: true },
         });
     const lockingMatchWeek = currentMatchWeek ?? finalizedMatchWeek;
     const isLocked =
       lockingMatchWeek && lockingMatchWeek.status !== MatchWeekStatus.OPEN;
 
-    if (dropSlot?.isStarter && isLocked) {
+    let dropSlotIsStarter = dropSlot?.isStarter ?? false;
+
+    if (dropSlot && lockingMatchWeek) {
+      const lineupSlot = await prisma.teamMatchWeekLineupSlot.findUnique({
+        where: {
+          fantasyTeamId_matchWeekId_rosterSlotId: {
+            fantasyTeamId: team.id,
+            matchWeekId: lockingMatchWeek.id,
+            rosterSlotId: dropSlot.id,
+          },
+        },
+        select: { isStarter: true },
+      });
+      if (lineupSlot) {
+        dropSlotIsStarter = lineupSlot.isStarter;
+      }
+    }
+
+    if (dropSlotIsStarter && isLocked) {
       return NextResponse.json(
         {
           error: `Cannot drop a starter while MatchWeek ${lockingMatchWeek?.number} is locked`,

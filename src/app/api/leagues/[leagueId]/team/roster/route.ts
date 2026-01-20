@@ -70,6 +70,7 @@ const clearInactivePlayers = async (
   slots: Array<{
     id: string;
     slotNumber: number;
+    playerId: string | null;
     isStarter: boolean;
     player: {
       id: string;
@@ -95,7 +96,7 @@ const clearInactivePlayers = async (
 
   return slots.map((slot) =>
     inactiveSlotIds.includes(slot.id)
-      ? { ...slot, player: null, isStarter: false }
+      ? { ...slot, playerId: null, player: null, isStarter: false }
       : slot,
   );
 };
@@ -107,6 +108,7 @@ const loadRosterSlots = (fantasyTeamId: string) =>
     select: {
       id: true,
       slotNumber: true,
+      playerId: true,
       isStarter: true,
       player: {
         select: {
@@ -120,7 +122,170 @@ const loadRosterSlots = (fantasyTeamId: string) =>
     },
   });
 
-export async function GET(_request: NextRequest, ctx: Ctx) {
+const loadLineupSlots = (fantasyTeamId: string, matchWeekId: string) =>
+  prisma.teamMatchWeekLineupSlot.findMany({
+    where: { fantasyTeamId, matchWeekId },
+    orderBy: { slotNumber: "asc" },
+    select: {
+      rosterSlotId: true,
+      slotNumber: true,
+      playerId: true,
+      isStarter: true,
+      player: {
+        select: {
+          id: true,
+          name: true,
+          position: true,
+          active: true,
+          club: { select: { shortName: true, slug: true } },
+        },
+      },
+    },
+  });
+
+const findSeedStarterMap = async (
+  fantasyTeamId: string,
+  seasonId: string,
+  matchWeekNumber: number,
+) => {
+  const priorMatchWeek = await prisma.teamMatchWeekLineupSlot.findMany({
+    where: {
+      fantasyTeamId,
+      matchWeek: { seasonId, number: { lt: matchWeekNumber } },
+    },
+    distinct: ["matchWeekId"],
+    orderBy: { matchWeek: { number: "desc" } },
+    take: 1,
+    select: { matchWeekId: true },
+  });
+
+  const priorMatchWeekId = priorMatchWeek[0]?.matchWeekId;
+  if (!priorMatchWeekId) return null;
+
+  const priorSlots = await prisma.teamMatchWeekLineupSlot.findMany({
+    where: { fantasyTeamId, matchWeekId: priorMatchWeekId },
+    select: { rosterSlotId: true, isStarter: true },
+  });
+
+  return new Map(priorSlots.map((slot) => [slot.rosterSlotId, slot.isStarter]));
+};
+
+const ensureLineupSlots = async (
+  fantasyTeamId: string,
+  matchWeek: { id: string; number: number; seasonId: string },
+  rosterSlots: Array<{
+    id: string;
+    slotNumber: number;
+    playerId: string | null;
+    isStarter: boolean;
+  }>,
+) => {
+  const existingSlots = await prisma.teamMatchWeekLineupSlot.findMany({
+    where: { fantasyTeamId, matchWeekId: matchWeek.id },
+    select: { rosterSlotId: true },
+  });
+
+  const existingSlotIds = new Set(
+    existingSlots.map((slot) => slot.rosterSlotId),
+  );
+  const missingSlots = rosterSlots.filter((slot) => !existingSlotIds.has(slot.id));
+
+  if (missingSlots.length > 0) {
+    const seedStarterMap = await findSeedStarterMap(
+      fantasyTeamId,
+      matchWeek.seasonId,
+      matchWeek.number,
+    );
+    await prisma.teamMatchWeekLineupSlot.createMany({
+      data: missingSlots.map((slot) => ({
+        fantasyTeamId,
+        matchWeekId: matchWeek.id,
+        rosterSlotId: slot.id,
+        slotNumber: slot.slotNumber,
+        playerId: slot.playerId ?? null,
+        isStarter: seedStarterMap?.get(slot.id) ?? slot.isStarter,
+      })),
+    });
+  }
+
+  return loadLineupSlots(fantasyTeamId, matchWeek.id);
+};
+
+const parseMatchWeekNumber = (value: unknown) => {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) return null;
+  return parsed;
+};
+
+const getRosterPropagationStartNumber = async (seasonId: string) => {
+  const currentMatchWeek = await getCurrentMatchWeekForSeason(seasonId);
+  if (!currentMatchWeek) return null;
+  if (currentMatchWeek.status === MatchWeekStatus.OPEN) {
+    return currentMatchWeek.number;
+  }
+  return currentMatchWeek.number + 1;
+};
+
+const syncLineupSlotsForRosterChange = async ({
+  fantasyTeamId,
+  seasonId,
+  rosterSlots,
+  affectedSlotIds,
+}: {
+  fantasyTeamId: string;
+  seasonId: string;
+  rosterSlots: Array<{
+    id: string;
+    slotNumber: number;
+    playerId: string | null;
+    isStarter: boolean;
+  }>;
+  affectedSlotIds: string[];
+}) => {
+  const startNumber = await getRosterPropagationStartNumber(seasonId);
+  if (!startNumber) return;
+
+  const matchWeeks = await prisma.matchWeek.findMany({
+    where: {
+      seasonId,
+      number: { gte: startNumber },
+      status: { not: MatchWeekStatus.FINALIZED },
+    },
+    select: { id: true, number: true },
+  });
+
+  if (matchWeeks.length === 0) return;
+
+  const slotMap = new Map(
+    rosterSlots.map((slot) => [slot.id, slot]),
+  );
+
+  for (const matchWeek of matchWeeks) {
+    await ensureLineupSlots(
+      fantasyTeamId,
+      { id: matchWeek.id, number: matchWeek.number, seasonId },
+      rosterSlots,
+    );
+
+    for (const slotId of affectedSlotIds) {
+      const slot = slotMap.get(slotId);
+      if (!slot) continue;
+
+      await prisma.teamMatchWeekLineupSlot.update({
+        where: {
+          fantasyTeamId_matchWeekId_rosterSlotId: {
+            fantasyTeamId,
+            matchWeekId: matchWeek.id,
+            rosterSlotId: slot.id,
+          },
+        },
+        data: { playerId: slot.playerId ?? null },
+      });
+    }
+  }
+};
+
+export async function GET(request: NextRequest, ctx: Ctx) {
   try {
     const { leagueId } = await ctx.params;
 
@@ -173,29 +338,119 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
       skipDuplicates: true,
     });
 
+    const matchWeekParam = request.nextUrl.searchParams.get("matchWeek");
+    const requestedMatchWeekNumber = parseMatchWeekNumber(matchWeekParam);
+
     const currentMatchWeek = await getCurrentMatchWeekForSeason(league.seasonId);
-    const finalizedMatchWeek = currentMatchWeek
+    const fallbackMatchWeek = currentMatchWeek
       ? null
       : await prisma.matchWeek.findFirst({
           where: { seasonId: league.seasonId, status: MatchWeekStatus.FINALIZED },
           orderBy: { number: "asc" },
-          select: { number: true, status: true },
+          select: { id: true, number: true, status: true },
         });
-    const lockingMatchWeek = currentMatchWeek ?? finalizedMatchWeek;
-    const lockInfo = lockingMatchWeek
+
+    const selectedMatchWeek = requestedMatchWeekNumber
+      ? await prisma.matchWeek.findUnique({
+          where: {
+            seasonId_number: {
+              seasonId: league.seasonId,
+              number: requestedMatchWeekNumber,
+            },
+          },
+          select: { id: true, number: true, status: true },
+        })
+      : currentMatchWeek ?? fallbackMatchWeek;
+
+    const lockInfo = selectedMatchWeek
       ? {
-          isLocked: lockingMatchWeek.status !== MatchWeekStatus.OPEN,
-          matchWeekNumber: lockingMatchWeek.number,
-          status: lockingMatchWeek.status,
+          isLocked: selectedMatchWeek.status !== MatchWeekStatus.OPEN,
+          matchWeekNumber: selectedMatchWeek.number,
+          status: selectedMatchWeek.status,
         }
       : null;
 
     const slots = await loadRosterSlots(team.id);
     const sanitizedSlots = await clearInactivePlayers(slots);
 
+    if (affectedSlotIds.length > 0) {
+      await syncLineupSlotsForRosterChange({
+        fantasyTeamId: team.id,
+        seasonId: league.seasonId,
+        rosterSlots: sanitizedSlots,
+        affectedSlotIds,
+      });
+    }
+
+    if (!selectedMatchWeek) {
+      return NextResponse.json({
+        team,
+        slots: serializeSlots(sanitizedSlots),
+        lockInfo,
+      });
+    }
+
+    const lineupSlots = await ensureLineupSlots(
+      team.id,
+      {
+        id: selectedMatchWeek.id,
+        number: selectedMatchWeek.number,
+        seasonId: league.seasonId,
+      },
+      sanitizedSlots,
+    );
+
+    if (selectedMatchWeek.status !== MatchWeekStatus.OPEN) {
+      const lockedSlots: RosterSlotView[] = lineupSlots.map((slot) => ({
+        id: slot.rosterSlotId,
+        slotNumber: slot.slotNumber,
+        isStarter: slot.isStarter,
+        player: slot.player
+          ? {
+              id: slot.player.id,
+              name: slot.player.name,
+              position: slot.player.position,
+              club: slot.player.club,
+            }
+          : null,
+      }));
+
+      return NextResponse.json({
+        team,
+        slots: lockedSlots,
+        lockInfo,
+      });
+    }
+
+    const lineupBySlotId = new Map(
+      lineupSlots.map((slot) => [slot.rosterSlotId, slot]),
+    );
+
+    const openSlots: RosterSlotView[] = sanitizedSlots.map((slot) => {
+      const lineup = lineupBySlotId.get(slot.id);
+      const isStarter =
+        Boolean(lineup) &&
+        lineup?.playerId === slot.playerId &&
+        Boolean(lineup?.isStarter);
+
+      return {
+        id: slot.id,
+        slotNumber: slot.slotNumber,
+        isStarter,
+        player: slot.player
+          ? {
+              id: slot.player.id,
+              name: slot.player.name,
+              position: slot.player.position,
+              club: slot.player.club,
+            }
+          : null,
+      };
+    });
+
     return NextResponse.json({
       team,
-      slots: serializeSlots(sanitizedSlots),
+      slots: openSlots,
       lockInfo,
     });
   } catch (error) {
@@ -276,13 +531,39 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
     const body = await request.json().catch(() => null);
     const action = typeof body?.action === "string" ? body.action : null;
+    const requestedMatchWeekNumber = parseMatchWeekNumber(body?.matchWeekNumber);
+    const selectedMatchWeek = requestedMatchWeekNumber
+      ? await prisma.matchWeek.findUnique({
+          where: {
+            seasonId_number: {
+              seasonId: league.seasonId,
+              number: requestedMatchWeekNumber,
+            },
+          },
+          select: { id: true, number: true, status: true },
+        })
+      : null;
 
     if (!action) {
       return NextResponse.json({ error: "Action is required" }, { status: 400 });
     }
 
+    if (selectedMatchWeek) {
+      const initialSlots = await loadRosterSlots(team.id);
+      const sanitizedInitialSlots = await clearInactivePlayers(initialSlots);
+      await ensureLineupSlots(
+        team.id,
+        {
+          id: selectedMatchWeek.id,
+          number: selectedMatchWeek.number,
+          seasonId: league.seasonId,
+        },
+        sanitizedInitialSlots,
+      );
+    }
+
     // During LOCKED/FINALIZED: allow only "clear" (drops).
-    if (isLocked && action !== "clear") {
+    if (isLocked && action !== "clear" && action !== "starter") {
       return NextResponse.json(
         {
           error: `Lineups are locked for MatchWeek ${lockingMatchWeek?.number ?? "?"}`,
@@ -290,6 +571,8 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
         { status: 409 },
       );
     }
+
+    let affectedSlotIds: string[] = [];
 
     if (action === "assign") {
       const slotId = typeof body?.slotId === "string" ? body.slotId : null;
@@ -304,7 +587,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
       const slot = await prisma.rosterSlot.findFirst({
         where: { id: slotId, fantasyTeamId: team.id },
-        select: { id: true },
+        select: { id: true, slotNumber: true },
       });
 
       if (!slot) {
@@ -379,6 +662,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
         where: { id: slotId },
         data: { playerId },
       });
+      affectedSlotIds = [slotId];
     } else if (action === "clear") {
       const slotId = typeof body?.slotId === "string" ? body.slotId : null;
 
@@ -388,15 +672,49 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
       const slot = await prisma.rosterSlot.findFirst({
         where: { id: slotId, fantasyTeamId: team.id },
-        select: { id: true, isStarter: true, playerId: true },
+        select: { id: true, slotNumber: true, isStarter: true, playerId: true },
       });
 
       if (!slot) {
         return NextResponse.json({ error: "Slot not found" }, { status: 404 });
       }
 
+      let slotIsStarter = slot.isStarter;
+
+      if (lockingMatchWeek) {
+        const lineupSlot = await prisma.teamMatchWeekLineupSlot.findUnique({
+          where: {
+            fantasyTeamId_matchWeekId_rosterSlotId: {
+              fantasyTeamId: team.id,
+              matchWeekId: lockingMatchWeek.id,
+              rosterSlotId: slot.id,
+            },
+          },
+          select: { isStarter: true },
+        });
+        if (lineupSlot) {
+          slotIsStarter = lineupSlot.isStarter;
+        }
+      }
+
+      if (selectedMatchWeek?.id) {
+        const lineupSlot = await prisma.teamMatchWeekLineupSlot.findUnique({
+          where: {
+            fantasyTeamId_matchWeekId_rosterSlotId: {
+              fantasyTeamId: team.id,
+              matchWeekId: selectedMatchWeek.id,
+              rosterSlotId: slot.id,
+            },
+          },
+          select: { isStarter: true },
+        });
+        if (lineupSlot) {
+          slotIsStarter = lineupSlot.isStarter;
+        }
+      }
+
       // Prevent starter drops during LOCKED/FINALIZED
-      if (slot.isStarter && isLocked) {
+      if (slotIsStarter && isLocked) {
         return NextResponse.json(
           {
             error: `Cannot drop a starter while MatchWeek ${
@@ -408,7 +726,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       }
 
       // Even when OPEN, you must bench first (no dropping starters directly)
-      if (slot.isStarter) {
+      if (slotIsStarter) {
         return NextResponse.json(
           { error: "Cannot drop a starter. Bench them first." },
           { status: 409 },
@@ -443,6 +761,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
           });
         }
       });
+      affectedSlotIds = [slotId];
     } else if (action === "starter") {
       const slotId = typeof body?.slotId === "string" ? body.slotId : null;
       const isStarter = typeof body?.isStarter === "boolean" ? body.isStarter : null;
@@ -454,9 +773,23 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
         );
       }
 
+      if (!selectedMatchWeek) {
+        return NextResponse.json(
+          { error: "matchWeekNumber is required" },
+          { status: 400 },
+        );
+      }
+
+      if (selectedMatchWeek.status !== MatchWeekStatus.OPEN) {
+        return NextResponse.json(
+          { error: "Lineups are locked for this MatchWeek" },
+          { status: 409 },
+        );
+      }
+
       const slot = await prisma.rosterSlot.findFirst({
         where: { id: slotId, fantasyTeamId: team.id },
-        select: { id: true, playerId: true },
+        select: { id: true, playerId: true, slotNumber: true },
       });
 
       if (!slot) {
@@ -467,9 +800,23 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
         return NextResponse.json({ error: "Slot has no player" }, { status: 400 });
       }
 
-      await prisma.rosterSlot.update({
-        where: { id: slotId },
-        data: { isStarter },
+      await prisma.teamMatchWeekLineupSlot.upsert({
+        where: {
+          fantasyTeamId_matchWeekId_rosterSlotId: {
+            fantasyTeamId: team.id,
+            matchWeekId: selectedMatchWeek.id,
+            rosterSlotId: slotId,
+          },
+        },
+        create: {
+          fantasyTeamId: team.id,
+          matchWeekId: selectedMatchWeek.id,
+          rosterSlotId: slotId,
+          slotNumber: slot.slotNumber,
+          playerId: slot.playerId,
+          isStarter,
+        },
+        update: { isStarter, playerId: slot.playerId },
       });
     } else if (action === "swap") {
       const slotId = typeof body?.slotId === "string" ? body.slotId : null;
@@ -489,7 +836,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
       const slots = await prisma.rosterSlot.findMany({
         where: { id: { in: [slotId, targetSlotId] }, fantasyTeamId: team.id },
-        select: { id: true, playerId: true },
+        select: { id: true, playerId: true, slotNumber: true },
       });
 
       if (slots.length !== 2) {
@@ -513,6 +860,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
           data: { playerId: slotB.playerId },
         });
       });
+      affectedSlotIds = [slotA.id, slotB.id];
     } else {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
@@ -520,8 +868,49 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
     const slots = await loadRosterSlots(team.id);
     const sanitizedSlots = await clearInactivePlayers(slots);
 
+    if (!selectedMatchWeek) {
+      return NextResponse.json({
+        slots: serializeSlots(sanitizedSlots),
+      });
+    }
+
+    const lineupSlots = await ensureLineupSlots(
+      team.id,
+      {
+        id: selectedMatchWeek.id,
+        number: selectedMatchWeek.number,
+        seasonId: league.seasonId,
+      },
+      sanitizedSlots,
+    );
+    const lineupBySlotId = new Map(
+      lineupSlots.map((slot) => [slot.rosterSlotId, slot]),
+    );
+
+    const responseSlots: RosterSlotView[] = sanitizedSlots.map((slot) => {
+      const lineup = lineupBySlotId.get(slot.id);
+      const isStarter =
+        Boolean(lineup) &&
+        lineup?.playerId === slot.playerId &&
+        Boolean(lineup?.isStarter);
+
+      return {
+        id: slot.id,
+        slotNumber: slot.slotNumber,
+        isStarter,
+        player: slot.player
+          ? {
+              id: slot.player.id,
+              name: slot.player.name,
+              position: slot.player.position,
+              club: slot.player.club,
+            }
+          : null,
+      };
+    });
+
     return NextResponse.json({
-      slots: serializeSlots(sanitizedSlots),
+      slots: responseSlots,
     });
   } catch (error) {
     if ((error as { status?: number }).status === 401) {

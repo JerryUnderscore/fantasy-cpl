@@ -58,6 +58,9 @@ export async function DELETE(_request: NextRequest, ctx: Ctx) {
         await tx.teamMatchWeekScore.deleteMany({
           where: { fantasyTeamId: { in: teamIds } },
         });
+        await tx.teamMatchWeekLineupSlot.deleteMany({
+          where: { fantasyTeamId: { in: teamIds } },
+        });
       }
 
       await tx.leagueMatchup.deleteMany({ where: { leagueId } });

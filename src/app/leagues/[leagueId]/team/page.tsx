@@ -180,6 +180,7 @@ export default async function MyTeamRosterPage({
     select: {
       id: true,
       slotNumber: true,
+      playerId: true,
       isStarter: true,
       player: {
         select: {
@@ -191,20 +192,6 @@ export default async function MyTeamRosterPage({
       },
     },
   });
-
-  const slots: SlotView[] = rosterSlots.map((slot) => ({
-    id: slot.id,
-    slotNumber: slot.slotNumber,
-    isStarter: slot.isStarter,
-    player: slot.player
-      ? {
-          id: slot.player.id,
-          name: slot.player.name,
-          position: slot.player.position,
-          club: slot.player.club,
-        }
-      : null,
-  }));
 
   const matchWeeks = await prisma.matchWeek.findMany({
     where: { seasonId: league.season.id },
@@ -227,6 +214,132 @@ export default async function MyTeamRosterPage({
     null;
 
   const selectedMatchWeekNumber = selectedMatchWeek?.number ?? 1;
+
+  let lineupSlots:
+    | Array<{
+        rosterSlotId: string;
+        slotNumber: number;
+        playerId: string | null;
+        isStarter: boolean;
+        player: {
+          id: string;
+          name: string;
+          position: string;
+          club: { shortName: string | null; slug: string } | null;
+        } | null;
+      }>
+    | null = null;
+
+  if (selectedMatchWeek) {
+    const existingLineupSlots = await prisma.teamMatchWeekLineupSlot.findMany({
+      where: { fantasyTeamId: team.id, matchWeekId: selectedMatchWeek.id },
+      select: { rosterSlotId: true },
+    });
+    const existingSlotIds = new Set(
+      existingLineupSlots.map((slot) => slot.rosterSlotId),
+    );
+    const missingSlots = rosterSlots.filter(
+      (slot) => !existingSlotIds.has(slot.id),
+    );
+
+    const priorMatchWeek = await prisma.teamMatchWeekLineupSlot.findMany({
+      where: {
+        fantasyTeamId: team.id,
+        matchWeek: {
+          seasonId: league.season.id,
+          number: { lt: selectedMatchWeek.number },
+        },
+      },
+      distinct: ["matchWeekId"],
+      orderBy: { matchWeek: { number: "desc" } },
+      take: 1,
+      select: { matchWeekId: true },
+    });
+    const priorMatchWeekId = priorMatchWeek[0]?.matchWeekId ?? null;
+    const seedStarterMap = priorMatchWeekId
+      ? new Map(
+          (
+            await prisma.teamMatchWeekLineupSlot.findMany({
+              where: { fantasyTeamId: team.id, matchWeekId: priorMatchWeekId },
+              select: { rosterSlotId: true, isStarter: true },
+            })
+          ).map((slot) => [slot.rosterSlotId, slot.isStarter]),
+        )
+      : null;
+
+    if (missingSlots.length > 0) {
+      await prisma.teamMatchWeekLineupSlot.createMany({
+        data: missingSlots.map((slot) => ({
+          fantasyTeamId: team.id,
+          matchWeekId: selectedMatchWeek.id,
+          rosterSlotId: slot.id,
+          slotNumber: slot.slotNumber,
+          playerId: slot.playerId ?? null,
+          isStarter: seedStarterMap?.get(slot.id) ?? slot.isStarter,
+        })),
+      });
+    }
+
+    lineupSlots = await prisma.teamMatchWeekLineupSlot.findMany({
+      where: { fantasyTeamId: team.id, matchWeekId: selectedMatchWeek.id },
+      orderBy: { slotNumber: "asc" },
+      select: {
+        rosterSlotId: true,
+        slotNumber: true,
+        playerId: true,
+        isStarter: true,
+        player: {
+          select: {
+            id: true,
+            name: true,
+            position: true,
+            club: { select: { shortName: true, slug: true } },
+          },
+        },
+      },
+    });
+  }
+
+  const lineupBySlotId = new Map(
+    (lineupSlots ?? []).map((slot) => [slot.rosterSlotId, slot]),
+  );
+
+  const slots: SlotView[] =
+    selectedMatchWeek && selectedMatchWeek.status !== "OPEN"
+      ? (lineupSlots ?? []).map((slot) => ({
+          id: slot.rosterSlotId,
+          slotNumber: slot.slotNumber,
+          isStarter: slot.isStarter,
+          player: slot.player
+            ? {
+                id: slot.player.id,
+                name: slot.player.name,
+                position: slot.player.position,
+                club: slot.player.club,
+              }
+            : null,
+        }))
+      : rosterSlots.map((slot) => {
+          const lineup = lineupBySlotId.get(slot.id);
+          const isStarter =
+            Boolean(lineup) &&
+            lineup?.playerId === slot.playerId &&
+            Boolean(lineup?.isStarter);
+
+          return {
+            id: slot.id,
+            slotNumber: slot.slotNumber,
+            isStarter,
+            player: slot.player
+              ? {
+                  id: slot.player.id,
+                  name: slot.player.name,
+                  position: slot.player.position,
+                  club: slot.player.club,
+                }
+              : null,
+          };
+        });
 
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-16">
@@ -265,7 +378,12 @@ export default async function MyTeamRosterPage({
           </div>
         ) : null}
 
-        <RosterClient leagueId={league.id} initialSlots={slots} />
+        <RosterClient
+          leagueId={league.id}
+          initialSlots={slots}
+          matchWeekNumber={selectedMatchWeekNumber}
+          isLocked={selectedMatchWeek?.status !== "OPEN"}
+        />
         <ScoringCard
           leagueId={league.id}
           matchWeekNumber={selectedMatchWeekNumber}

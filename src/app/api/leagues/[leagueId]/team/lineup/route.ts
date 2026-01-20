@@ -21,7 +21,13 @@ const getProfile = async (userId: string) =>
     select: { id: true },
   });
 
-export async function POST(_request: NextRequest, ctx: Ctx) {
+const parseMatchWeekNumber = (value: unknown) => {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) return null;
+  return parsed;
+};
+
+export async function POST(request: NextRequest, ctx: Ctx) {
   try {
     const { leagueId } = await ctx.params;
 
@@ -60,8 +66,101 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
-    const starters = await prisma.rosterSlot.findMany({
-      where: { fantasyTeamId: team.id, isStarter: true },
+    const body = await request.json().catch(() => null);
+    const matchWeekNumber = parseMatchWeekNumber(body?.matchWeekNumber);
+
+    if (!matchWeekNumber) {
+      return NextResponse.json(
+        { error: "matchWeekNumber is required" },
+        { status: 400 },
+      );
+    }
+
+    const league = await prisma.league.findUnique({
+      where: { id: leagueId },
+      select: { seasonId: true },
+    });
+
+    if (!league) {
+      return NextResponse.json({ error: "League not found" }, { status: 404 });
+    }
+
+    const matchWeek = await prisma.matchWeek.findUnique({
+      where: {
+        seasonId_number: {
+          seasonId: league.seasonId,
+          number: matchWeekNumber,
+        },
+      },
+      select: { id: true, status: true },
+    });
+
+    if (!matchWeek) {
+      return NextResponse.json({ error: "MatchWeek not found" }, { status: 404 });
+    }
+
+    if (matchWeek.status !== "OPEN") {
+      return NextResponse.json(
+        { error: "Lineups are locked for this MatchWeek" },
+        { status: 409 },
+      );
+    }
+
+    const lineupCount = await prisma.teamMatchWeekLineupSlot.count({
+      where: { fantasyTeamId: team.id, matchWeekId: matchWeek.id },
+    });
+
+    if (lineupCount === 0) {
+      const rosterSlots = await prisma.rosterSlot.findMany({
+        where: { fantasyTeamId: team.id },
+        select: { id: true, slotNumber: true, playerId: true, isStarter: true },
+      });
+
+      const priorMatchWeek = await prisma.teamMatchWeekLineupSlot.findMany({
+        where: {
+          fantasyTeamId: team.id,
+          matchWeek: {
+            seasonId: league.seasonId,
+            number: { lt: matchWeek.number },
+          },
+        },
+        distinct: ["matchWeekId"],
+        orderBy: { matchWeek: { number: "desc" } },
+        take: 1,
+        select: { matchWeekId: true },
+      });
+      const priorMatchWeekId = priorMatchWeek[0]?.matchWeekId ?? null;
+      const seedStarterMap = priorMatchWeekId
+        ? new Map(
+            (
+              await prisma.teamMatchWeekLineupSlot.findMany({
+                where: { fantasyTeamId: team.id, matchWeekId: priorMatchWeekId },
+                select: { rosterSlotId: true, isStarter: true },
+              })
+            ).map((slot) => [slot.rosterSlotId, slot.isStarter]),
+          )
+        : null;
+
+      if (rosterSlots.length > 0) {
+        await prisma.teamMatchWeekLineupSlot.createMany({
+          data: rosterSlots.map((slot) => ({
+            fantasyTeamId: team.id,
+            matchWeekId: matchWeek.id,
+            rosterSlotId: slot.id,
+            slotNumber: slot.slotNumber,
+            playerId: slot.playerId ?? null,
+            isStarter: seedStarterMap?.get(slot.id) ?? slot.isStarter,
+          })),
+        });
+      }
+    }
+
+    const starters = await prisma.teamMatchWeekLineupSlot.findMany({
+      where: {
+        fantasyTeamId: team.id,
+        matchWeekId: matchWeek.id,
+        isStarter: true,
+      },
       select: {
         playerId: true,
         player: { select: { position: true } },

@@ -6,6 +6,7 @@ type DbClient = Prisma.TransactionClient | typeof prisma;
 
 type LockInfo = {
   isLocked: boolean;
+  matchWeekId: string | null;
   matchWeekNumber: number | null;
   status: MatchWeekStatus | null;
 } | null;
@@ -42,7 +43,7 @@ export const normalizeLeagueWaiverTimes = async (
 };
 
 const getSeasonLockInfo = async (db: DbClient, seasonId: string) => {
-  const select = { number: true, status: true } as const;
+  const select = { id: true, number: true, status: true } as const;
 
   const openMatchWeek = await db.matchWeek.findFirst({
     where: { seasonId, status: MatchWeekStatus.OPEN },
@@ -53,6 +54,7 @@ const getSeasonLockInfo = async (db: DbClient, seasonId: string) => {
   if (openMatchWeek) {
     return {
       isLocked: false,
+      matchWeekId: openMatchWeek.id,
       matchWeekNumber: openMatchWeek.number,
       status: openMatchWeek.status,
     };
@@ -67,6 +69,7 @@ const getSeasonLockInfo = async (db: DbClient, seasonId: string) => {
   if (lockedMatchWeek) {
     return {
       isLocked: true,
+      matchWeekId: lockedMatchWeek.id,
       matchWeekNumber: lockedMatchWeek.number,
       status: lockedMatchWeek.status,
     };
@@ -81,12 +84,41 @@ const getSeasonLockInfo = async (db: DbClient, seasonId: string) => {
   if (finalizedMatchWeek) {
     return {
       isLocked: true,
+      matchWeekId: finalizedMatchWeek.id,
       matchWeekNumber: finalizedMatchWeek.number,
       status: finalizedMatchWeek.status,
     };
   }
 
   return null;
+};
+
+const findSeedStarterMap = async (
+  db: DbClient,
+  fantasyTeamId: string,
+  seasonId: string,
+  matchWeekNumber: number,
+) => {
+  const priorMatchWeek = await db.teamMatchWeekLineupSlot.findMany({
+    where: {
+      fantasyTeamId,
+      matchWeek: { seasonId, number: { lt: matchWeekNumber } },
+    },
+    distinct: ["matchWeekId"],
+    orderBy: { matchWeek: { number: "desc" } },
+    take: 1,
+    select: { matchWeekId: true },
+  });
+
+  const priorMatchWeekId = priorMatchWeek[0]?.matchWeekId;
+  if (!priorMatchWeekId) return null;
+
+  const priorSlots = await db.teamMatchWeekLineupSlot.findMany({
+    where: { fantasyTeamId, matchWeekId: priorMatchWeekId },
+    select: { rosterSlotId: true, isStarter: true },
+  });
+
+  return new Map(priorSlots.map((slot) => [slot.rosterSlotId, slot.isStarter]));
 };
 
 export const ensureLeagueWaiverPriorities = async (
@@ -208,8 +240,27 @@ const processLeagueWaiversInTransaction = async (
   tx: Prisma.TransactionClient,
   leagueId: string,
   now: Date,
-  isLocked: boolean,
+  lockInfo: LockInfo,
+  seasonId: string,
 ) => {
+  const startNumber =
+    lockInfo?.matchWeekNumber != null
+      ? lockInfo.status === MatchWeekStatus.OPEN
+        ? lockInfo.matchWeekNumber
+        : lockInfo.matchWeekNumber + 1
+      : null;
+
+  const targetMatchWeeks =
+    startNumber != null
+      ? await tx.matchWeek.findMany({
+          where: {
+            seasonId,
+            number: { gte: startNumber },
+            status: { not: MatchWeekStatus.FINALIZED },
+          },
+          select: { id: true, number: true },
+        })
+      : [];
   const waiverPlayers = await tx.leaguePlayerWaiver.findMany({
     where: { leagueId, waiverAvailableAt: { lte: now } },
     select: { playerId: true },
@@ -273,7 +324,7 @@ const processLeagueWaiversInTransaction = async (
     for (const claim of sortedClaims) {
       const slots = await tx.rosterSlot.findMany({
         where: { fantasyTeamId: claim.fantasyTeamId },
-        select: { id: true, playerId: true, isStarter: true },
+        select: { id: true, slotNumber: true, playerId: true, isStarter: true },
       });
 
       if (claim.dropPlayerId) {
@@ -283,7 +334,23 @@ const processLeagueWaiversInTransaction = async (
         if (!dropSlot) {
           continue;
         }
-        if (dropSlot.isStarter && isLocked) {
+        let dropSlotIsStarter = dropSlot.isStarter;
+        if (lockInfo?.isLocked && lockInfo.matchWeekId) {
+          const lineupSlot = await tx.teamMatchWeekLineupSlot.findUnique({
+            where: {
+              fantasyTeamId_matchWeekId_rosterSlotId: {
+                fantasyTeamId: claim.fantasyTeamId,
+                matchWeekId: lockInfo.matchWeekId,
+                rosterSlotId: dropSlot.id,
+              },
+            },
+            select: { isStarter: true },
+          });
+          if (lineupSlot) {
+            dropSlotIsStarter = lineupSlot.isStarter;
+          }
+        }
+        if (dropSlotIsStarter && lockInfo?.isLocked) {
           continue;
         }
         winningClaim = claim;
@@ -318,6 +385,59 @@ const processLeagueWaiversInTransaction = async (
       where: { id: targetSlotId },
       data: { playerId },
     });
+
+    if (targetMatchWeeks.length > 0) {
+      const rosterSlots = await tx.rosterSlot.findMany({
+        where: { fantasyTeamId: winningClaim.fantasyTeamId },
+        select: { id: true, slotNumber: true, playerId: true, isStarter: true },
+      });
+
+      for (const matchWeek of targetMatchWeeks) {
+        const existingSlots = await tx.teamMatchWeekLineupSlot.findMany({
+          where: {
+            fantasyTeamId: winningClaim.fantasyTeamId,
+            matchWeekId: matchWeek.id,
+          },
+          select: { rosterSlotId: true },
+        });
+        const existingSlotIds = new Set(
+          existingSlots.map((slot) => slot.rosterSlotId),
+        );
+        const missingSlots = rosterSlots.filter(
+          (slot) => !existingSlotIds.has(slot.id),
+        );
+
+        if (missingSlots.length > 0) {
+          const seedStarterMap = await findSeedStarterMap(
+            tx,
+            winningClaim.fantasyTeamId,
+            seasonId,
+            matchWeek.number,
+          );
+          await tx.teamMatchWeekLineupSlot.createMany({
+            data: missingSlots.map((slot) => ({
+              fantasyTeamId: winningClaim.fantasyTeamId,
+              matchWeekId: matchWeek.id,
+              rosterSlotId: slot.id,
+              slotNumber: slot.slotNumber,
+              playerId: slot.playerId ?? null,
+              isStarter: seedStarterMap?.get(slot.id) ?? slot.isStarter,
+            })),
+          });
+        }
+
+        await tx.teamMatchWeekLineupSlot.update({
+          where: {
+            fantasyTeamId_matchWeekId_rosterSlotId: {
+              fantasyTeamId: winningClaim.fantasyTeamId,
+              matchWeekId: matchWeek.id,
+              rosterSlotId: targetSlotId,
+            },
+          },
+          data: { playerId, isStarter: false },
+        });
+      }
+    }
 
     await tx.leaguePlayerWaiver.deleteMany({
       where: { leagueId, playerId },
@@ -369,10 +489,9 @@ export const processLeagueWaivers = async (
   }
 
   const lockInfo = await getSeasonLockInfo(prisma, league.seasonId);
-  const isLocked = lockInfo?.isLocked ?? false;
 
   const result = await prisma.$transaction((tx) =>
-    processLeagueWaiversInTransaction(tx, leagueId, now, isLocked),
+    processLeagueWaiversInTransaction(tx, leagueId, now, lockInfo, league.seasonId),
   );
 
   return { leagueId, result, lockInfo };
