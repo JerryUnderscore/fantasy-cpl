@@ -468,16 +468,19 @@ export default function RosterClient({
         </div>
       ) : null}
       <div className="pitch-enter rounded-[32px] border border-emerald-950/20 bg-[linear-gradient(180deg,#1f5e2c_0%,#17401f_100%)] p-6 shadow-[0_20px_60px_rgba(4,33,18,0.25)]">
-          <div className="relative aspect-[1/2] max-h-[900px] w-full overflow-hidden rounded-[26px] border border-white/50">
+        <div className="relative min-h-[760px] max-h-[920px] w-full overflow-hidden rounded-[26px] border border-white/50">
             <div className="absolute inset-0 bg-[repeating-linear-gradient(0deg,rgba(255,255,255,0.08),rgba(255,255,255,0.08)_32px,rgba(255,255,255,0.02)_32px,rgba(255,255,255,0.02)_64px)]" />
             <div className="absolute inset-4 rounded-[22px] border-2 border-white/60" />
             <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/60" />
             <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/80" />
             <div className="absolute left-1/2 top-4 h-16 w-36 -translate-x-1/2 rounded-b-[18px] border-2 border-white/60" />
             <div className="absolute left-1/2 bottom-4 h-16 w-36 -translate-x-1/2 rounded-t-[18px] border-2 border-white/60" />
-            <div className="relative z-10 flex h-full flex-col justify-between px-4 py-6">
+            <div className="relative z-10 grid h-full grid-rows-4 gap-3 px-4 py-6">
               {["FWD", "MID", "DEF", "GK"].map((key) => (
-                <div key={key} className="flex flex-col gap-3">
+                <div
+                  key={key}
+                  className="flex flex-col items-center justify-center gap-3"
+                >
                   <div className="text-center text-[10px] font-semibold uppercase tracking-[0.35em] text-white/70">
                     {POSITION_LABELS[key as PositionKey]}
                   </div>
