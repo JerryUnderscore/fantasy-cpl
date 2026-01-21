@@ -13,6 +13,7 @@ type Ctx = { params: Promise<{ leagueId: string }> };
 type RosterSlotView = {
   id: string;
   slotNumber: number;
+  position: string;
   isStarter: boolean;
   player: {
     id: string;
@@ -35,6 +36,7 @@ const serializeSlots = (
   slots: Array<{
     id: string;
     slotNumber: number;
+    position: string;
     isStarter: boolean;
     player: {
       id: string;
@@ -49,22 +51,24 @@ const serializeSlots = (
   slots.map((slot) => ({
     id: slot.id,
     slotNumber: slot.slotNumber,
+    position: slot.position,
     isStarter: slot.isStarter,
     player: slot.player
       ? {
-        id: slot.player.id,
-        name: slot.player.name,
-        jerseyNumber: slot.player.jerseyNumber,
-        position: slot.player.position,
-        club: slot.player.club,
-      }
-    : null,
+          id: slot.player.id,
+          name: slot.player.name,
+          jerseyNumber: slot.player.jerseyNumber,
+          position: slot.player.position,
+          club: slot.player.club,
+        }
+      : null,
   }));
 
 const clearInactivePlayers = async (
   slots: Array<{
     id: string;
     slotNumber: number;
+    position: string;
     playerId: string | null;
     isStarter: boolean;
     player: {
@@ -103,6 +107,7 @@ const loadRosterSlots = (fantasyTeamId: string) =>
     select: {
       id: true,
       slotNumber: true,
+      position: true,
       playerId: true,
       isStarter: true,
       player: {
@@ -127,6 +132,7 @@ const loadLineupSlots = (fantasyTeamId: string, matchWeekId: string) =>
       slotNumber: true,
       playerId: true,
       isStarter: true,
+      rosterSlot: { select: { position: true } },
       player: {
         select: {
           id: true,
@@ -200,7 +206,9 @@ const ensureLineupSlots = async (
         rosterSlotId: slot.id,
         slotNumber: slot.slotNumber,
         playerId: slot.playerId ?? null,
-        isStarter: seedStarterMap?.get(slot.id) ?? slot.isStarter,
+        isStarter: slot.playerId
+          ? (seedStarterMap?.get(slot.id) ?? slot.isStarter)
+          : false,
       })),
     });
   }
@@ -268,6 +276,14 @@ const syncLineupSlotsForRosterChange = async ({
       const slot = slotMap.get(slotId);
       if (!slot) continue;
 
+      const updateData: Prisma.TeamMatchWeekLineupSlotUpdateInput = {
+        playerId: slot.playerId ?? null,
+      };
+
+      if (!slot.playerId) {
+        updateData.isStarter = false;
+      }
+
       await prisma.teamMatchWeekLineupSlot.update({
         where: {
           fantasyTeamId_matchWeekId_rosterSlotId: {
@@ -276,7 +292,7 @@ const syncLineupSlotsForRosterChange = async ({
             rosterSlotId: slot.id,
           },
         },
-        data: { playerId: slot.playerId ?? null },
+        data: updateData,
       });
     }
   }
@@ -392,6 +408,7 @@ export async function GET(request: NextRequest, ctx: Ctx) {
       const lockedSlots: RosterSlotView[] = lineupSlots.map((slot) => ({
         id: slot.rosterSlotId,
         slotNumber: slot.slotNumber,
+        position: slot.rosterSlot.position,
         isStarter: slot.isStarter,
         player: slot.player
           ? {
@@ -425,6 +442,7 @@ export async function GET(request: NextRequest, ctx: Ctx) {
       return {
         id: slot.id,
         slotNumber: slot.slotNumber,
+        position: slot.position,
         isStarter,
         player: slot.player
           ? {
@@ -823,6 +841,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
             fantasyTeamId: team.id,
             matchWeekId: selectedMatchWeek.id,
             isStarter: true,
+            playerId: { not: null },
             rosterSlotId: { not: slot.id },
           },
         });
@@ -946,11 +965,13 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       return {
         id: slot.id,
         slotNumber: slot.slotNumber,
+        position: slot.position,
         isStarter,
         player: slot.player
           ? {
               id: slot.player.id,
               name: slot.player.name,
+              jerseyNumber: slot.player.jerseyNumber,
               position: slot.player.position,
               club: slot.player.club,
             }

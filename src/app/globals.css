@@ -34,3 +34,40 @@ input::placeholder,
 textarea::placeholder {
   color: #6b7280;
 }
+
+@keyframes pitchEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes benchRise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pitch-enter {
+  animation: pitchEnter 600ms ease-out both;
+}
+
+.bench-rise {
+  animation: benchRise 520ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pitch-enter,
+  .bench-rise {
+    animation: none !important;
+  }
+}

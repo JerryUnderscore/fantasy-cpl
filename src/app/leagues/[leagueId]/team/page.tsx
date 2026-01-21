@@ -6,6 +6,7 @@ import AuthButtons from "@/components/auth-buttons";
 import RosterClient from "./roster-client";
 import ScoringCard from "./scoring-card";
 import MatchWeekSelector from "./matchweek-selector";
+import LineupControls from "./lineup-controls";
 import { buildRosterSlots } from "@/lib/roster";
 import { getActiveMatchWeekForSeason } from "@/lib/matchweek";
 
@@ -16,6 +17,7 @@ type TeamParams = { leagueId: string };
 type SlotView = {
   id: string;
   slotNumber: number;
+  position: string;
   isStarter: boolean;
   player: {
     id: string;
@@ -172,6 +174,7 @@ export default async function MyTeamRosterPage({
     select: {
       id: true,
       slotNumber: true,
+      position: true,
       playerId: true,
       isStarter: true,
       player: {
@@ -191,6 +194,10 @@ export default async function MyTeamRosterPage({
     orderBy: { number: "asc" },
     select: { id: true, number: true, status: true },
   });
+
+  const rosterPositionById = new Map(
+    rosterSlots.map((slot) => [slot.id, slot.position]),
+  );
 
   const activeMatchWeek = await getActiveMatchWeekForSeason(league.season.id);
 
@@ -303,6 +310,7 @@ export default async function MyTeamRosterPage({
       ? (lineupSlots ?? []).map((slot) => ({
           id: slot.rosterSlotId,
           slotNumber: slot.slotNumber,
+          position: rosterPositionById.get(slot.rosterSlotId) ?? "MID",
           isStarter: slot.isStarter,
           player: slot.player
             ? {
@@ -324,6 +332,7 @@ export default async function MyTeamRosterPage({
           return {
             id: slot.id,
             slotNumber: slot.slotNumber,
+            position: slot.position,
             isStarter,
             player: slot.player
               ? {
@@ -373,6 +382,12 @@ export default async function MyTeamRosterPage({
             ) : null}
           </div>
         ) : null}
+
+        <LineupControls
+          leagueId={league.id}
+          matchWeekNumber={selectedMatchWeekNumber}
+          isLocked={selectedMatchWeek?.status !== "OPEN"}
+        />
 
         <RosterClient
           leagueId={league.id}
