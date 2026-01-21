@@ -17,23 +17,23 @@ export default async function PlayersPage() {
 
   if (!season) {
     return (
-      <div className="min-h-screen bg-zinc-50 px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl bg-white p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-black">Players</h1>
-          <p className="text-sm text-zinc-500">No active season found.</p>
+      <div className="min-h-screen bg-[var(--background)] px-6 py-16">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-10 shadow-sm">
+          <h1 className="text-2xl font-semibold text-[var(--text)]">Players</h1>
+          <p className="text-sm text-[var(--text-muted)]">No active season found.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 px-6 py-16">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 rounded-3xl bg-white p-10 shadow-sm">
+    <div className="min-h-screen bg-[var(--background)] px-6 py-16">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 rounded-3xl border border-[var(--border)] bg-[var(--surface2)] p-10 shadow-sm">
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold text-black">
+          <h1 className="text-3xl font-semibold text-[var(--text)]">
             {season.name} Players
           </h1>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-[var(--text-muted)]">
             Active season player pool.
           </p>
         </div>

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import TradeOfferModal from "../../trades/trade-offer-modal";
+import { getClubDisplayName } from "@/lib/clubs";
 
 type SlotView = {
   id: string;
@@ -36,7 +37,9 @@ type Props = {
 };
 
 const buildRosterLabel = (player: TradePlayer) =>
-  `${player.position} · ${player.club?.shortName ?? ""}`.trim();
+  `${player.position} · ${
+    player.club ? getClubDisplayName(player.club.slug, null) : ""
+  }`.trim();
 
 export default function TradeRosterClient({
   leagueId,

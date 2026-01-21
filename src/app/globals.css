@@ -75,3 +75,45 @@ textarea::placeholder {
     animation: none !important;
   }
 }
+
+/* Override legacy zinc/white utilities to enforce the dark charcoal system */
+[class*="bg-zinc-"],
+.bg-white,
+.bg-zinc {
+  background-color: var(--surface2) !important;
+  color: var(--text) !important;
+}
+
+.bg-sky-50 {
+  background-color: var(--surface2) !important;
+  color: var(--text) !important;
+}
+
+.text-zinc-900,
+.text-zinc-800,
+.text-zinc-700 {
+  color: var(--text) !important;
+}
+
+.text-zinc-600,
+.text-zinc-500,
+.text-zinc-400,
+.text-zinc-300,
+.text-zinc-200,
+.text-zinc-100 {
+  color: var(--text-muted) !important;
+}
+
+[class*="border-zinc"] {
+  border-color: var(--border) !important;
+}
+
+a {
+  color: var(--accent);
+  text-decoration-color: var(--accent) !important;
+}
+
+a:hover,
+a:focus-visible {
+  color: var(--accent-muted);
+}

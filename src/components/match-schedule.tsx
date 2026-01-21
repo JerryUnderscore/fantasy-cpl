@@ -6,6 +6,7 @@ import { MatchStatus } from "@prisma/client";
 import {
   getClubAccentColor,
   getClubBadge,
+  getClubDisplayName,
 } from "@/lib/clubs";
 
 export type ScheduleMatch = {
@@ -129,10 +130,14 @@ export default function MatchScheduleList({
           </div>
           <div className="mt-4 flex flex-col gap-3">
             {group.matches.map((match) => {
-              const homeLabel =
-                match.homeClub.shortName ?? match.homeClub.name ?? "Home";
-              const awayLabel =
-                match.awayClub.shortName ?? match.awayClub.name ?? "Away";
+              const homeLabel = getClubDisplayName(
+                match.homeClub.slug,
+                match.homeClub.name,
+              );
+              const awayLabel = getClubDisplayName(
+                match.awayClub.slug,
+                match.awayClub.name,
+              );
               const homeColor = getClubAccentColor(match.homeClub.slug);
               const awayColor = getClubAccentColor(match.awayClub.slug);
               const status = formatTimeMarkup(match);

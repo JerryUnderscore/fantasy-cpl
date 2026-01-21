@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { formatPlayerName } from "@/lib/players";
+import { getClubDisplayName } from "@/lib/clubs";
 
 type PlayerAvailabilityStatus = "FREE_AGENT" | "WAIVERS" | "ROSTERED";
 
@@ -108,14 +109,14 @@ const formatDateTime = (value?: string) => {
 
 const buildClubLabel = (club: AvailablePlayer["club"]) => {
   if (!club) return "Unknown club";
-  return club.shortName ?? club.slug ?? club.name;
+  return getClubDisplayName(club.slug, club.name);
 };
 
 const buildRosterClubLabel = (
   club: { slug: string; shortName: string | null } | null,
 ) => {
   if (!club) return "Unknown club";
-  return club.shortName ?? club.slug ?? "Unknown club";
+  return getClubDisplayName(club.slug, null);
 };
 
 export default function PlayersClient({ leagueId }: Props) {

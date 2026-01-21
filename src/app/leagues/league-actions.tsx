@@ -144,22 +144,22 @@ export default function LeagueActions() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold text-zinc-900">Create a league</h2>
-        <p className="text-sm text-zinc-500">
+        <h2 className="text-lg font-semibold text-[var(--text)]">Create a league</h2>
+        <p className="text-sm text-[var(--text-muted)]">
           Choose your league settings before creating.
         </p>
         <button
           type="button"
           onClick={handleOpenCreate}
           disabled={pending}
-          className="w-fit rounded-2xl bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-black/80 disabled:cursor-not-allowed disabled:bg-black/50"
+          className="w-fit rounded-2xl bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--text)] transition hover:bg-[var(--accent-muted)] disabled:cursor-not-allowed"
         >
           Create
         </button>
       </div>
 
       <form onSubmit={handleJoin} className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold text-zinc-900">Join a league</h2>
+        <h2 className="text-lg font-semibold text-[var(--text)]">Join a league</h2>
         <div className="flex flex-col gap-2 sm:flex-row">
           <input
             type="text"
@@ -167,13 +167,13 @@ export default function LeagueActions() {
             value={joinCode}
             onChange={(event) => setJoinCode(event.target.value)}
             placeholder="Invite code"
-            className="flex-1 rounded-2xl border border-zinc-200 px-4 py-2 text-sm uppercase tracking-wide"
+            className="flex-1 rounded-2xl border border-[var(--border)] bg-[var(--surface2)] px-4 py-2 text-sm uppercase tracking-wide text-[var(--text)] placeholder:text-[var(--text-muted)]"
             required
           />
           <button
             type="submit"
             disabled={pending}
-            className="rounded-2xl border border-black/10 px-4 py-2 text-sm font-medium text-black transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-2xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)] transition hover:border-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             Join
           </button>
@@ -181,20 +181,20 @@ export default function LeagueActions() {
       </form>
 
       {error && !createOpen ? (
-        <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="rounded-2xl border border-red-600 bg-[var(--surface2)] px-4 py-3 text-sm text-red-400">
           {error}
         </p>
       ) : null}
 
       {createOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-xl">
+          <div className="w-full max-w-2xl rounded-3xl border border-[var(--border)] bg-[var(--surface2)] p-6 shadow-xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-zinc-900">
+                <h2 className="text-lg font-semibold text-[var(--text)]">
                   League settings
                 </h2>
-                <p className="text-sm text-zinc-500">
+                <p className="text-sm text-[var(--text-muted)]">
                   Pick your defaults before creating the league.
                 </p>
               </div>
@@ -204,14 +204,14 @@ export default function LeagueActions() {
                   setCreateOpen(false);
                   setError(null);
                 }}
-                className="text-sm font-semibold text-zinc-400 hover:text-zinc-700"
+                className="text-sm font-semibold text-[var(--text-muted)] hover:text-[var(--text)]"
               >
                 Close
               </button>
             </div>
 
             <form onSubmit={handleCreate} className="mt-5 flex flex-col gap-5">
-              <label className="flex flex-col gap-2 text-sm text-zinc-600">
+              <label className="flex flex-col gap-2 text-sm text-[var(--text-muted)]">
                 League name
                 <input
                   type="text"
@@ -219,13 +219,13 @@ export default function LeagueActions() {
                   value={createName}
                   onChange={(event) => setCreateName(event.target.value)}
                   placeholder="League name"
-                  className="rounded-2xl border border-zinc-200 px-4 py-2 text-sm text-zinc-900"
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)]"
                   required
                 />
               </label>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="flex flex-col gap-2 text-sm text-zinc-600">
+                <label className="flex flex-col gap-2 text-sm text-[var(--text-muted)]">
                   Join mode
                   <select
                     value={createSettings.joinMode}
@@ -236,14 +236,14 @@ export default function LeagueActions() {
                           .value as CreateSettingsForm["joinMode"],
                       }))
                     }
-                    className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+                    className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
                   >
                     <option value="OPEN">Open</option>
                     <option value="INVITE_ONLY">Invite only</option>
                   </select>
                 </label>
 
-                <label className="flex flex-col gap-2 text-sm text-zinc-600">
+                <label className="flex flex-col gap-2 text-sm text-[var(--text-muted)]">
                   Max teams
                   <input
                     type="number"
@@ -256,11 +256,11 @@ export default function LeagueActions() {
                         maxTeams: event.target.value,
                       }))
                     }
-                    className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+                    className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
                   />
                 </label>
 
-                <label className="flex flex-col gap-2 text-sm text-zinc-600">
+                <label className="flex flex-col gap-2 text-sm text-[var(--text-muted)]">
                   Standings mode
                   <select
                     value={createSettings.standingsMode}
@@ -271,14 +271,14 @@ export default function LeagueActions() {
                           .value as CreateSettingsForm["standingsMode"],
                       }))
                     }
-                    className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+                    className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
                   >
                     <option value="TOTAL_POINTS">Total points</option>
                     <option value="HEAD_TO_HEAD">Head-to-head</option>
                   </select>
                 </label>
 
-                <label className="flex flex-col gap-2 text-sm text-zinc-600">
+                <label className="flex flex-col gap-2 text-sm text-[var(--text-muted)]">
                   Draft mode
                   <select
                     value={createSettings.draftMode}
@@ -292,10 +292,11 @@ export default function LeagueActions() {
                           value === "LIVE"
                             ? current.draftPickSeconds || "60"
                             : "",
-                        draftScheduledAt: value === "LIVE" ? current.draftScheduledAt : "",
+                        draftScheduledAt:
+                          value === "LIVE" ? current.draftScheduledAt : "",
                       }));
                     }}
-                    className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+                    className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
                   >
                     <option value="LIVE">Live (timed)</option>
                     <option value="CASUAL">Casual (untimed)</option>
@@ -305,7 +306,7 @@ export default function LeagueActions() {
 
                 {createSettings.draftMode === "LIVE" ? (
                   <div className="flex flex-col gap-3">
-                    <label className="flex flex-col gap-2 text-sm text-zinc-600">
+                    <label className="flex flex-col gap-2 text-sm text-[var(--text-muted)]">
                       Draft start time
                       <input
                         type="datetime-local"
@@ -316,13 +317,13 @@ export default function LeagueActions() {
                             draftScheduledAt: event.target.value,
                           }))
                         }
-                        className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+                        className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
                       />
-                      <span className="text-xs text-zinc-400">
+                      <span className="text-xs text-[var(--text-muted)]">
                         Uses your local time.
                       </span>
                     </label>
-                    <label className="flex flex-col gap-2 text-sm text-zinc-600">
+                    <label className="flex flex-col gap-2 text-sm text-[var(--text-muted)]">
                       Draft pick time
                       <select
                         value={
@@ -351,7 +352,7 @@ export default function LeagueActions() {
                             draftPickSeconds: String(minutes * 60),
                           }));
                         }}
-                        className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+                        className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
                       >
                         <option value="1">1 minute</option>
                         <option value="3">3 minutes</option>
@@ -363,7 +364,7 @@ export default function LeagueActions() {
                     {!presetDraftSeconds.includes(
                       Number(createSettings.draftPickSeconds),
                     ) ? (
-                      <label className="flex flex-col gap-2 text-sm text-zinc-600">
+                      <label className="flex flex-col gap-2 text-sm text-[var(--text-muted)]">
                         Custom seconds
                         <input
                           type="number"
@@ -376,7 +377,7 @@ export default function LeagueActions() {
                               draftPickSeconds: event.target.value,
                             }))
                           }
-                          className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+                          className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
                         />
                       </label>
                     ) : null}
@@ -385,7 +386,7 @@ export default function LeagueActions() {
               </div>
 
               {error ? (
-                <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <p className="rounded-2xl border border-red-600 bg-[var(--surface)] px-4 py-3 text-sm text-red-400">
                   {error}
                 </p>
               ) : null}
@@ -394,11 +395,11 @@ export default function LeagueActions() {
                 <button
                   type="submit"
                   disabled={pending}
-                  className="rounded-2xl bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-black/80 disabled:cursor-not-allowed disabled:bg-black/50"
+                  className="rounded-2xl bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--text)] transition hover:bg-[var(--accent-muted)] disabled:cursor-not-allowed"
                 >
                   {pending ? "Creating..." : "Create league"}
                 </button>
-                <span className="text-xs text-zinc-500">
+                <span className="text-xs text-[var(--text-muted)]">
                   You can update settings before the draft starts.
                 </span>
               </div>

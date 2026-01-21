@@ -1,5 +1,6 @@
-"use client";
+ "use client";
 import { formatPlayerName } from "@/lib/players";
+import { getClubDisplayName } from "@/lib/clubs";
 
 type Position = "GK" | "DEF" | "MID" | "FWD";
 
@@ -65,7 +66,7 @@ export default function PlayersTableClient({
                 {player.jerseyNumber ?? "—"}
               </td>
               <td className="px-4 py-3 text-sm text-zinc-600">
-                {player.club?.shortName ?? player.club?.name}
+                {getClubDisplayName(player.club?.slug, player.club?.name)}
               </td>
               <td className="px-4 py-3 text-xs font-semibold text-zinc-600">
                 {player.position}
@@ -89,8 +90,8 @@ export default function PlayersTableClient({
                     >
                       {clubs.map((club) => (
                         <option key={club.id} value={club.id}>
-                          {club.shortName ?? club.name}
-                        </option>
+                      {getClubDisplayName(club.slug, club.name)}
+                    </option>
                       ))}
                     </select>
                     <select

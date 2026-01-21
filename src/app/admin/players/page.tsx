@@ -2,6 +2,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdminUser } from "@/lib/admin";
 import PlayersTableClient from "./players-table-client";
+import { getClubDisplayName } from "@/lib/clubs";
+import { getClubDisplayName } from "@/lib/clubs";
 
 export const runtime = "nodejs";
 
@@ -201,12 +203,15 @@ async function importPlayersCsv(formData: FormData) {
   }
 
   const clubs = await prisma.club.findMany({
-    select: { id: true, name: true, shortName: true },
+    select: { id: true, name: true, shortName: true, slug: true },
   });
   const clubMap = new Map<string, string>();
   clubs.forEach((club) => {
     if (club.shortName) {
       clubMap.set(club.shortName.toLowerCase(), club.id);
+    }
+    if (club.slug) {
+      clubMap.set(club.slug.toLowerCase(), club.id);
     }
     clubMap.set(club.name.toLowerCase(), club.id);
   });
@@ -282,7 +287,7 @@ export default async function AdminPlayersPage() {
 
   const clubs = await prisma.club.findMany({
     orderBy: { name: "asc" },
-    select: { id: true, name: true, shortName: true },
+    select: { id: true, name: true, shortName: true, slug: true },
   });
 
   const players = season
@@ -296,7 +301,7 @@ export default async function AdminPlayersPage() {
           active: true,
           clubId: true,
           jerseyNumber: true,
-          club: { select: { name: true, shortName: true } },
+          club: { select: { name: true, shortName: true, slug: true } },
         },
       })
     : [];
@@ -356,7 +361,7 @@ export default async function AdminPlayersPage() {
           >
             {clubs.map((club) => (
               <option key={club.id} value={club.id}>
-                {club.shortName ?? club.name}
+                {getClubDisplayName(club.slug, club.name)}
               </option>
             ))}
           </select>

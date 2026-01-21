@@ -47,6 +47,17 @@ const CLUB_META: Record<string, ClubMeta> = {
   },
 };
 
+const CLUB_DISPLAY_NAMES: Record<string, string> = {
+  "atletico-ottawa": "Atlético Ottawa",
+  cavalry: "Cavalry",
+  forge: "Forge",
+  "hfx-wanderers": "HFX Wanderers",
+  pacific: "Pacific",
+  vancouver: "Vancouver FC",
+  "inter-toronto": "Inter Toronto",
+  supra: "FC Supra du Québec",
+};
+
 const normalizeSlug = (value?: string | null) =>
   value ? value.toLowerCase() : "";
 
@@ -58,3 +69,12 @@ export const getClubAccentColor = (slug?: string | null) =>
 
 export const getClubBadge = (slug?: string | null) =>
   getClubMeta(slug)?.badge ?? null;
+
+export const getClubDisplayName = (
+  slug?: string | null,
+  fallback?: string | null,
+) => {
+  if (!slug) return fallback ?? "Unknown club";
+  const normalized = normalizeSlug(slug);
+  return CLUB_DISPLAY_NAMES[normalized] ?? fallback ?? "Unknown club";
+};

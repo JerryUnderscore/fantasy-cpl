@@ -12,6 +12,7 @@ import {
 } from "@/lib/draft";
 import { ROSTER_LIMITS } from "@/lib/roster";
 import { formatPlayerName } from "@/lib/players";
+import { getClubDisplayName } from "@/lib/clubs";
 
 export const runtime = "nodejs";
 
@@ -273,7 +274,7 @@ export default async function DraftPage({
       name: true,
       jerseyNumber: true,
       position: true,
-      club: { select: { shortName: true, name: true } },
+      club: { select: { shortName: true, name: true, slug: true } },
     },
   });
 
@@ -348,7 +349,9 @@ export default async function DraftPage({
             name: player.name,
             jerseyNumber: player.jerseyNumber,
             position: player.position,
-            club: player.club?.shortName ?? null,
+            club: player.club
+              ? getClubDisplayName(player.club.slug, player.club.name)
+              : null,
           }))}
         />
 
@@ -382,7 +385,9 @@ export default async function DraftPage({
                     </span>
                     <span className="text-xs text-zinc-500">
                       {pick.player.position} ·{" "}
-                      {pick.player.club?.shortName ?? "—"}
+                      {pick.player.club
+                        ? getClubDisplayName(pick.player.club.slug, null)
+                        : "—"}
                     </span>
                   </div>
                   <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
@@ -485,7 +490,12 @@ export default async function DraftPage({
                                   </span>
                                   <span className="text-xs text-zinc-500">
                                     {pick.player.position} ·{" "}
-                                    {pick.player.club?.shortName ?? "—"}
+                                    {pick.player.club
+                                      ? getClubDisplayName(
+                                          pick.player.club.slug,
+                                          null,
+                                        )
+                                      : "—"}
                                   </span>
                                 </div>
                               ) : (
@@ -537,7 +547,9 @@ export default async function DraftPage({
                           </p>
                           <p className="text-xs text-zinc-500">
                             {pick.player.position} ·{" "}
-                            {pick.player.club?.shortName ?? "—"}
+                            {pick.player.club
+                              ? getClubDisplayName(pick.player.club.slug, null)
+                              : "—"}
                           </p>
                           <p className="mt-1 text-[10px] uppercase tracking-wide text-zinc-400">
                             Round {pick.round} · Pick {pick.pickNumber}

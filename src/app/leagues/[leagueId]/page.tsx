@@ -10,6 +10,7 @@ import { formatEasternDateTime } from "@/lib/time";
 import { getCurrentMatchWeekForSeason } from "@/lib/matchweek";
 import { normalizeLeagueWaiverTimes } from "@/lib/waivers";
 import { formatPlayerName } from "@/lib/players";
+import { getClubDisplayName } from "@/lib/clubs";
 
 export const runtime = "nodejs";
 
@@ -410,9 +411,12 @@ export default async function LeagueDetailPage({
                     </p>
                     <p className="text-xs text-[var(--text-muted)]">
                       {waiver.player.position} ·{" "}
-                      {waiver.player.club?.shortName ??
-                        waiver.player.club?.name ??
-                        "No club"}
+                      {waiver.player.club
+                        ? getClubDisplayName(
+                            waiver.player.club.slug,
+                            waiver.player.club.name,
+                          )
+                        : "No club"}
                     </p>
                     <p className="mt-1 text-xs text-[var(--text-muted)]">
                       Clears:{" "}

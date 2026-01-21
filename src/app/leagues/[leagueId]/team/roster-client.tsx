@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type DragEvent } from "react";
+import { getClubDisplayName } from "@/lib/clubs";
 
 type PositionKey = "GK" | "DEF" | "MID" | "FWD";
 
@@ -34,6 +35,9 @@ type Props = {
   matchWeekNumber: number;
   isLocked?: boolean;
 };
+
+const buildSlotClubName = (club: Slot["player"]["club"] | null) =>
+  club?.slug ? getClubDisplayName(club.slug, club.shortName ?? null) : null;
 
 const getPositionKey = (slot: Slot): PositionKey => {
   const candidate = slot.position || slot.player?.position || "MID";
@@ -260,6 +264,7 @@ export default function RosterClient({
         : slot.player.name
       : null;
     const kitSrc = getKitSrc(slot);
+    const clubName = slot.player ? buildSlotClubName(slot.player.club) : null;
 
     return (
       <div
@@ -289,7 +294,7 @@ export default function RosterClient({
               {kitSrc ? (
                 <Image
                   src={kitSrc}
-                  alt={slot.player.club?.shortName ?? "Club kit"}
+                  alt={clubName ? `${clubName} kit` : "Club kit"}
                   width={56}
                   height={56}
                   className="h-14 w-14 object-contain"
@@ -316,7 +321,7 @@ export default function RosterClient({
           </span>
           {slot.player ? (
             <span className="text-[10px] text-white/70">
-              {slot.player.position} · {slot.player.club?.shortName ?? ""}
+              {slot.player.position} · {clubName ?? ""}
             </span>
           ) : null}
           {slot.player ? (

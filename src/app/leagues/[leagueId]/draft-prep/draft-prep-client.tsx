@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatPlayerName } from "@/lib/players";
+import { getClubDisplayName } from "@/lib/clubs";
 
 type PlayerPosition = "GK" | "DEF" | "MID" | "FWD";
 
@@ -10,7 +11,7 @@ type Player = {
   name: string;
   jerseyNumber: number | null;
   position: PlayerPosition;
-  club: { shortName: string | null; name: string } | null;
+  club: { shortName: string | null; name: string; slug: string } | null;
 };
 
 type Constraints = {
@@ -50,7 +51,7 @@ const positionLabel = (position: PlayerPosition) => position;
 
 const buildClubLabel = (club: Player["club"]) => {
   if (!club) return "Unknown club";
-  return club.shortName ?? club.name;
+  return getClubDisplayName(club.slug, club.name);
 };
 
 export default function DraftPrepClient({

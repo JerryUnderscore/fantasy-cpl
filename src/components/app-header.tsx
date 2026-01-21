@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -82,12 +83,16 @@ export default function AppHeader({
     <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface)] backdrop-blur">
       <div className="mx-auto flex w-full max-w-[1300px] flex-wrap items-center justify-between gap-4 px-6 py-4">
           <div className="flex items-center gap-6">
-            <Link
-              href="/"
-              className="text-lg font-semibold text-[var(--text)]"
-              aria-label="Fantasy CPL home"
-            >
-              Fantasy CPL
+            <Link href="/" className="flex items-center gap-2" aria-label="Fantasy CPL home">
+              <Image
+                src="/brand/fantasy-cpl-logo.png"
+                alt="Fantasy CPL logo"
+                width={128}
+                height={32}
+                className="h-10 w-auto object-contain"
+                priority
+              />
+              <span className="sr-only">Fantasy CPL</span>
             </Link>
           </div>
 

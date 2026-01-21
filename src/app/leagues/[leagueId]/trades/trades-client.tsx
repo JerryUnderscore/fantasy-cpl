@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatPlayerName } from "@/lib/players";
 import TradeOfferModal from "./trade-offer-modal";
+import { getClubDisplayName } from "@/lib/clubs";
 
 type TradePlayer = {
   id: string;
   name: string;
   jerseyNumber: number | null;
   position: string;
-  club: { shortName: string | null } | null;
+  club: { shortName: string | null; slug: string } | null;
 };
 
 type TradeItem = {
@@ -97,7 +98,9 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
   );
 
   const buildRosterLabel = (player: TradePlayer) =>
-    `${player.position} · ${player.club?.shortName ?? ""}`.trim();
+    `${player.position} · ${
+      player.club ? getClubDisplayName(player.club.slug, null) : ""
+    }`.trim();
 
   const handleTradeAction = async (tradeId: string, action: string) => {
     try {

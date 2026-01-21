@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatPlayerName } from "@/lib/players";
 import { formatEasternDateTime } from "@/lib/time";
+import { getClubDisplayName } from "@/lib/clubs";
 
 type MatchWeekOption = {
   id: string;
@@ -832,8 +833,9 @@ export default function ScoringAdminClient({
                   ) : null}
               {matchWeekMatches.map((match) => (
                 <option key={match.id} value={match.id}>
-                  {match.homeClub.shortName ?? match.homeClub.name} vs{" "}
-                  {match.awayClub.shortName ?? match.awayClub.name} ·{" "}
+                  {getClubDisplayName(match.homeClub.slug, match.homeClub.name)}{" "}
+                  vs{" "}
+                  {getClubDisplayName(match.awayClub.slug, match.awayClub.name)} ·{" "}
                   {formatEasternDateTime(new Date(match.kickoffAt))}
                 </option>
               ))}
@@ -869,7 +871,7 @@ export default function ScoringAdminClient({
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm font-semibold text-zinc-900">
                       {side === "home" ? "Home" : "Away"} roster ·{" "}
-                      {club.shortName ?? club.name}
+                      {getClubDisplayName(club.slug, club.name)}
                     </p>
                     <span className="text-xs uppercase tracking-wide text-zinc-500">
                       {sideRows.length} players
@@ -1193,7 +1195,7 @@ export default function ScoringAdminClient({
             <option value="">All clubs</option>
             {clubOptions.map((club) => (
               <option key={club.slug} value={club.slug}>
-                {club.shortName ?? club.name}
+                {getClubDisplayName(club.slug, club.name)}
               </option>
             ))}
           </select>
@@ -1279,10 +1281,10 @@ export default function ScoringAdminClient({
                       )}
                     </td>
                     <td className="py-2 pr-4">
-                      {match.homeClub.shortName ?? match.homeClub.name}
+                      {getClubDisplayName(match.homeClub.slug, match.homeClub.name)}
                     </td>
                     <td className="py-2 pr-4">
-                      {match.awayClub.shortName ?? match.awayClub.name}
+                      {getClubDisplayName(match.awayClub.slug, match.awayClub.name)}
                     </td>
                     <td className="py-2 pr-4">
                       {isEditing ? (

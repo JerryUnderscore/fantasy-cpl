@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { formatPlayerName } from "@/lib/players";
+import { getClubDisplayName } from "@/lib/clubs";
 
 type TradePlayer = {
   id: string;
@@ -31,7 +32,9 @@ type Props = {
 };
 
 const buildPlayerLabel = (player: TradePlayer) =>
-  `${player.position} · ${player.club?.shortName ?? ""}`.trim();
+  `${player.position} · ${
+    player.club ? getClubDisplayName(player.club.slug, null) : ""
+  }`.trim();
 
 export default function TradeOfferModal({
   open,

@@ -25,6 +25,10 @@ type RosterSlotView = {
 };
 
 const STARTERS_REQUIRED = 11;
+const CLUB_ROSTER_LIMIT = 4;
+
+const normalizeClubSlug = (slug?: string | null) =>
+  slug ? slug.toLowerCase() : null;
 
 const getProfile = async (userId: string) =>
   prisma.profile.findUnique({
@@ -521,7 +525,12 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
           id: true,
           slotNumber: true,
           playerId: true,
-          player: { select: { position: true } },
+          player: {
+            select: {
+              position: true,
+              club: { select: { slug: true } },
+            },
+          },
         },
       });
 
@@ -531,7 +540,13 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
       const player = await prisma.player.findUnique({
         where: { id: playerId },
-        select: { id: true, seasonId: true, active: true, position: true },
+        select: {
+          id: true,
+          seasonId: true,
+          active: true,
+          position: true,
+          club: { select: { slug: true } },
+        },
       });
 
       if (!player || !player.active || player.seasonId !== league.seasonId) {
@@ -595,7 +610,14 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
       const rosterPositions = await prisma.rosterSlot.findMany({
         where: { fantasyTeamId: team.id, playerId: { not: null } },
-        select: { player: { select: { position: true } } },
+        select: {
+          player: {
+            select: {
+              position: true,
+              club: { select: { slug: true } },
+            },
+          },
+        },
       });
       const currentPositions = rosterPositions
         .map((row) => row.player?.position)
@@ -609,6 +631,33 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
       if (!validation.ok) {
         return NextResponse.json({ error: validation.error }, { status: 409 });
+      }
+
+      const clubCounts = new Map<string, number>();
+      rosterPositions.forEach((row) => {
+        const slug = normalizeClubSlug(row.player?.club?.slug);
+        if (slug) {
+          clubCounts.set(slug, (clubCounts.get(slug) ?? 0) + 1);
+        }
+      });
+
+      const dropSlug = normalizeClubSlug(slot.player?.club?.slug);
+      if (dropSlug) {
+        const previous = clubCounts.get(dropSlug) ?? 0;
+        clubCounts.set(dropSlug, Math.max(0, previous - 1));
+      }
+
+      const pickupSlug = normalizeClubSlug(player.club?.slug);
+      if (pickupSlug) {
+        const newCount = (clubCounts.get(pickupSlug) ?? 0) + 1;
+        if (newCount > CLUB_ROSTER_LIMIT) {
+          return NextResponse.json(
+            {
+              error: `Roster limit reached: you may only carry ${CLUB_ROSTER_LIMIT} players from the same club.`,
+            },
+            { status: 409 },
+          );
+        }
       }
 
       await prisma.rosterSlot.update({

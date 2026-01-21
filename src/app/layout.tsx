@@ -7,6 +7,11 @@ export const runtime = "nodejs";
 export const metadata: Metadata = {
   title: "Fantasy CPL",
   description: "Fantasy CPL beta",
+  icons: {
+    icon: "/brand/favicon.png",
+    shortcut: "/brand/favicon.png",
+    apple: "/brand/favicon.png",
+  },
 };
 
 export default function RootLayout({

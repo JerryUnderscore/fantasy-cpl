@@ -50,18 +50,18 @@ export default async function MyTeamRosterPage({
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-zinc-50 px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl bg-white p-10 shadow-sm">
+      <div className="min-h-screen bg-[var(--background)] px-6 py-16">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl border border-[var(--border)] bg-[var(--surface2)] p-10 shadow-sm">
           <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-semibold text-black">Team roster</h1>
-            <p className="text-sm text-zinc-500">
+            <h1 className="text-3xl font-semibold text-[var(--accent)]">Team roster</h1>
+            <p className="text-sm text-[var(--text-muted)]">
               Sign in to manage your roster.
             </p>
           </div>
           <AuthButtons isAuthenticated={false} />
           <Link
             href={`/leagues/${leagueId}`}
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
+            className="text-sm font-medium text-[var(--accent)] underline-offset-4 hover:text-[var(--accent-muted)] hover:underline"
           >
             Back to league
           </Link>
@@ -77,17 +77,17 @@ export default async function MyTeamRosterPage({
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-zinc-50 px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl bg-white p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-black">
+      <div className="min-h-screen bg-[var(--background)] px-6 py-16">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl border border-[var(--border)] bg-[var(--surface2)] p-10 shadow-sm">
+          <h1 className="text-2xl font-semibold text-[var(--accent)]">
             Profile not synced
           </h1>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-[var(--text-muted)]">
             Please sync your profile from the home page and try again.
           </p>
           <Link
             href="/"
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
+            className="text-sm font-medium text-[var(--accent)] underline-offset-4 hover:text-[var(--accent-muted)] hover:underline"
           >
             Go to home
           </Link>
@@ -117,17 +117,17 @@ export default async function MyTeamRosterPage({
 
   if (!membership) {
     return (
-      <div className="min-h-screen bg-zinc-50 px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl bg-white p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-black">
+      <div className="min-h-screen bg-[var(--background)] px-6 py-16">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl border border-[var(--border)] bg-[var(--surface2)] p-10 shadow-sm">
+          <h1 className="text-2xl font-semibold text-[var(--accent)]">
             Not a league member
           </h1>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-[var(--text-muted)]">
             You need to join this league before managing your roster.
           </p>
           <Link
             href="/leagues"
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
+            className="text-sm font-medium text-[var(--accent)] underline-offset-4 hover:text-[var(--accent-muted)] hover:underline"
           >
             Back to leagues
           </Link>
@@ -145,15 +145,15 @@ export default async function MyTeamRosterPage({
 
   if (!team) {
     return (
-      <div className="min-h-screen bg-zinc-50 px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl bg-white p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-black">No team yet</h1>
-          <p className="text-sm text-zinc-500">
+      <div className="min-h-screen bg-[var(--background)] px-6 py-16">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl border border-[var(--border)] bg-[var(--surface2)] p-10 shadow-sm">
+          <h1 className="text-2xl font-semibold text-[var(--accent)]">No team yet</h1>
+          <p className="text-sm text-[var(--text-muted)]">
             Create your team from the league page to manage your roster.
           </p>
           <Link
             href={`/leagues/${leagueId}`}
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
+            className="text-sm font-medium text-[var(--accent)] underline-offset-4 hover:text-[var(--accent-muted)] hover:underline"
           >
             Back to league
           </Link>
@@ -347,25 +347,25 @@ export default async function MyTeamRosterPage({
         });
 
   return (
-    <div className="min-h-screen bg-zinc-50 px-6 py-16">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 rounded-3xl bg-white p-10 shadow-sm">
+    <div className="min-h-screen bg-[var(--background)] px-6 py-16">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 rounded-3xl border border-[var(--border)] bg-[var(--surface2)] p-10 shadow-sm">
         <div className="flex flex-col gap-2">
           <Link
             href={`/leagues/${leagueId}`}
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
+            className="text-sm font-medium text-[var(--accent)] underline-offset-4 hover:text-[var(--accent-muted)] hover:underline"
           >
             Back to league
           </Link>
-          <h1 className="text-3xl font-semibold text-black">{team.name}</h1>
-          <p className="text-sm text-zinc-500">
+          <h1 className="text-3xl font-semibold text-[var(--accent)]">{team.name}</h1>
+          <p className="text-sm text-[var(--text-muted)]">
             {league.name} · {league.season.name} {league.season.year}
           </p>
         </div>
 
         {selectedMatchWeek ? (
-          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-zinc-900">
+              <p className="text-sm font-semibold text-[var(--text)]">
                 MatchWeek {selectedMatchWeek.number} · {selectedMatchWeek.status}
               </p>
               <MatchWeekSelector
@@ -374,11 +374,11 @@ export default async function MyTeamRosterPage({
                 activeNumber={activeMatchWeek?.number ?? null}
               />
             </div>
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-[var(--text-muted)]">
               Lineup edits lock based on the active MatchWeek.
             </p>
             {selectedMatchWeek.status !== "OPEN" ? (
-              <p className="text-xs text-zinc-600">Lineups locked.</p>
+              <p className="text-xs text-[var(--text-muted)]">Lineups locked.</p>
             ) : null}
           </div>
         ) : null}

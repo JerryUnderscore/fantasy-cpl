@@ -2,7 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatEasternDateTime } from "@/lib/time";
-import { getClubAccentColor, getClubBadge } from "@/lib/clubs";
+import {
+  getClubAccentColor,
+  getClubBadge,
+  getClubDisplayName,
+} from "@/lib/clubs";
 
 type MatchParams = { matchId: string };
 
@@ -26,8 +30,8 @@ export default async function MatchDetailPage({
 
   if (!match) notFound();
 
-  const homeLabel = match.homeClub.shortName ?? match.homeClub.name;
-  const awayLabel = match.awayClub.shortName ?? match.awayClub.name;
+  const homeLabel = getClubDisplayName(match.homeClub.slug, match.homeClub.name);
+  const awayLabel = getClubDisplayName(match.awayClub.slug, match.awayClub.name);
   const homeAccent = getClubAccentColor(match.homeClub.slug);
   const awayAccent = getClubAccentColor(match.awayClub.slug);
   const homeBadge = getClubBadge(match.homeClub.slug);

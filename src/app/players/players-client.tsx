@@ -133,19 +133,19 @@ export default function PlayersClient({ players }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="grid flex-1 grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-4">
-          <label className="flex w-full flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          <label className="flex w-full flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
             Search
             <input
               type="text"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Search by player or club"
-              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)]"
             />
           </label>
-          <label className="flex w-full flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500 md:w-44">
+          <label className="flex w-full flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] md:w-44">
             Position
             <select
               value={positionFilter}
@@ -154,7 +154,7 @@ export default function PlayersClient({ players }: Props) {
                   event.target.value as (typeof positions)[number],
                 )
               }
-              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-sm text-[var(--text)]"
             >
               {positions.map((position) => (
                 <option key={position} value={position}>
@@ -163,12 +163,12 @@ export default function PlayersClient({ players }: Props) {
               ))}
             </select>
           </label>
-          <label className="flex w-full flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          <label className="flex w-full flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
             Club
             <select
               value={clubFilter}
               onChange={(event) => setClubFilter(event.target.value)}
-              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-sm text-[var(--text)]"
             >
               <option value="ALL">All clubs</option>
               {clubs.map((club) => (
@@ -178,14 +178,14 @@ export default function PlayersClient({ players }: Props) {
               ))}
             </select>
           </label>
-          <label className="flex w-full flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          <label className="flex w-full flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
             Sort
             <select
               value={sortOption}
               onChange={(event) =>
                 setSortOption(event.target.value as SortOption)
               }
-              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-sm text-[var(--text)]"
             >
               <option value="NAME_ASC">Name (A-Z)</option>
               <option value="CLUB_ASC">Club (A-Z)</option>
@@ -193,7 +193,7 @@ export default function PlayersClient({ players }: Props) {
             </select>
           </label>
         </div>
-        <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
           <span>{filteredPlayers.length} players</span>
           <button
             type="button"
@@ -203,26 +203,26 @@ export default function PlayersClient({ players }: Props) {
               setClubFilter("ALL");
               setSortOption("NAME_ASC");
             }}
-            className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900"
+            className="rounded-full border border-[var(--border)] bg-[var(--surface2)] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--text)] transition hover:border-[var(--text-muted)] hover:text-[var(--text-muted)]"
           >
             Clear filters
           </button>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-zinc-200">
+      <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
         <table className="min-w-full text-left text-sm">
-          <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
+          <thead className="bg-[var(--surface2)] text-xs uppercase tracking-wide text-[var(--text-muted)]">
             <tr>
               <th className="px-4 py-3">Player</th>
               <th className="px-4 py-3">Position</th>
               <th className="px-4 py-3">Club</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100">
+          <tbody className="divide-y divide-[var(--border)]">
             {filteredPlayers.map((player) => (
-              <tr key={player.id} className="text-zinc-800">
-                <td className="px-4 py-3 font-semibold text-zinc-900">
+              <tr key={player.id} className="text-[var(--text)]">
+                <td className="px-4 py-3 font-semibold text-[var(--text)]">
                   {formatPlayerName(player.name, player.jerseyNumber)}
                 </td>
                 <td className="px-4 py-3">{player.position}</td>
@@ -233,7 +233,7 @@ export default function PlayersClient({ players }: Props) {
             ))}
             {filteredPlayers.length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-sm text-zinc-500" colSpan={3}>
+                <td className="px-4 py-6 text-sm text-[var(--text-muted)]" colSpan={3}>
                   No players match that search.
                 </td>
               </tr>

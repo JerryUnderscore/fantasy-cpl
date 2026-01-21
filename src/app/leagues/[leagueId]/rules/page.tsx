@@ -155,6 +155,7 @@ export default async function LeagueRulesPage({
                 <li>Defenders (DEF)</li>
                 <li>Midfielders (MID)</li>
                 <li>Forwards (FWD)</li>
+                <li>Maximum of four players from any single club.</li>
               </ul>
               <p className="text-sm text-zinc-600">
                 Roster limits are fixed for all leagues and cannot be customized
