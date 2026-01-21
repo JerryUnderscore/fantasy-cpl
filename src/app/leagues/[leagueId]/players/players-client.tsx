@@ -122,6 +122,7 @@ export default function PlayersClient({ leagueId }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const searchParamsString = searchParams.toString();
   const [data, setData] = useState<AvailablePlayersResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -504,11 +505,12 @@ export default function PlayersClient({ leagueId }: Props) {
   }, [data]);
 
   useEffect(() => {
-    const query = searchParams.get("q") ?? "";
-    const statusParam = searchParams.get("status") ?? "ALL";
-    const positionParam = searchParams.get("position") ?? "ALL";
-    const clubParam = searchParams.get("club") ?? "ALL";
-    const sortParam = searchParams.get("sort") ?? "NAME_ASC";
+    const params = new URLSearchParams(searchParamsString);
+    const query = params.get("q") ?? "";
+    const statusParam = params.get("status") ?? "ALL";
+    const positionParam = params.get("position") ?? "ALL";
+    const clubParam = params.get("club") ?? "ALL";
+    const sortParam = params.get("sort") ?? "NAME_ASC";
 
     const nextSearch = query.trim();
     const nextStatus =
@@ -541,9 +543,8 @@ export default function PlayersClient({ leagueId }: Props) {
     if (nextPosition !== positionFilter) setPositionFilter(nextPosition);
     if (nextClub !== clubFilter) setClubFilter(nextClub);
     if (nextSort !== sortOption) setSortOption(nextSort);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    searchParams,
+    searchParamsString,
     clubs,
     searchTerm,
     statusFilter,
@@ -564,7 +565,7 @@ export default function PlayersClient({ leagueId }: Props) {
     const currentQuery =
       typeof window !== "undefined"
         ? new URLSearchParams(window.location.search).toString()
-        : searchParams.toString();
+        : searchParamsString;
     if (nextQuery === currentQuery) return;
 
     const url = nextQuery ? `${pathname}?${nextQuery}` : pathname;
@@ -577,6 +578,7 @@ export default function PlayersClient({ leagueId }: Props) {
     sortOption,
     pathname,
     router,
+    searchParamsString,
   ]);
 
   const filteredPlayers = useMemo(() => {

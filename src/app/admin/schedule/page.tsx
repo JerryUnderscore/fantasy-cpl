@@ -6,7 +6,6 @@ export const runtime = "nodejs";
 export default async function AdminSchedulePage() {
   const {
     season,
-    playerOptions,
     matchWeeks,
     seasons,
     clubs,
@@ -38,7 +37,6 @@ export default async function AdminSchedulePage() {
 
       <ScoringAdminClient
         postUrl="/api/scoring/stats"
-        players={playerOptions}
         matchWeeks={matchWeeks}
         seasons={seasons}
         clubs={clubs}

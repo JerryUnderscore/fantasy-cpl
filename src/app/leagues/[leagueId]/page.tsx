@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
+import MatchScheduleList, {
+  type ScheduleMatch,
+} from "@/components/match-schedule";
 import { formatEasternDateTime } from "@/lib/time";
 import { getCurrentMatchWeekForSeason } from "@/lib/matchweek";
 import { normalizeLeagueWaiverTimes } from "@/lib/waivers";
@@ -198,11 +201,18 @@ export default async function LeagueDetailPage({
           id: true,
           kickoffAt: true,
           status: true,
-          homeClub: { select: { name: true, shortName: true } },
-          awayClub: { select: { name: true, shortName: true } },
+          homeClub: { select: { name: true, shortName: true, slug: true } },
+          awayClub: { select: { name: true, shortName: true, slug: true } },
         },
-    })
+      })
     : [];
+
+  const scheduleMatchesPayload: ScheduleMatch[] = scheduleMatches.map(
+    (match) => ({
+      ...match,
+      kickoffAt: match.kickoffAt.toISOString(),
+    }),
+  );
 
   const normalizedReset = await normalizeLeagueWaiverTimes(
     prisma,
@@ -228,23 +238,23 @@ export default async function LeagueDetailPage({
   });
 
   return (
-    <div className="min-h-screen bg-zinc-50 px-6 py-16">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 rounded-3xl bg-white p-10 shadow-sm">
+    <div className="min-h-screen bg-[var(--background)] px-6 py-16">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-10 shadow-[0_25px_45px_rgba(1,2,12,0.65)]">
         <div className="flex flex-col gap-2">
           <Link
             href="/leagues"
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
+            className="text-sm font-medium text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text)] hover:underline"
           >
             Back to leagues
           </Link>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold text-black">
+            <h1 className="text-3xl font-semibold text-[var(--text)]">
               {league.name}
             </h1>
             {showDraftButton ? (
               <Link
                 href={`/leagues/${league.id}/draft`}
-                className="rounded-full bg-zinc-900 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-zinc-800"
+                className="rounded-full bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--background)] transition hover:bg-[var(--accent-muted)]"
               >
                 Draft
               </Link>
@@ -252,7 +262,7 @@ export default async function LeagueDetailPage({
             {membership.role === "OWNER" ? (
               <Link
                 href={`/leagues/${league.id}/settings`}
-                className="inline-flex items-center justify-center rounded-full border border-zinc-200 p-2 text-zinc-500 transition hover:border-zinc-300 hover:text-zinc-900"
+                className="inline-flex items-center justify-center rounded-full border border-[var(--border)] p-2 text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
                 aria-label="League settings"
               >
                 <span role="img" aria-hidden="true" className="text-lg">
@@ -261,37 +271,37 @@ export default async function LeagueDetailPage({
               </Link>
             ) : null}
           </div>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-[var(--text-muted)]">
             {league.season.name} · {league.season.year}
           </p>
-          <div className="mt-3 flex flex-wrap gap-3 text-sm font-semibold text-zinc-500">
+          <div className="mt-3 flex flex-wrap gap-3 text-sm font-semibold text-[var(--text-muted)]">
             <Link
               href={`/leagues/${league.id}/players`}
-              className="underline-offset-4 hover:text-zinc-900 hover:underline"
+              className="transition hover:text-[var(--text)] hover:underline underline-offset-4"
             >
               Players
             </Link>
             <Link
               href={`/leagues/${league.id}/trades`}
-              className="underline-offset-4 hover:text-zinc-900 hover:underline"
+              className="transition hover:text-[var(--text)] hover:underline underline-offset-4"
             >
               Trades
             </Link>
             <Link
               href={`/leagues/${league.id}/rules`}
-              className="underline-offset-4 hover:text-zinc-900 hover:underline"
+              className="transition hover:text-[var(--text)] hover:underline underline-offset-4"
             >
               League rules
             </Link>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
               Standings
             </h2>
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-[var(--text-muted)]">
               {latestFinalizedMatchWeek?.number
                 ? `After MatchWeek ${latestFinalizedMatchWeek.number}`
                 : currentMatchWeek?.number
@@ -300,11 +310,11 @@ export default async function LeagueDetailPage({
             </p>
           </div>
           {standings.length === 0 ? (
-            <p className="mt-3 text-sm text-zinc-500">No teams yet.</p>
+            <p className="mt-3 text-sm text-[var(--text-muted)]">No teams yet.</p>
           ) : (
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-full text-left text-sm">
-                <thead className="text-xs uppercase tracking-wide text-zinc-500">
+                <thead className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
                   <tr>
                     <th className="py-2 pr-3">#</th>
                     <th className="py-2 pr-3">Team</th>
@@ -313,29 +323,34 @@ export default async function LeagueDetailPage({
                     <th className="py-2 pr-3">Played</th>
                   </tr>
                 </thead>
-                <tbody className="text-zinc-800">
+                <tbody className="text-[var(--text)]">
                   {standings.map((row) => (
-                    <tr key={row.teamId} className="border-t border-zinc-200">
-                      <td className="py-2 pr-3 text-zinc-500">{row.rank}</td>
-                      <td className="py-2 pr-3 font-semibold text-zinc-900">
+                    <tr
+                      key={row.teamId}
+                      className="border-t border-[var(--border)]"
+                    >
+                      <td className="py-2 pr-3 text-[var(--text-muted)]">
+                        {row.rank}
+                      </td>
+                      <td className="py-2 pr-3 font-semibold text-[var(--text)]">
                         <Link
                           href={
                             row.profileId === profile.id
                               ? `/leagues/${league.id}/team`
                               : `/leagues/${league.id}/teams/${row.teamId}`
                           }
-                          className="underline-offset-4 hover:text-zinc-900 hover:underline"
+                          className="underline-offset-4 hover:text-[var(--accent)] hover:underline"
                         >
                           {row.teamName}
                         </Link>
                       </td>
-                      <td className="py-2 pr-3 text-zinc-600">
+                      <td className="py-2 pr-3 text-[var(--text-muted)]">
                         {row.ownerName}
                       </td>
-                      <td className="py-2 pr-3 font-semibold text-zinc-900">
+                      <td className="py-2 pr-3 font-semibold text-[var(--text)]">
                         {row.totalPoints}
                       </td>
-                      <td className="py-2 pr-3 text-zinc-600">
+                      <td className="py-2 pr-3 text-[var(--text-muted)]">
                         {row.playedFinalized}
                       </td>
                     </tr>
@@ -347,51 +362,37 @@ export default async function LeagueDetailPage({
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                 MatchWeek schedule
               </h2>
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-[var(--text-muted)]">
                 {currentMatchWeek?.number
                   ? `MatchWeek ${currentMatchWeek.number}`
                   : "No MatchWeek scheduled"}
               </p>
             </div>
-            {scheduleMatches.length === 0 ? (
-              <p className="mt-3 text-sm text-zinc-500">
+            {scheduleMatchesPayload.length === 0 ? (
+              <p className="mt-3 text-sm text-[var(--text-muted)]">
                 No matches scheduled yet.
               </p>
             ) : (
-              <ul className="mt-4 flex flex-col gap-3">
-                {scheduleMatches.map((match) => (
-                  <li
-                    key={match.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3"
-                  >
-                    <div className="text-sm font-semibold text-zinc-900">
-                      {match.homeClub.shortName ?? match.homeClub.name} vs{" "}
-                      {match.awayClub.shortName ?? match.awayClub.name}
-                    </div>
-                    <div className="text-xs text-zinc-500">
-                      {formatEasternDateTime(new Date(match.kickoffAt))} ET ·{" "}
-                      {match.status}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <div className="mt-4">
+                <MatchScheduleList matches={scheduleMatchesPayload} />
+              </div>
             )}
           </div>
 
-          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-5">
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                 On waivers
               </h2>
-              <p className="text-xs text-zinc-500">Claim window</p>
+              <p className="text-xs text-[var(--text-muted)]">Claim window</p>
             </div>
             {waivers.length === 0 ? (
-              <p className="mt-3 text-sm text-zinc-500">
+              <p className="mt-3 text-sm text-[var(--text-muted)]">
                 No players on waivers.
               </p>
             ) : (
@@ -399,21 +400,21 @@ export default async function LeagueDetailPage({
                 {waivers.map((waiver) => (
                   <li
                     key={waiver.id}
-                    className="rounded-2xl border border-zinc-200 bg-white px-4 py-3"
+                    className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
                   >
-                    <p className="text-sm font-semibold text-zinc-900">
+                    <p className="text-sm font-semibold text-[var(--text)]">
                       {formatPlayerName(
                         waiver.player.name,
                         waiver.player.jerseyNumber,
                       )}
                     </p>
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-xs text-[var(--text-muted)]">
                       {waiver.player.position} ·{" "}
                       {waiver.player.club?.shortName ??
                         waiver.player.club?.name ??
                         "No club"}
                     </p>
-                    <p className="mt-1 text-xs text-zinc-500">
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">
                       Clears:{" "}
                       {formatEasternDateTime(
                         new Date(
@@ -428,7 +429,6 @@ export default async function LeagueDetailPage({
             )}
           </div>
         </div>
-
       </div>
     </div>
   );

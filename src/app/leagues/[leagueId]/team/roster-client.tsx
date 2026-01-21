@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type DragEvent } from "react";
 
@@ -258,6 +259,7 @@ export default function RosterClient({
         ? `${slot.player.name} (${slot.player.jerseyNumber})`
         : slot.player.name
       : null;
+    const kitSrc = getKitSrc(slot);
 
     return (
       <div
@@ -284,15 +286,17 @@ export default function RosterClient({
         >
           {slot.player ? (
             <>
-              {getKitSrc(slot) ? (
-                <img
-                  src={getKitSrc(slot) ?? ""}
+              {kitSrc ? (
+                <Image
+                  src={kitSrc}
                   alt={slot.player.club?.shortName ?? "Club kit"}
+                  width={56}
+                  height={56}
                   className="h-14 w-14 object-contain"
                 />
               ) : (
-                <span className="text-lg font-semibold text-white">#</span>
-              )}
+              <span className="text-lg font-semibold text-white">#</span>
+            )}
               {slot.player.jerseyNumber != null ? (
                 <span className="absolute bottom-[-6px] right-[-6px] flex h-6 w-6 items-center justify-center rounded-full bg-white text-[10px] font-semibold text-emerald-950 shadow-sm">
                   {slot.player.jerseyNumber}
@@ -332,6 +336,7 @@ export default function RosterClient({
 
   const renderBenchSlot = (slot: Slot, index: number) => {
     const canDrag = canDragFromBench(slot);
+    const kitSrc = getKitSrc(slot);
     return (
       <div
         key={slot.id}
@@ -351,14 +356,16 @@ export default function RosterClient({
           >
             {slot.player ? (
               <>
-                {getKitSrc(slot) ? (
-                  <img
-                    src={getKitSrc(slot) ?? ""}
-                    alt={slot.player.club?.shortName ?? "Club kit"}
-                    className="h-10 w-10 object-contain"
-                  />
-                ) : (
-                  <span className="text-sm font-semibold text-white">#</span>
+              {kitSrc ? (
+                <Image
+                  src={kitSrc}
+                  alt={slot.player.club?.shortName ?? "Club kit"}
+                  width={40}
+                  height={40}
+                  className="h-10 w-10 object-contain"
+                />
+              ) : (
+                <span className="text-sm font-semibold text-white">#</span>
                 )}
                 {slot.player.jerseyNumber != null ? (
                   <span className="absolute bottom-[-4px] right-[-4px] flex h-5 w-5 items-center justify-center rounded-full bg-white text-[9px] font-semibold text-emerald-950 shadow-sm">

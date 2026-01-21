@@ -222,82 +222,6 @@ const parseMatchWeekNumber = (value: unknown) => {
   return parsed;
 };
 
-const getRosterPropagationStartNumber = async (seasonId: string) => {
-  const currentMatchWeek = await getCurrentMatchWeekForSeason(seasonId);
-  if (!currentMatchWeek) return null;
-  if (currentMatchWeek.status === MatchWeekStatus.OPEN) {
-    return currentMatchWeek.number;
-  }
-  return currentMatchWeek.number + 1;
-};
-
-const syncLineupSlotsForRosterChange = async ({
-  fantasyTeamId,
-  seasonId,
-  rosterSlots,
-  affectedSlotIds,
-}: {
-  fantasyTeamId: string;
-  seasonId: string;
-  rosterSlots: Array<{
-    id: string;
-    slotNumber: number;
-    playerId: string | null;
-    isStarter: boolean;
-  }>;
-  affectedSlotIds: string[];
-}) => {
-  const startNumber = await getRosterPropagationStartNumber(seasonId);
-  if (!startNumber) return;
-
-  const matchWeeks = await prisma.matchWeek.findMany({
-    where: {
-      seasonId,
-      number: { gte: startNumber },
-      status: { not: MatchWeekStatus.FINALIZED },
-    },
-    select: { id: true, number: true },
-  });
-
-  if (matchWeeks.length === 0) return;
-
-  const slotMap = new Map(
-    rosterSlots.map((slot) => [slot.id, slot]),
-  );
-
-  for (const matchWeek of matchWeeks) {
-    await ensureLineupSlots(
-      fantasyTeamId,
-      { id: matchWeek.id, number: matchWeek.number, seasonId },
-      rosterSlots,
-    );
-
-    for (const slotId of affectedSlotIds) {
-      const slot = slotMap.get(slotId);
-      if (!slot) continue;
-
-      const updateData: Prisma.TeamMatchWeekLineupSlotUpdateInput = {
-        playerId: slot.playerId ?? null,
-      };
-
-      if (!slot.playerId) {
-        updateData.isStarter = false;
-      }
-
-      await prisma.teamMatchWeekLineupSlot.update({
-        where: {
-          fantasyTeamId_matchWeekId_rosterSlotId: {
-            fantasyTeamId,
-            matchWeekId: matchWeek.id,
-            rosterSlotId: slot.id,
-          },
-        },
-        data: updateData,
-      });
-    }
-  }
-};
-
 export async function GET(request: NextRequest, ctx: Ctx) {
   try {
     const { leagueId } = await ctx.params;
@@ -580,8 +504,6 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       );
     }
 
-    let affectedSlotIds: string[] = [];
-
     if (action === "assign") {
       const slotId = typeof body?.slotId === "string" ? body.slotId : null;
       const playerId = typeof body?.playerId === "string" ? body.playerId : null;
@@ -693,7 +615,6 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
         where: { id: slotId },
         data: { playerId, position: player.position },
       });
-      affectedSlotIds = [slotId];
     } else if (action === "clear") {
       const slotId = typeof body?.slotId === "string" ? body.slotId : null;
 
@@ -796,7 +717,6 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
           });
         }
       });
-      affectedSlotIds = [slotId];
     } else if (action === "starter") {
       const slotId = typeof body?.slotId === "string" ? body.slotId : null;
       const isStarter = typeof body?.isStarter === "boolean" ? body.isStarter : null;
@@ -928,7 +848,6 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
           data: { playerId: slotB.playerId, position: slotBPosition },
         });
       });
-      affectedSlotIds = [slotA.id, slotB.id];
     } else {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }

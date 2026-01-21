@@ -68,13 +68,6 @@ type Row = {
 
 type Props = {
   postUrl: string;
-  players: Array<{
-    id: string;
-    name: string;
-    jerseyNumber: number | null;
-    position: string;
-    clubLabel: string;
-  }>;
   matchWeeks: MatchWeekOption[];
   seasons: SeasonOption[];
   clubs: ClubOption[];
@@ -129,7 +122,6 @@ const parseNumber = (value: string) => {
 
 export default function ScoringAdminClient({
   postUrl,
-  players,
   matchWeeks,
   seasons,
   clubs,
@@ -206,7 +198,7 @@ export default function ScoringAdminClient({
 
   const toTextValue = (value: number) => (value > 0 ? String(value) : "");
 
-  const buildRows = (match: MatchWeekMatch): Row[] => {
+  const buildRows = useCallback((match: MatchWeekMatch): Row[] => {
     const mapPlayers = (players: MatchWeekPlayer[], side: "home" | "away") =>
       players.map((player) => ({
         id: player.id,
@@ -229,7 +221,7 @@ export default function ScoringAdminClient({
       ...mapPlayers(match.homePlayers, "home"),
       ...mapPlayers(match.awayPlayers, "away"),
     ];
-  };
+  }, []);
 
   const submit = async () => {
     setIsSubmitting(true);
@@ -626,7 +618,7 @@ export default function ScoringAdminClient({
       return;
     }
     setRows(buildRows(selectedMatch));
-  }, [selectedMatch]);
+  }, [selectedMatch, buildRows, shouldShowStatsEditor]);
 
   const startEditingMatch = (match: MatchRow) => {
     setEditingMatchId(match.id);

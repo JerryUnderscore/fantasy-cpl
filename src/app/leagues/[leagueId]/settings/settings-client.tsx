@@ -64,9 +64,11 @@ export default function SettingsClient({ leagueId, leagueName }: Props) {
 
   useEffect(() => {
     let active = true;
-    setError(null);
 
     const load = async () => {
+      await Promise.resolve();
+      if (!active) return;
+      setError(null);
       const res = await fetch(`/api/leagues/${leagueId}/settings`);
       const data = await res.json().catch(() => null);
       if (!active) return;

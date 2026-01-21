@@ -1,6 +1,4 @@
 "use client";
-
-import { useEffect, useState } from "react";
 import { formatPlayerName } from "@/lib/players";
 
 type Position = "GK" | "DEF" | "MID" | "FWD";
@@ -36,14 +34,6 @@ export default function PlayersTableClient({
   updatePlayer,
   togglePlayerActive,
 }: Props) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) return null;
-
   return (
     <div className="overflow-x-auto rounded-2xl border border-zinc-200">
       <table className="min-w-full text-left text-sm">

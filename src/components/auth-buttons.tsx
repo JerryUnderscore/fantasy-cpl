@@ -86,7 +86,7 @@ export default function AuthButtons({ isAuthenticated }: AuthButtonsProps) {
       <button
         type="button"
         onClick={handleSignOut}
-        className="rounded-full border border-black/10 px-5 py-2 text-sm font-medium text-black transition hover:bg-black/5"
+        className="rounded-full border border-[var(--border)] px-5 py-2 text-sm font-medium text-[var(--text)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
       >
         Sign out
       </button>
@@ -98,19 +98,19 @@ export default function AuthButtons({ isAuthenticated }: AuthButtonsProps) {
       <button
         type="button"
         onClick={handleDiscordSignIn}
-        className="rounded-full bg-black px-5 py-2 text-sm font-medium text-white transition hover:bg-black/80"
+        className="rounded-full bg-[var(--accent)] px-5 py-2 text-sm font-medium text-[var(--background)] transition hover:bg-[var(--accent-muted)]"
       >
         Sign in with Discord
       </button>
 
-      <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
-        <span className="h-px flex-1 bg-zinc-200" />
+      <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+        <span className="h-px flex-1 bg-[var(--border)]" />
         Or
-        <span className="h-px flex-1 bg-zinc-200" />
+        <span className="h-px flex-1 bg-[var(--border)]" />
       </div>
 
       <form onSubmit={handleEmailAuth} className="flex flex-col gap-3">
-        <label className="flex flex-col gap-2 text-sm font-medium text-zinc-700">
+        <label className="flex flex-col gap-2 text-sm font-medium text-[var(--text)]">
           Email
           <input
             type="email"
@@ -118,10 +118,10 @@ export default function AuthButtons({ isAuthenticated }: AuthButtonsProps) {
             onChange={(event) => setEmail(event.target.value)}
             autoComplete="email"
             required
-            className="rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-900 shadow-sm focus:border-zinc-400 focus:outline-none"
+            className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--text)] shadow-sm focus:border-[var(--accent)] focus:outline-none"
           />
         </label>
-        <label className="flex flex-col gap-2 text-sm font-medium text-zinc-700">
+        <label className="flex flex-col gap-2 text-sm font-medium text-[var(--text)]">
           Password
           <input
             type="password"
@@ -132,13 +132,13 @@ export default function AuthButtons({ isAuthenticated }: AuthButtonsProps) {
             }
             required
             minLength={6}
-            className="rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-900 shadow-sm focus:border-zinc-400 focus:outline-none"
+            className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--text)] shadow-sm focus:border-[var(--accent)] focus:outline-none"
           />
         </label>
         <button
           type="submit"
           disabled={isSubmitting}
-          className="rounded-full bg-black px-5 py-2 text-sm font-medium text-white transition hover:bg-black/80 disabled:cursor-not-allowed disabled:bg-black/40"
+          className="rounded-full bg-[var(--accent)] px-5 py-2 text-sm font-medium text-[var(--background)] transition hover:bg-[var(--accent-muted)] disabled:cursor-not-allowed disabled:bg-[var(--border)]"
         >
           {mode === "signup" ? "Create account" : "Sign in"}
         </button>
@@ -147,7 +147,7 @@ export default function AuthButtons({ isAuthenticated }: AuthButtonsProps) {
       {status ? (
         <p
           className={`text-sm ${
-            status.type === "error" ? "text-red-600" : "text-emerald-600"
+            status.type === "error" ? "text-[var(--danger)]" : "text-[var(--success)]"
           }`}
         >
           {status.message}
@@ -159,7 +159,7 @@ export default function AuthButtons({ isAuthenticated }: AuthButtonsProps) {
         onClick={() =>
           setMode((current) => (current === "signup" ? "signin" : "signup"))
         }
-        className="text-left text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
+        className="text-left text-sm font-medium text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text)] hover:underline"
       >
         {mode === "signup"
           ? "Already have an account? Sign in."

@@ -1,8 +1,11 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import ProfileSync from "@/components/profile-sync";
-import UserMenu from "@/components/user-menu";
+import AppHeader from "@/components/app-header";
+import {
+  getActiveSeason,
+  getCurrentMatchWeekForSeason,
+} from "@/lib/matchweek";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -38,23 +41,58 @@ export default async function AppShell({ children }: AppShellProps) {
     "Account";
   const avatarUrl = profile?.avatarUrl ?? user?.user_metadata?.avatar_url ?? null;
   const isAdmin = profile?.isAdmin ?? false;
+  const isAuthenticated = Boolean(user);
+
+  const activeSeason = await getActiveSeason();
+  let lineupLockAt: Date | null = null;
+  let nextMatchweekStartsAt: Date | null = null;
+  let currentMatchWeekStatus: string | null = null;
+
+  if (activeSeason) {
+    const currentMatchWeek = await getCurrentMatchWeekForSeason(activeSeason.id);
+    if (currentMatchWeek) {
+      currentMatchWeekStatus = currentMatchWeek.status;
+      const earliestCurrentKickoff = await prisma.match.findFirst({
+        where: { matchWeekId: currentMatchWeek.id },
+        orderBy: { kickoffAt: "asc" },
+        select: { kickoffAt: true },
+      });
+      lineupLockAt =
+        earliestCurrentKickoff?.kickoffAt ?? currentMatchWeek.lockAt ?? null;
+
+      const nextMatchWeek = await prisma.matchWeek.findFirst({
+        where: {
+          seasonId: activeSeason.id,
+          number: { gt: currentMatchWeek.number },
+        },
+        orderBy: { number: "asc" },
+        select: { id: true, lockAt: true },
+      });
+
+      if (nextMatchWeek) {
+        const earliestNextKickoff = await prisma.match.findFirst({
+          where: { matchWeekId: nextMatchWeek.id },
+          orderBy: { kickoffAt: "asc" },
+          select: { kickoffAt: true },
+        });
+        nextMatchweekStartsAt =
+          earliestNextKickoff?.kickoffAt ?? nextMatchWeek.lockAt ?? null;
+      }
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-zinc-50">
-      <header className="border-b border-zinc-200 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-[1300px] items-center justify-between px-6 py-4">
-          <Link href="/" className="text-lg font-semibold text-zinc-900">
-            Fantasy CPL
-          </Link>
-          <UserMenu
-            isAuthenticated={Boolean(user)}
-            displayName={displayName}
-            avatarUrl={avatarUrl}
-            hasOwnedLeagues={hasOwnedLeagues}
-            isAdmin={isAdmin}
-          />
-        </div>
-      </header>
+    <div className="min-h-screen bg-[var(--background)] text-[var(--text)]">
+      <AppHeader
+        isAuthenticated={isAuthenticated}
+        displayName={displayName}
+        avatarUrl={avatarUrl}
+        hasOwnedLeagues={hasOwnedLeagues}
+        isAdmin={isAdmin}
+        lineupLockAt={lineupLockAt?.toISOString() ?? null}
+        nextMatchweekStartsAt={nextMatchweekStartsAt?.toISOString() ?? null}
+        currentMatchWeekStatus={currentMatchWeekStatus}
+      />
       <ProfileSync isAuthenticated={Boolean(user)} />
       <main className="mx-auto w-full max-w-[1300px] px-6 py-8">
         {children}

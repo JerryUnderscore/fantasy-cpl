@@ -27,34 +27,11 @@ export async function getAdminConsoleData() {
       })
     : [];
 
-  const players = season
-    ? await prisma.player.findMany({
-        where: { seasonId: season.id, active: true },
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          name: true,
-          jerseyNumber: true,
-          position: true,
-          club: { select: { shortName: true, slug: true } },
-        },
-      })
-    : [];
-
-  const playerOptions = players.map((player) => ({
-    id: player.id,
-    name: player.name,
-    jerseyNumber: player.jerseyNumber,
-    position: player.position,
-    clubLabel: player.club?.shortName ?? player.club?.slug ?? "",
-  }));
-
   const canWrite =
     process.env.ALLOW_DEV_STAT_WRITES === "true" || profile.isAdmin;
 
   return {
     season,
-    playerOptions,
     matchWeeks,
     seasons,
     clubs,
