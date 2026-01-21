@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { requireAdminUser } from "@/lib/admin";
 import PlayersTableClient from "./players-table-client";
 import { getClubDisplayName } from "@/lib/clubs";
-import { getClubDisplayName } from "@/lib/clubs";
 
 export const runtime = "nodejs";
 
