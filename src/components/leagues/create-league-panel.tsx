@@ -9,14 +9,16 @@ export default function CreateLeaguePanel() {
         </p>
         <span className="text-xs text-[var(--text-muted)]">New</span>
       </div>
+
       <p className="mt-3 text-sm text-[var(--text-muted)]">
         Customize your league settings, schedule, and invite friends.
       </p>
+
       <Link
         href="/leagues/create"
-        className="mt-4 inline-flex items-center justify-center rounded-2xl bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--accent-muted)]"
+        className="mt-4 inline-flex items-center justify-center rounded-2xl bg-[var(--accent)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--accent-muted)] !text-black !opacity-100 !visible relative z-10"
       >
-        Create league
+        <span className="relative z-10 !text-black">Create league</span>
       </Link>
     </div>
   );
