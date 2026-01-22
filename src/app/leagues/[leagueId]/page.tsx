@@ -255,7 +255,8 @@ export default async function LeagueDetailPage({
             {showDraftButton ? (
               <Link
                 href={`/leagues/${league.id}/draft`}
-                className="rounded-full bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--background)] transition hover:bg-[var(--accent-muted)]"
+              className="inline-flex items-center justify-center rounded-full bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition hover:bg-[var(--accent-muted)]"
+              style={{ color: "#101014" }}
               >
                 Draft
               </Link>
