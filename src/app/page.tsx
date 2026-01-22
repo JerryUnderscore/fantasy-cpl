@@ -1,126 +1,234 @@
+import Image from "next/image";
 import Link from "next/link";
+import LandingLineup, {
+  type StaticSlot,
+} from "@/components/landing-lineup";
+import type { PositionKey } from "@/components/lineup-pitch";
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
+import { getActiveSeason } from "@/lib/matchweek";
 
-export const runtime = "nodejs";
+const STARTING_LINEUP: Array<{ key: PositionKey; players: string[] }> = [
+  { key: "FWD", players: ["Tiago Coimbra", "Tobias Warschewski"] },
+  {
+    key: "MID",
+    players: ["Manny Aparicio", "Kyle Bekker", "Ollie Bassett", "Sean Rea"],
+  },
+  {
+    key: "DEF",
+    players: [
+      "Daniel Nimick",
+      "Thomas Meilleur-Giguère",
+      "Daan Klomp",
+      "Noah Abatneh",
+    ],
+  },
+  { key: "GK", players: ["Nathan Ingham"] },
+];
+
+const BENCH_PLAYERS = [
+  "Marco Bustos",
+  "David Norman Jr.",
+  "Julian Altobelli",
+  "David Choinière",
+];
+
+const PLAYER_NAMES = [
+  ...STARTING_LINEUP.flatMap((group) => group.players),
+  ...BENCH_PLAYERS,
+];
+
+const FEATURE_CALLOUTS = [
+  { icon: "/icons/soccer-ball.png", text: "Draft your team from CPL players." },
+  { icon: "/icons/clipboard.svg", text: "Set a weekly lineup—no salary cap." },
+  { icon: "/icons/monitor.png", text: "Score points from real matches." },
+];
+
+const WHY_REASONS = [
+  "Built for Canadian Premier League fans.",
+  "Private leagues only. No global leaderboards.",
+  "Beta season. Community first.",
+];
+
+type PlayerLookup = {
+  name: string;
+  position: string;
+  clubName: string | null;
+  clubSlug: string | null;
+  jerseyNumber: number | null;
+};
 
 export default async function Home() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const season = await getActiveSeason();
 
-  const profile = user
-    ? await prisma.profile.findUnique({
-        where: { id: user.id },
-        select: { displayName: true },
-      })
-    : null;
-
-  const memberships = user
-    ? await prisma.leagueMember.findMany({
-        where: { profileId: user.id },
-        include: { league: { select: { id: true, name: true } } },
-        orderBy: { createdAt: "desc" },
+  const players = season
+    ? await prisma.player.findMany({
+        where: { seasonId: season.id, name: { in: PLAYER_NAMES } },
+        select: {
+          name: true,
+          position: true,
+          jerseyNumber: true,
+          club: { select: { shortName: true, slug: true } },
+        },
       })
     : [];
 
+  const lookup = new Map<string, PlayerLookup>();
+
+  // Default entries so the pitch still renders even if a lookup fails.
+  for (const name of PLAYER_NAMES) {
+    lookup.set(name, {
+      name,
+      position: "Player",
+      clubName: null,
+      clubSlug: null,
+      jerseyNumber: null,
+    });
+  }
+
+  for (const player of players) {
+    lookup.set(player.name, {
+      name: player.name,
+      position: player.position,
+      jerseyNumber: player.jerseyNumber,
+      clubName: player.club?.shortName ?? null,
+      clubSlug: player.club?.slug ?? null,
+    });
+  }
+
+  const buildSlot = (name: string): StaticSlot => {
+    const player = lookup.get(name);
+    return {
+      id: name,
+      name,
+      clubName: player?.clubName ?? null,
+      clubSlug: player?.clubSlug ?? null,
+      position: player?.position ?? "Player",
+      jerseyNumber: player?.jerseyNumber ?? null,
+    };
+  };
+
+  const startersByPosition: Record<PositionKey, StaticSlot[]> = {
+    FWD: [],
+    MID: [],
+    DEF: [],
+    GK: [],
+  };
+
+  for (const group of STARTING_LINEUP) {
+    startersByPosition[group.key] = group.players.map(buildSlot);
+  }
+
+  const benchSlots = BENCH_PLAYERS.map(buildSlot);
+
   return (
     <div className="flex flex-col gap-10">
-      <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-          Welcome back
-        </p>
-        <h1 className="text-3xl font-semibold text-zinc-900">Dashboard</h1>
-        <p className="text-sm text-zinc-500">
-          {user
-            ? `Manage your teams and leagues${profile?.displayName ? ", " + profile.displayName : ""}.`
-            : "Sign in to view your leagues and manage your teams."}
-        </p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Link
-          href="/leagues"
-          className="group rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:border-zinc-300 hover:shadow"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-zinc-900">
-                My Leagues
-              </h2>
-              <p className="text-sm text-zinc-500">
-                View your teams, standings, and drafts.
-              </p>
-            </div>
-            <span className="text-sm font-semibold text-zinc-400 transition group-hover:text-zinc-600">
-              View
-            </span>
-          </div>
-        </Link>
-        <Link
-          href="/players"
-          className="group rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:border-zinc-300 hover:shadow"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-zinc-900">
-                Players
-              </h2>
-              <p className="text-sm text-zinc-500">
-                Browse the current player pool.
-              </p>
-            </div>
-            <span className="text-sm font-semibold text-zinc-400 transition group-hover:text-zinc-600">
-              Browse
-            </span>
-          </div>
-        </Link>
-      </div>
-
-      {user ? (
-        <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-zinc-900">
-              Your leagues
-            </h3>
+      <section className="relative mx-auto w-full max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#0c0f14] via-[#11141d] to-[#081019] px-8 py-12 text-center shadow-[0_25px_80px_rgba(4,5,9,0.9)]">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-60"
+          aria-hidden="true"
+          style={{
+            background:
+              "radial-gradient(circle at top, rgba(255,255,255,0.08), transparent 45%), radial-gradient(circle at 20% 80%, rgba(255,255,255,0.06), transparent 55%)",
+          }}
+        />
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-32"
+          aria-hidden="true"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(255,255,255,0.12), transparent)",
+          }}
+        />
+        <div className="relative space-y-6">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-semibold leading-tight text-white">
+            Fantasy Canadian Premier League.
+          </h1>
+          <p className="mx-auto max-w-2xl text-lg text-white/80">
+            Simple rules. Draft-based. Built for real fans.
+          </p>
+          <p className="mx-auto max-w-2xl text-base text-white/70">
+            Draft players from the Canadian Premier League, manage your starting
+            eleven, and compete with friends in a lightweight fantasy experience
+            that respects supporters first.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-4">
             <Link
               href="/leagues"
-              className="text-sm font-semibold text-zinc-500 transition hover:text-zinc-900"
+              className="rounded-full bg-[#fbc634] px-6 py-3 text-base font-semibold transition hover:bg-[#ffd860]"
+              style={{ color: "#101014" }}
             >
-              Manage
+              Create a League
+            </Link>
+            <Link
+              href="/leagues"
+              className="rounded-full border border-white/40 px-6 py-3 text-base font-semibold text-white transition hover:border-white/70"
+            >
+              Join a League
             </Link>
           </div>
-          {memberships.length === 0 ? (
-            <p className="mt-4 text-sm text-zinc-500">
-              You have not joined any leagues yet.
-            </p>
-          ) : (
-            <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-              {memberships.slice(0, 4).map((membership) => (
-                <li
-                  key={membership.id}
-                  className="rounded-xl border border-zinc-200 px-4 py-3"
-                >
-                  <Link
-                    href={`/leagues/${membership.league.id}`}
-                    className="text-sm font-semibold text-zinc-900 hover:underline"
-                  >
-                    {membership.league.name}
-                  </Link>
-                  <p className="text-xs uppercase tracking-wide text-zinc-500">
-                    {membership.role}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ) : (
-        <section className="rounded-2xl border border-dashed border-zinc-300 bg-white p-6 text-sm text-zinc-500">
-          Sign in to see your leagues and personalize your dashboard.
-        </section>
-      )}
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-5xl rounded-3xl border border-[var(--border)] bg-[var(--surface2)] p-8 shadow-sm">
+        <div className="flex flex-col gap-1">
+          <p className="text-xs uppercase tracking-[0.3em] text-[var(--text-muted)]">
+            Line selection
+          </p>
+          <h2 className="text-2xl font-semibold text-[var(--text)]">
+            Sample starting eleven
+          </h2>
+          <p className="text-sm text-[var(--text-muted)]">
+            This is a static lineup preview inspired by the pitch view in your
+            team settings.
+          </p>
+        </div>
+
+        <div className="mt-6">
+          <LandingLineup
+            startersByPosition={startersByPosition}
+            bench={benchSlots}
+            benchDescription="Bench spots stay flexible until your league locks lineups."
+          />
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-5xl rounded-3xl border border-[var(--border)] bg-[var(--surface2)] p-8 shadow-sm">
+        <div className="grid gap-6 border-b border-white/10 pb-6 sm:grid-cols-3">
+          {FEATURE_CALLOUTS.map((feature) => (
+            <div
+              key={feature.text}
+              className="flex flex-col items-center gap-3 text-center"
+            >
+              <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/20 bg-white/5 p-3">
+                <Image
+                  src={feature.icon}
+                  alt={feature.text}
+                  width={40}
+                  height={40}
+                  className="h-full w-full object-contain"
+                  priority
+                />
+              </div>
+              <p className="text-sm font-semibold text-white">{feature.text}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 text-center">
+          <h3 className="text-xl font-semibold text-white">Why this exists</h3>
+          <ul className="mt-4 space-y-2 text-sm text-[var(--text-muted)]">
+            {WHY_REASONS.map((reason) => (
+              <li
+                key={reason}
+                className="flex items-start justify-center gap-2"
+              >
+                <span className="mt-1 inline-block h-2 w-2 rounded-full bg-[#c7a55b]" />
+                <span>{reason}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
     </div>
   );
 }

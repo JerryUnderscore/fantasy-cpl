@@ -4,16 +4,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type DragEvent } from "react";
 import { getClubDisplayName } from "@/lib/clubs";
-
-type PositionKey = "GK" | "DEF" | "MID" | "FWD";
-
-const POSITION_KEYS: PositionKey[] = ["GK", "DEF", "MID", "FWD"];
-const POSITION_LABELS: Record<PositionKey, string> = {
-  GK: "Goalkeeper",
-  DEF: "Defense",
-  MID: "Midfield",
-  FWD: "Attack",
-};
+import LineupPitch, {
+  POSITION_KEYS,
+  type PositionKey,
+} from "@/components/lineup-pitch";
+import PlayerPitchSlot from "@/components/pitch/player-pitch-slot";
 
 type Slot = {
   id: string;
@@ -45,9 +40,6 @@ const getPositionKey = (slot: Slot): PositionKey => {
     ? (candidate as PositionKey)
     : "MID";
 };
-
-const getKitSrc = (slot: Slot) =>
-  slot.player?.club?.slug ? `/kits/${slot.player.club.slug}.svg` : null;
 
 export default function RosterClient({
   leagueId,
@@ -258,13 +250,6 @@ export default function RosterClient({
   const renderPitchSlot = (slot: Slot) => {
     const canDrop = canDropOnStarter(slot);
     const isDropTarget = dropTargetId === slot.id;
-    const playerLabel = slot.player
-      ? slot.player.jerseyNumber != null
-        ? `${slot.player.name} (${slot.player.jerseyNumber})`
-        : slot.player.name
-      : null;
-    const kitSrc = getKitSrc(slot);
-    const clubName = slot.player ? buildSlotClubName(slot.player.club) : null;
 
     return (
       <div
@@ -276,54 +261,20 @@ export default function RosterClient({
           }
         }}
         onDrop={(event) => handleDrop(event, slot)}
-        className={`flex w-full max-w-[160px] flex-col items-center gap-2 rounded-2xl px-2 py-3 transition ${
+        className={`flex w-full max-w-[160px] flex-col items-center gap-3 rounded-2xl px-2 py-3 transition ${
           isDropTarget
             ? "bg-white/20 ring-2 ring-amber-200"
             : "bg-transparent"
         } ${canDrop ? "cursor-copy" : ""}`}
       >
-        <div
-          className={`relative flex h-16 w-16 items-center justify-center rounded-[18px] border-2 shadow-sm transition ${
-            slot.player
-              ? "border-white/70 bg-white/10"
-              : "border-white/50 border-dashed bg-white/10 text-white/70"
-          }`}
-        >
-          {slot.player ? (
-            <>
-              {kitSrc ? (
-                <Image
-                  src={kitSrc}
-                  alt={clubName ? `${clubName} kit` : "Club kit"}
-                  width={56}
-                  height={56}
-                  className="h-14 w-14 object-contain"
-                />
-              ) : (
-              <span className="text-lg font-semibold text-white">#</span>
-            )}
-              {slot.player.jerseyNumber != null ? (
-                <span className="absolute bottom-[-6px] right-[-6px] flex h-6 w-6 items-center justify-center rounded-full bg-white text-[10px] font-semibold text-emerald-950 shadow-sm">
-                  {slot.player.jerseyNumber}
-                </span>
-              ) : null}
-            </>
-          ) : (
-            <span className="text-lg font-semibold text-white">#</span>
-          )}
-        </div>
-        <div className="flex flex-col items-center gap-1">
-          <span className="text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">
-            {POSITION_LABELS[getPositionKey(slot)]}
-          </span>
-          <span className="text-center text-xs font-semibold text-white">
-            {playerLabel ?? "Open slot"}
-          </span>
-          {slot.player ? (
-            <span className="text-[10px] text-white/70">
-              {slot.player.position} · {clubName ?? ""}
-            </span>
-          ) : null}
+        <PlayerPitchSlot
+          playerName={slot.player?.name ?? "Open slot"}
+          position={slot.player?.position ?? "Player"}
+          clubName={slot.player ? buildSlotClubName(slot.player.club) : null}
+          clubSlug={slot.player?.club?.slug ?? null}
+          jerseyNumber={slot.player?.jerseyNumber ?? null}
+        />
+        <div className="flex flex-col items-center gap-2">
           {slot.player ? (
             <button
               type="button"
@@ -479,63 +430,19 @@ export default function RosterClient({
           </div>
         </div>
       ) : null}
-      <div className="pitch-enter rounded-[32px] border border-emerald-950/20 bg-[linear-gradient(180deg,#1f5e2c_0%,#17401f_100%)] p-6 shadow-[0_20px_60px_rgba(4,33,18,0.25)]">
-        <div className="relative min-h-[760px] max-h-[920px] w-full overflow-hidden rounded-[26px] border border-white/50">
-            <div className="absolute inset-0 bg-[repeating-linear-gradient(0deg,rgba(255,255,255,0.08),rgba(255,255,255,0.08)_32px,rgba(255,255,255,0.02)_32px,rgba(255,255,255,0.02)_64px)]" />
-            <div className="absolute inset-4 rounded-[22px] border-2 border-white/60" />
-            <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/60" />
-            <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/80" />
-            <div className="absolute left-1/2 top-4 h-16 w-36 -translate-x-1/2 rounded-b-[18px] border-2 border-white/60" />
-            <div className="absolute left-1/2 bottom-4 h-16 w-36 -translate-x-1/2 rounded-t-[18px] border-2 border-white/60" />
-            <div className="relative z-10 grid h-full grid-rows-4 gap-3 px-4 py-6">
-              {["FWD", "MID", "DEF", "GK"].map((key) => (
-                <div
-                  key={key}
-                  className="flex flex-col items-center justify-center gap-3"
-                >
-                  <div className="text-center text-[10px] font-semibold uppercase tracking-[0.35em] text-white/70">
-                    {POSITION_LABELS[key as PositionKey]}
-                  </div>
-                  <div className="grid grid-flow-col auto-cols-fr items-start justify-items-center gap-3">
-                    {(startersByPosition[key as PositionKey] ?? []).length > 0
-                      ? startersByPosition[key as PositionKey].map(renderPitchSlot)
-                      : null}
-                    {(startersByPosition[key as PositionKey] ?? []).length === 0 ? (
-                      <div className="rounded-full border border-white/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/70">
-                        No starters
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {updateError ? (
-            <div className="mt-4 rounded-2xl border border-rose-200/60 bg-rose-50/80 px-4 py-3 text-sm text-rose-700">
-              {updateError}
-            </div>
-          ) : null}
-
-          <div className="mt-6 rounded-[26px] border border-white/40 bg-[linear-gradient(135deg,rgba(134,239,172,0.7),rgba(56,189,248,0.6))] p-5 shadow-[0_16px_40px_rgba(7,40,32,0.25)]">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-950">
-                  Bench
-                </p>
-                <p className="text-xs text-emerald-900/80">
-                  Drag a bench player onto a starter to swap.
-                </p>
-              </div>
-              <span className="rounded-full bg-emerald-950/10 px-3 py-1 text-xs font-semibold text-emerald-950">
-                {bench.length} slots
-              </span>
-            </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {bench.map((slot, index) => renderBenchSlot(slot, index))}
-            </div>
-          </div>
-      </div>
+      <LineupPitch
+        startersByPosition={startersByPosition}
+        bench={bench}
+        renderPitchSlot={renderPitchSlot}
+        renderBenchSlot={renderBenchSlot}
+        benchDescription="Drag a bench player onto a starter to swap."
+        benchCountLabel={(count) => (
+          <span className="rounded-full bg-emerald-950/10 px-3 py-1 text-xs font-semibold text-emerald-950">
+            {count} slots
+          </span>
+        )}
+        errorMessage={updateError}
+      />
     </div>
   );
 }
