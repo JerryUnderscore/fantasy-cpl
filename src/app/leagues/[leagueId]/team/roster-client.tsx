@@ -31,6 +31,9 @@ type Props = {
   isLocked?: boolean;
 };
 
+const getKitSrc = (slot: Slot) =>
+  slot.player?.club?.slug ? `/kits/${slot.player.club.slug}.svg` : null;
+
 const buildSlotClubName = (club: Slot["player"]["club"] | null) =>
   club?.slug ? getClubDisplayName(club.slug, club.shortName ?? null) : null;
 

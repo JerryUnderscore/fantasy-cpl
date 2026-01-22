@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import UserMenu from "./user-menu";
 
 const NAV_ITEMS = [
-  { label: "My Teams", href: "/" },
+  { label: "My Teams", href: "/my-teams" },
   { label: "Leagues", href: "/leagues" },
   { label: "Stats", href: "/players" },
   { label: "Schedule", href: "/schedule" },
