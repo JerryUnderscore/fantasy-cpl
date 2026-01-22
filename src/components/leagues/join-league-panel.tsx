@@ -74,9 +74,9 @@ export default function JoinLeaguePanel() {
           <button
             type="submit"
             disabled={pending}
-            className="flex-1 rounded-2xl bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:bg-[var(--accent-muted)] disabled:cursor-not-allowed"
+            className="flex-1 rounded-2xl bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[var(--accent-muted)] disabled:cursor-not-allowed"
           >
-            {pending ? "Joining…" : "Join league"}
+            <span className="inline-block">{pending ? "Joining…" : "Join league"}</span>
           </button>
         </div>
         {error ? (

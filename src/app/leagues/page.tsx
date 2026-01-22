@@ -8,6 +8,17 @@ import { loadLeaguesView } from "@/lib/leagues-view";
 export const runtime = "nodejs";
 
 export default async function LeaguesPage() {
+  const testMode = process.env.NEXT_PUBLIC_LEAGUES_TEST_MODE === "1";
+  if (testMode) {
+    const testView = getTestLeaguesView();
+    return (
+      <LeaguesPageLayout
+        myLeagues={testView.myLeagues}
+        openLeagues={testView.openLeagues}
+      />
+    );
+  }
+
   const supabase = await createClient();
   const {
     data: { user },

@@ -25,6 +25,32 @@ const formatLeagueStatus = (params: {
   return "Draft complete";
 };
 
+const TEST_MY_LEAGUE: MyLeagueViewModel = {
+  league: {
+    id: "test-league-1",
+    name: "Test League",
+    seasonLabel: "2025 · Spring",
+    inviteCode: "TEST123",
+  },
+  teamName: "Test FC",
+  standings: { rank: 3, totalTeams: 10 },
+  statusText: "Draft scheduled Apr 5",
+  role: "OWNER",
+  isOwner: true,
+};
+
+const TEST_OPEN_LEAGUES: OpenLeagueViewModel[] = [
+  { id: "public-1", name: "Open Cup", teamsCount: 12 },
+  { id: "public-2", name: "Community Series", teamsCount: 8 },
+];
+
+export function getTestLeaguesView() {
+  return {
+    myLeagues: [TEST_MY_LEAGUE],
+    openLeagues: TEST_OPEN_LEAGUES,
+  };
+}
+
 export async function loadLeaguesView(profileId: string) {
   const memberships = await prisma.leagueMember.findMany({
     where: { profileId },
