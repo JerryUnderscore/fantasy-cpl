@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import AppShell from "@/components/app-shell";
+import { Analytics } from "@vercel/analytics/next";
 
 export const runtime = "nodejs";
 

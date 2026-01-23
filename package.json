@@ -18,12 +18,14 @@
     "@prisma/client": "^7.2.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.90.1",
+    "@vercel/analytics": "^1.6.1",
     "next": "16.1.1",
     "pg": "^8.16.3",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.51.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -33,8 +35,7 @@
     "prisma": "^7.2.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5",
-    "@playwright/test": "^1.51.1"
+    "typescript": "^5"
   },
   "overrides": {
     "hono": "^4.11.4"
