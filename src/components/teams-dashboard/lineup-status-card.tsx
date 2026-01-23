@@ -57,7 +57,7 @@ export default function LineupStatusCard({
   const statusTag = labelParts.length > 0 ? labelParts.join(" • ") : statusTitles[state];
 
   return (
-    <div className="flex flex-col gap-6 rounded-3xl border border-[var(--border)] bg-gradient-to-br from-[#11141d] via-[#0d1015] to-[#060608] p-6 shadow-[0_25px_80px_rgba(0,0,0,0.6)]">
+      <div className="flex flex-col gap-6 rounded-3xl border border-[var(--border)] bg-gradient-to-br from-[#11141d] via-[#0d1015] to-[#060608] p-6 shadow-[0_25px_80px_rgba(0,0,0,0.6)]">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)]">
           Lineup status
@@ -79,13 +79,15 @@ export default function LineupStatusCard({
       <div className="flex flex-wrap items-center gap-3">
         <Link
           href={`/leagues/${leagueId}/team`}
-          className={`rounded-full px-5 py-3 text-sm font-semibold transition ${
+          className={`inline-flex rounded-full px-5 py-3 text-sm font-semibold transition ${
             needsAction
-              ? "bg-[var(--accent)] text-[var(--background)] hover:bg-[var(--accent-muted)]"
+              ? "bg-[var(--accent)] text-black hover:bg-[var(--accent-muted)]"
               : "border border-white/10 text-[var(--text-muted)]"
           }`}
         >
-          {needsAction ? "Set lineup" : "View lineup"}
+          <span className={`inline-block ${needsAction ? "text-black" : ""}`}>
+            {needsAction ? "Set lineup" : "View lineup"}
+          </span>
         </Link>
         <p className="text-xs text-[var(--text-muted)]">Locks {formatLockTime(upcomingMatchweek.lockAt)}</p>
       </div>

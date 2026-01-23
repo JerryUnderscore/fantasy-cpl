@@ -16,9 +16,9 @@ export default function CreateLeaguePanel() {
 
       <Link
         href="/leagues/create"
-        className="mt-4 inline-flex items-center justify-center rounded-2xl bg-[var(--accent)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--accent-muted)] !text-black !opacity-100 !visible relative z-10"
+        className="mt-4 inline-flex items-center justify-center rounded-2xl bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[var(--accent-muted)] relative z-10"
       >
-        <span className="relative z-10 !text-black">Create league</span>
+        <span className="inline-block text-black">Create league</span>
       </Link>
     </div>
   );
