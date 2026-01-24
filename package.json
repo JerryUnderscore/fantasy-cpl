@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build --webpack",
     "backfill:lineup-starters": "tsx scripts/backfill-lineup-starters.ts",
-    "postinstall": "prisma generate",
+    "postinstall": "node -e \"const a=require('prisma/package.json').version,b=require('@prisma/client/package.json').version; if(a!==b) {console.error('Prisma version mismatch:',a,b); process.exit(1)}\" && prisma generate",
     "start": "next start",
     "lint": "eslint"
   },
