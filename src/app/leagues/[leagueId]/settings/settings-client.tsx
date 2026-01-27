@@ -55,6 +55,8 @@ const presetDraftSeconds = [60, 180, 300, 600];
 
 export default function SettingsClient({ leagueId, leagueName }: Props) {
   const [form, setForm] = useState<SettingsForm | null>(null);
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [inviteCopied, setInviteCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -78,6 +80,7 @@ export default function SettingsClient({ leagueId, leagueName }: Props) {
       }
       setLocked(Boolean(data?.locked));
       setForm(buildFormState(data.settings));
+      setInviteCode(data?.inviteCode ?? null);
     };
 
     load();
@@ -183,6 +186,40 @@ export default function SettingsClient({ leagueId, leagueName }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
+      {form.joinMode === "INVITE_ONLY" ? (
+        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">
+              Invite code
+            </h2>
+            <p className="text-sm text-zinc-600">
+              Share this code with the people you want to invite.
+            </p>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <span className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold tracking-[0.3em] text-zinc-900">
+              {inviteCode ?? "—"}
+            </span>
+            {inviteCode ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(inviteCode);
+                    setInviteCopied(true);
+                    window.setTimeout(() => setInviteCopied(false), 1800);
+                  } catch (copyError) {
+                    console.error("Unable to copy invite code", copyError);
+                  }
+                }}
+                className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 transition hover:border-zinc-300"
+              >
+                {inviteCopied ? "Copied" : "Copy code"}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-2 text-sm text-zinc-600">

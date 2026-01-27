@@ -1,5 +1,5 @@
 export type MyLeagueViewModel = {
-  league: { id: string; name: string; seasonLabel: string; inviteCode?: string };
+  league: { id: string; name: string; seasonLabel: string };
   teamName?: string;
   standings?: { rank: number; totalTeams: number };
   statusText: string;

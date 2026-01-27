@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { getClubDisplayName } from "@/lib/clubs";
 import { formatPlayerName } from "@/lib/players";
 
 type Player = {
@@ -9,7 +10,7 @@ type Player = {
   name: string;
   jerseyNumber: number | null;
   position: "GK" | "DEF" | "MID" | "FWD";
-  club: { name: string; shortName: string | null };
+  club: { name: string; shortName: string | null; slug: string | null };
 };
 
 type Props = {
@@ -39,7 +40,7 @@ export default function PlayersClient({ players }: Props) {
   const clubs = useMemo(() => {
     const clubMap = new Map<string, string>();
     players.forEach((player) => {
-      const label = player.club.shortName ?? player.club.name;
+      const label = getClubDisplayName(player.club.slug, player.club.name);
       clubMap.set(player.club.name, label);
     });
     return Array.from(clubMap.entries())
@@ -112,15 +113,19 @@ export default function PlayersClient({ players }: Props) {
         (player.jerseyNumber !== null &&
           String(player.jerseyNumber).includes(query)) ||
         player.club.name.toLowerCase().includes(query) ||
+        getClubDisplayName(player.club.slug, player.club.name)
+          .toLowerCase()
+          .includes(query) ||
         player.club.shortName?.toLowerCase().includes(query);
       return matchesPosition && matchesClub && matchesSearch;
     });
 
     return nextPlayers.sort((a, b) => {
       if (sortOption === "CLUB_ASC") {
-        const clubCompare = (a.club.shortName ?? a.club.name).localeCompare(
-          b.club.shortName ?? b.club.name,
-        );
+        const clubCompare = getClubDisplayName(
+          a.club.slug,
+          a.club.name,
+        ).localeCompare(getClubDisplayName(b.club.slug, b.club.name));
         if (clubCompare !== 0) return clubCompare;
       }
       if (sortOption === "POSITION_ASC") {
@@ -227,7 +232,7 @@ export default function PlayersClient({ players }: Props) {
                 </td>
                 <td className="px-4 py-3">{player.position}</td>
                 <td className="px-4 py-3">
-                  {player.club.shortName ?? player.club.name}
+                  {getClubDisplayName(player.club.slug, player.club.name)}
                 </td>
               </tr>
             ))}

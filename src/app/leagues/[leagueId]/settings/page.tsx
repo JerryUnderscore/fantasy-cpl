@@ -27,7 +27,7 @@ export default async function LeagueSettingsPage({
       <div className="min-h-screen bg-zinc-50 px-6 py-16">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl bg-white p-10 shadow-sm">
           <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-semibold text-black">
+            <h1 className="text-3xl font-semibold text-[var(--accent-muted)]">
               League settings
             </h1>
             <p className="text-sm text-zinc-500">
@@ -139,7 +139,7 @@ export default async function LeagueSettingsPage({
           >
             Back to league
           </Link>
-          <h1 className="text-3xl font-semibold text-black">
+          <h1 className="text-3xl font-semibold text-[var(--accent-muted)]">
             League settings
           </h1>
           <p className="text-sm text-zinc-500">

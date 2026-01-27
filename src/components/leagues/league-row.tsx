@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import type { MyLeagueViewModel } from "./types";
 
 type LeagueRowProps = {
@@ -9,18 +8,6 @@ type LeagueRowProps = {
 };
 
 export default function LeagueRow({ data }: LeagueRowProps) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = async () => {
-    if (!data.league.inviteCode) return;
-    try {
-      await navigator.clipboard.writeText(data.league.inviteCode);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
-    } catch (error) {
-      console.error("Unable to copy", error);
-    }
-  };
-
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface2)] px-5 py-4 shadow-sm">
       <div className="flex items-start justify-between gap-4">
@@ -44,15 +31,6 @@ export default function LeagueRow({ data }: LeagueRowProps) {
             >
               Settings
             </Link>
-          ) : null}
-          {data.league.inviteCode ? (
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="rounded-full border border-[var(--border)] px-3 py-1 text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-            >
-              {copied ? "Copied" : "Copy invite"}
-            </button>
           ) : null}
         </div>
       </div>

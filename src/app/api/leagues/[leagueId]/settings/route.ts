@@ -120,6 +120,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
       where: { id: leagueId },
       select: {
         id: true,
+        inviteCode: true,
         joinMode: true,
         maxTeams: true,
         standingsMode: true,
@@ -139,6 +140,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
     const draftStarted = await getDraftStarted(leagueId);
 
     return NextResponse.json({
+      inviteCode: league.inviteCode,
       settings: {
         joinMode: league.joinMode,
         maxTeams: league.maxTeams,

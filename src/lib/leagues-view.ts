@@ -30,7 +30,6 @@ const TEST_MY_LEAGUE: MyLeagueViewModel = {
     id: "test-league-1",
     name: "Test League",
     seasonLabel: "2025 · Spring",
-    inviteCode: "TEST123",
   },
   teamName: "Test FC",
   standings: { rank: 3, totalTeams: 10 },
@@ -59,7 +58,6 @@ export async function loadLeaguesView(profileId: string) {
         select: {
           id: true,
           name: true,
-          inviteCode: true,
           season: { select: { id: true, name: true, year: true } },
           draftScheduledAt: true,
           teamCount: true,
@@ -110,7 +108,6 @@ export async function loadLeaguesView(profileId: string) {
         id: league.id,
         name: league.name,
         seasonLabel,
-        inviteCode: league.inviteCode ?? undefined,
       },
       teamName: team?.name,
       standings: { rank, totalTeams },

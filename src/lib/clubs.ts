@@ -49,12 +49,12 @@ const CLUB_META: Record<string, ClubMeta> = {
 
 const CLUB_DISPLAY_NAMES: Record<string, string> = {
   "atletico-ottawa": "Atlético Ottawa",
-  cavalry: "Cavalry",
-  forge: "Forge",
-  "hfx-wanderers": "HFX Wanderers",
-  pacific: "Pacific",
+  cavalry: "Cavalry FC",
+  forge: "Forge FC",
+  "hfx-wanderers": "HFX Wanderers FC",
+  pacific: "Pacific FC",
   vancouver: "Vancouver FC",
-  "inter-toronto": "Inter Toronto",
+  "inter-toronto": "Inter Toronto FC",
   supra: "FC Supra du Québec",
 };
 
