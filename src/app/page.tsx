@@ -54,7 +54,7 @@ export default async function Home() {
 
   const hasCustomLineup = (lineup?.slots.length ?? 0) > 0;
 
-  let startersByPosition: Record<PositionKey, StaticSlot[]> = {
+  const startersByPosition: Record<PositionKey, StaticSlot[]> = {
     FWD: [],
     MID: [],
     DEF: [],
