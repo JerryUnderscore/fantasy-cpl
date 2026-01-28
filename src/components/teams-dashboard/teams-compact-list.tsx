@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { TeamsCompactRowModel, LineupStatusState } from "./types";
+import { clickableRow } from "@/components/layout/ui-interactions";
 
 const statusDotColor: Record<LineupStatusState, string> = {
   SET: "bg-[var(--success)]",
@@ -33,7 +34,7 @@ export default function TeamsCompactList({ rows }: TeamsCompactListProps) {
             key={row.id}
             href={`/my-teams?teamId=${encodeURIComponent(row.id)}`}
             data-testid={`teams-list-row-${row.id}`}
-            className="flex items-center justify-between rounded-3xl border border-white/5 bg-[var(--surface2)] px-5 py-4 text-sm shadow-sm transition hover:border-[var(--accent)]"
+            className={`flex items-center justify-between rounded-3xl border border-white/5 bg-[var(--surface2)] px-5 py-4 text-sm shadow-sm ${clickableRow}`}
           >
             <div className="flex items-center gap-3">
               <span className={`h-3 w-3 rounded-full ${statusDotColor[row.lineupState]}`} />

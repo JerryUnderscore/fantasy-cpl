@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { OpenLeagueViewModel } from "./types";
 import SectionCard from "@/components/layout/section-card";
 import EmptyState from "@/components/layout/empty-state";
+import { clickableRow } from "@/components/layout/ui-interactions";
 
 type OpenLeaguesListProps = {
   leagues: OpenLeagueViewModel[];
@@ -25,7 +26,7 @@ export default function OpenLeaguesList({ leagues }: OpenLeaguesListProps) {
         {leagues.map((league) => (
           <div
             key={league.id}
-            className="flex items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 transition hover:border-[var(--accent)]"
+            className={`flex items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 ${clickableRow}`}
           >
             <div>
               <p className="text-sm font-semibold text-[var(--text)]">{league.name}</p>

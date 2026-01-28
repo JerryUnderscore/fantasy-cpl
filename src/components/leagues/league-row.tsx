@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { MyLeagueViewModel } from "./types";
+import { clickableSurface } from "@/components/layout/ui-interactions";
 
 type LeagueRowProps = {
   data: MyLeagueViewModel;
@@ -9,7 +10,9 @@ type LeagueRowProps = {
 
 export default function LeagueRow({ data }: LeagueRowProps) {
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface2)] px-5 py-4 shadow-sm">
+    <div
+      className={`flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface2)] px-5 py-4 shadow-sm ${clickableSurface}`}
+    >
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-lg font-semibold text-white">{data.league.name}</p>

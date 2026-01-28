@@ -100,7 +100,7 @@ export default function UserMenu({
           </div>
           <Link
             href="/account"
-            className="block rounded-xl px-3 py-2 text-sm text-[var(--text)] transition hover:bg-[var(--surface2)]"
+            className="block rounded-xl px-3 py-2 text-sm text-[var(--text)] transition hover:bg-[var(--surface2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             role="menuitem"
           >
             Account settings
@@ -108,7 +108,7 @@ export default function UserMenu({
           {hasOwnedLeagues ? (
             <Link
               href="/settings/leagues"
-              className="block rounded-xl px-3 py-2 text-sm text-[var(--text)] transition hover:bg-[var(--surface2)]"
+              className="block rounded-xl px-3 py-2 text-sm text-[var(--text)] transition hover:bg-[var(--surface2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               role="menuitem"
             >
               League settings
@@ -117,7 +117,7 @@ export default function UserMenu({
           {isAdmin ? (
             <Link
               href="/admin"
-              className="block rounded-xl px-3 py-2 text-sm text-[var(--text)] transition hover:bg-[var(--surface2)]"
+              className="block rounded-xl px-3 py-2 text-sm text-[var(--text)] transition hover:bg-[var(--surface2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               role="menuitem"
             >
               Admin
@@ -127,7 +127,7 @@ export default function UserMenu({
           <button
             type="button"
             onClick={handleSignOut}
-            className="flex w-full items-center rounded-xl px-3 py-2 text-sm text-[var(--text)] transition hover:bg-[var(--surface2)]"
+            className="flex w-full items-center rounded-xl px-3 py-2 text-sm text-[var(--text)] transition hover:bg-[var(--surface2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             role="menuitem"
           >
             Sign out
