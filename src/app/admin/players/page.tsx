@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireAdminUser } from "@/lib/admin";
 import PlayersTableClient from "./players-table-client";
 import { getClubDisplayName } from "@/lib/clubs";
+import PageHeader from "@/components/layout/page-header";
+import SectionCard from "@/components/layout/section-card";
 
 export const runtime = "nodejs";
 
@@ -436,29 +438,27 @@ export default async function AdminPlayersPage() {
 
   if (!season) {
     return (
-      <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-6 text-sm text-zinc-500">
-        Create or activate a season before editing players.
-      </div>
+      <SectionCard
+        title="Players"
+        description="Create or activate a season before editing players."
+      >
+        <p className="text-sm text-[var(--text-muted)]">
+          No active season found.
+        </p>
+      </SectionCard>
     );
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-          Player controls
-        </p>
-        <h1 className="text-2xl font-semibold text-zinc-900">
-          Manage player pool
-        </h1>
-        <p className="text-sm text-zinc-500">
-          Active season: {season.name} - {season.year}
-        </p>
-      </div>
+      <PageHeader
+        badge="Admin"
+        title="Players"
+        subtitle={`Manage the CPL player pool · ${season.name} ${season.year}`}
+      />
 
-      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-        <p className="text-sm font-semibold text-zinc-900">Add new player</p>
-        <form action={createPlayer} className="mt-4 grid gap-3 sm:grid-cols-4">
+      <SectionCard title="Add player">
+        <form action={createPlayer} className="grid gap-3 sm:grid-cols-4">
           <input
             type="text"
             name="name"
@@ -511,16 +511,15 @@ export default async function AdminPlayersPage() {
             Add player
           </button>
         </form>
-      </div>
+      </SectionCard>
 
-      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-        <p className="text-sm font-semibold text-zinc-900">Import players</p>
-        <p className="mt-1 text-xs text-zinc-500">
-          CSV columns: name, position, club (shortName or name), jerseyNumber.
-        </p>
+      <SectionCard
+        title="Import players"
+        description="CSV columns: name, position, club (shortName or name), jerseyNumber."
+      >
         <form
           action={importPlayersCsv}
-          className="mt-4 grid gap-3 sm:grid-cols-[2fr_1fr_auto]"
+          className="grid gap-3 sm:grid-cols-[2fr_1fr_auto]"
         >
           <input
             type="file"
@@ -547,15 +546,17 @@ export default async function AdminPlayersPage() {
             Upload CSV
           </button>
         </form>
-      </div>
+      </SectionCard>
 
-      <PlayersTableClient
-        players={players}
-        clubs={clubs}
-        positions={positions}
-        updatePlayer={updatePlayer}
-        togglePlayerActive={togglePlayerActive}
-      />
+      <SectionCard title="Player list">
+        <PlayersTableClient
+          players={players}
+          clubs={clubs}
+          positions={positions}
+          updatePlayer={updatePlayer}
+          togglePlayerActive={togglePlayerActive}
+        />
+      </SectionCard>
     </div>
   );
 }

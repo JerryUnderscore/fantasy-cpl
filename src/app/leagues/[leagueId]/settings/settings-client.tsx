@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import SectionCard from "@/components/layout/section-card";
 
 type Settings = {
   joinMode: "OPEN" | "INVITE_ONLY";
@@ -386,40 +387,37 @@ export default function SettingsClient({ leagueId, leagueName }: Props) {
         </span>
       </div>
 
-      <div className="rounded-2xl border border-red-200 bg-red-50 p-5">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-red-600">
-            Danger zone
-          </h2>
-          <p className="text-sm text-red-700">
-            Deleting a league is permanent and removes all teams and drafts.
-          </p>
-        </div>
-        <div className="mt-4 flex flex-col gap-3">
-          <label className="flex flex-col gap-2 text-sm text-red-700">
-            Type <span className="font-semibold">{leagueName}</span> to confirm
+      <SectionCard
+        title="Danger zone"
+        description="Deleting a league is permanent and removes all teams and drafts."
+        tone="danger"
+      >
+        <div className="flex flex-col gap-3">
+          <label className="flex flex-col gap-2 text-sm text-[var(--text-muted)]">
+            Type <span className="font-semibold text-[var(--text)]">{leagueName}</span>{" "}
+            to confirm
             <input
               type="text"
               value={deleteConfirm}
               onChange={(event) => setDeleteConfirm(event.target.value)}
-              className="rounded-2xl border border-red-200 bg-white px-3 py-2 text-sm text-red-900"
+              className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
             />
           </label>
           <button
             type="button"
             onClick={handleDelete}
             disabled={isDeleting}
-            className="w-fit rounded-2xl bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-red-400"
+            className="w-fit rounded-2xl bg-[var(--danger)] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
           >
             {isDeleting ? "Deleting…" : "Delete league"}
           </button>
           {deleteError ? (
-            <p className="rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm text-red-700">
+            <p className="rounded-2xl border border-[var(--danger)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--danger)]">
               {deleteError}
             </p>
           ) : null}
         </div>
-      </div>
+      </SectionCard>
     </div>
   );
 }

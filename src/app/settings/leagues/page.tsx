@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
+import PageHeader from "@/components/layout/page-header";
+import SectionCard from "@/components/layout/section-card";
 
 export const runtime = "nodejs";
 
@@ -12,9 +14,14 @@ export default async function LeagueSettingsIndexPage() {
 
   if (!user) {
     return (
-      <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-6 text-sm text-zinc-500">
-        Sign in to view your league settings.
-      </div>
+      <SectionCard
+        title="League settings"
+        description="Sign in to view your league settings."
+      >
+        <p className="text-sm text-[var(--text-muted)]">
+          Authentication required.
+        </p>
+      </SectionCard>
     );
   }
 
@@ -25,9 +32,14 @@ export default async function LeagueSettingsIndexPage() {
 
   if (!profile) {
     return (
-      <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-6 text-sm text-zinc-500">
-        Profile not synced yet. Refresh after syncing your profile.
-      </div>
+      <SectionCard
+        title="League settings"
+        description="Profile not synced yet. Refresh after syncing your profile."
+      >
+        <p className="text-sm text-[var(--text-muted)]">
+          Sync required.
+        </p>
+      </SectionCard>
     );
   }
 
@@ -39,41 +51,39 @@ export default async function LeagueSettingsIndexPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-          League settings
-        </p>
-        <h1 className="text-2xl font-semibold text-zinc-900">
-          Your commissioner tools
-        </h1>
-        <p className="text-sm text-zinc-500">
-          Choose a league to manage scoring, roster settings, and drafts.
-        </p>
-      </div>
+      <PageHeader
+        badge="Commissioner"
+        title="League settings"
+        subtitle="Choose a league to manage scoring, roster settings, and drafts."
+      />
 
       {ownedLeagues.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-6 text-sm text-zinc-500">
-          You are not the commissioner of any leagues yet.
-        </div>
+        <SectionCard title="No leagues yet">
+          <p className="text-sm text-[var(--text-muted)]">
+            You are not the commissioner of any leagues yet.
+          </p>
+        </SectionCard>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {ownedLeagues.map((membership) => (
-            <li
-              key={membership.id}
-              className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm"
-            >
-              <p className="text-sm font-semibold text-zinc-900">
-                {membership.league.name}
-              </p>
-              <Link
-                href={`/leagues/${membership.league.id}/settings`}
-                className="mt-3 inline-flex text-sm font-semibold text-zinc-500 transition hover:text-zinc-900"
+        <SectionCard title="Your leagues">
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {ownedLeagues.map((membership) => (
+              <li
+                key={membership.id}
+                className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4"
               >
-                Open settings
-              </Link>
-            </li>
-          ))}
-        </ul>
+                <p className="text-sm font-semibold text-[var(--text)]">
+                  {membership.league.name}
+                </p>
+                <Link
+                  href={`/leagues/${membership.league.id}/settings`}
+                  className="mt-3 inline-flex text-sm font-semibold text-[var(--text-muted)] transition hover:text-[var(--text)]"
+                >
+                  Open settings
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
       )}
     </div>
   );

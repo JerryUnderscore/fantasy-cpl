@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
 import SettingsClient from "./settings-client";
 import LeaguePageHeader from "@/components/leagues/league-page-header";
+import PageHeader from "@/components/layout/page-header";
+import SectionCard from "@/components/layout/section-card";
 
 export const runtime = "nodejs";
 
@@ -168,24 +170,25 @@ export default async function LeagueSettingsPage({
           </p>
         </div>
 
-        <section className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">
-                League configuration
-              </h2>
-              <p className="mt-2 text-sm text-zinc-600">
-                Settings picked by the commissioner for this league.
-              </p>
-            </div>
+        <PageHeader
+          badge={isOwner ? "Commissioner" : null}
+          title="League settings"
+          subtitle="League summary and commissioner tools for this league."
+        />
+
+        <SectionCard
+          title="League summary"
+          description="Settings picked by the commissioner for this league."
+          actions={
             <Link
               href="/rules"
-              className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-700 transition hover:border-zinc-300 hover:text-black"
+              className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
             >
               View full Fantasy CPL rules
             </Link>
-          </div>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          }
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-2xl border border-zinc-200 bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
                 League name
@@ -279,23 +282,18 @@ export default async function LeagueSettingsPage({
               </p>
             </div>
           </div>
-        </section>
+        </SectionCard>
 
         {isOwner ? (
-          <div className="flex flex-col gap-6">
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-700">
-                Commissioner controls
-              </h2>
-              <p className="mt-2 text-sm text-zinc-600">
-                Manage the configuration below. Changes apply league-wide.
-              </p>
-            </div>
+          <SectionCard
+            title="Commissioner tools"
+            description="Manage the configuration below. Changes apply league-wide."
+          >
             <SettingsClient
               leagueId={leagueSummary.id}
               leagueName={leagueSummary.name}
             />
-          </div>
+          </SectionCard>
         ) : (
           <p className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
             Only the commissioner can edit league settings.

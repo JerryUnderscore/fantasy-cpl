@@ -1,6 +1,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAdminUser } from "@/lib/admin";
+import PageHeader from "@/components/layout/page-header";
+import SectionCard from "@/components/layout/section-card";
 
 export const runtime = "nodejs";
 
@@ -35,79 +37,79 @@ export default async function AdminUsersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-          Users
-        </p>
-        <h1 className="text-2xl font-semibold text-zinc-900">
-          Player accounts
-        </h1>
-        <p className="text-sm text-zinc-500">
-          Promote admins and view commissioner status by league membership.
-        </p>
-      </div>
+      <PageHeader
+        badge="Admin"
+        title="Users"
+        subtitle="Manage player accounts, admin access, and commissioner status."
+      />
 
-      <div className="overflow-x-auto rounded-2xl border border-zinc-200">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
-            <tr>
-              <th className="px-4 py-3">User</th>
-              <th className="px-4 py-3">Leagues</th>
-              <th className="px-4 py-3">Commissioner</th>
-              <th className="px-4 py-3">Admin</th>
-              <th className="px-4 py-3">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100">
-            {profiles.map((profile) => {
-              const leagueCount = profile.memberships.length;
-              const commissionerCount = profile.memberships.filter(
-                (membership) => membership.role === "OWNER",
-              ).length;
+      <SectionCard title="Accounts">
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-sm">
+            <thead className="border-b border-[var(--border)] text-xs uppercase tracking-wide text-[var(--text-muted)]">
+              <tr>
+                <th className="px-4 py-3">User</th>
+                <th className="px-4 py-3">Leagues</th>
+                <th className="px-4 py-3">Commissioner</th>
+                <th className="px-4 py-3">Admin</th>
+                <th className="px-4 py-3">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--border)]">
+              {profiles.map((profile) => {
+                const leagueCount = profile.memberships.length;
+                const commissionerCount = profile.memberships.filter(
+                  (membership) => membership.role === "OWNER",
+                ).length;
 
-              return (
-                <tr key={profile.id} className="text-zinc-800">
-                  <td className="px-4 py-3">
-                    <div className="font-semibold text-zinc-900">
-                      {profile.displayName ?? "Unnamed"}
-                    </div>
-                    <div className="text-xs text-zinc-500">
-                      Discord ID: {profile.discordId ?? "-"}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-zinc-600">
-                    {leagueCount}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-zinc-600">
-                    {commissionerCount > 0
-                      ? `Yes (${commissionerCount})`
-                      : "No"}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-zinc-600">
-                    {profile.isAdmin ? "Admin" : "Standard"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <form action={setAdminStatus}>
-                      <input type="hidden" name="profileId" value={profile.id} />
-                      <input
-                        type="hidden"
-                        name="nextIsAdmin"
-                        value={profile.isAdmin ? "false" : "true"}
-                      />
-                      <button
-                        type="submit"
-                        className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900"
-                      >
-                        {profile.isAdmin ? "Revoke admin" : "Make admin"}
-                      </button>
-                    </form>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                return (
+                  <tr key={profile.id} className="text-[var(--text)]">
+                    <td className="px-4 py-3">
+                      <div className="font-semibold text-[var(--text)]">
+                        {profile.displayName ?? "Unnamed"}
+                      </div>
+                      <div className="text-xs text-[var(--text-muted)]">
+                        Discord ID: {profile.discordId ?? "-"}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
+                      {leagueCount}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
+                      {commissionerCount > 0
+                        ? `Yes (${commissionerCount})`
+                        : "No"}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
+                      {profile.isAdmin ? "Admin" : "Standard"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <form action={setAdminStatus}>
+                        <input
+                          type="hidden"
+                          name="profileId"
+                          value={profile.id}
+                        />
+                        <input
+                          type="hidden"
+                          name="nextIsAdmin"
+                          value={profile.isAdmin ? "false" : "true"}
+                        />
+                        <button
+                          type="submit"
+                          className="rounded-full border border-[var(--border)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
+                        >
+                          {profile.isAdmin ? "Revoke admin" : "Make admin"}
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
     </div>
   );
 }

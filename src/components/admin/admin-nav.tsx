@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 
 const navItems = [
   { href: "/admin/users", label: "Users" },
-  { href: "/admin/matchweeks", label: "Matchweek Controls" },
-  { href: "/admin/players", label: "Player Controls" },
+  { href: "/admin/matchweeks", label: "Matchweeks" },
+  { href: "/admin/players", label: "Players" },
   { href: "/admin/landing-lineup", label: "Landing Lineup" },
   { href: "/admin/schedule", label: "Schedule" },
 ];
@@ -25,8 +25,8 @@ export default function AdminNav() {
             href={item.href}
             className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
               isActive
-                ? "bg-zinc-900 text-white"
-                : "text-zinc-700 hover:bg-zinc-100"
+                ? "bg-[var(--surface2)] text-[var(--text)]"
+                : "text-[var(--text-muted)] hover:bg-[var(--surface2)] hover:text-[var(--text)]"
             }`}
           >
             {item.label}

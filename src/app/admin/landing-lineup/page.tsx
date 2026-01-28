@@ -11,6 +11,8 @@ import {
   POSITION_LABELS,
   type PositionKey,
 } from "@/lib/lineup-positions";
+import PageHeader from "@/components/layout/page-header";
+import SectionCard from "@/components/layout/section-card";
 
 export const runtime = "nodejs";
 
@@ -81,9 +83,14 @@ export default async function AdminLandingLineupPage() {
 
   if (!season) {
     return (
-      <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-6 text-sm text-zinc-500">
-        Create or activate a season before configuring the landing lineup.
-      </div>
+      <SectionCard
+        title="Landing lineup"
+        description="Create or activate a season before configuring the landing lineup."
+      >
+        <p className="text-sm text-[var(--text-muted)]">
+          No active season found.
+        </p>
+      </SectionCard>
     );
   }
 
@@ -142,33 +149,19 @@ export default async function AdminLandingLineupPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-          Landing lineup
-        </p>
-        <h1 className="text-2xl font-semibold text-zinc-900">
-          Configure the landing page lineup
-        </h1>
-        <p className="text-sm text-zinc-500">
-          Pick the starters and bench players shown on the marketing homepage.
-        </p>
-      </div>
+      <PageHeader
+        badge="Admin"
+        title="Landing lineup"
+        subtitle="Pick the starters and bench players shown on the marketing homepage."
+      />
 
       <form action={saveLandingLineup} className="space-y-8">
         <input type="hidden" name="seasonId" value={season.id} />
 
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold text-zinc-900">
-                Starting eleven
-              </h2>
-              <p className="text-sm text-zinc-500">
-                Starter slots only list players in the same position.
-              </p>
-            </div>
-          </div>
-
+        <SectionCard
+          title="Starting lineup"
+          description="Starter slots only list players in the same position."
+        >
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
             {POSITION_KEYS.map((position) => {
               const slotsForPosition = starterSlots.filter(
@@ -210,15 +203,12 @@ export default async function AdminLandingLineupPage() {
               );
             })}
           </div>
-        </div>
+        </SectionCard>
 
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6">
-          <div>
-            <h2 className="text-lg font-semibold text-zinc-900">Bench</h2>
-            <p className="text-sm text-zinc-500">
-              Bench slots can include any active player.
-            </p>
-          </div>
+        <SectionCard
+          title="Bench"
+          description="Bench slots can include any active player."
+        >
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             {benchSlots.map((slot) => {
               const selected = assignments.get(slot.slotKey) ?? "";
@@ -250,7 +240,7 @@ export default async function AdminLandingLineupPage() {
               );
             })}
           </div>
-        </div>
+        </SectionCard>
 
         <div className="flex items-center justify-between">
           <p className="text-sm text-zinc-500">

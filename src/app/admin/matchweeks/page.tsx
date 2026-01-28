@@ -1,5 +1,7 @@
 import ScoringAdminClient from "@/app/scoring-admin/scoring-admin-client";
 import { getAdminConsoleData } from "@/app/admin/admin-data";
+import PageHeader from "@/components/layout/page-header";
+import SectionCard from "@/components/layout/section-card";
 
 export const runtime = "nodejs";
 
@@ -15,36 +17,37 @@ export default async function AdminMatchweeksPage() {
 
   if (!season) {
     return (
-      <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-6 text-sm text-zinc-500">
-        Create or activate a season before managing matchweeks.
-      </div>
+      <SectionCard
+        title="Matchweeks"
+        description="Create or activate a season before managing matchweeks."
+      >
+        <p className="text-sm text-[var(--text-muted)]">
+          No active season found.
+        </p>
+      </SectionCard>
     );
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-          Matchweek controls
-        </p>
-        <h1 className="text-2xl font-semibold text-zinc-900">
-          Matchweek lifecycle + stats
-        </h1>
-        <p className="text-sm text-zinc-500">
-          {season.name} - {season.year}
-        </p>
-      </div>
-
-      <ScoringAdminClient
-        postUrl="/api/scoring/stats"
-        matchWeeks={matchWeeks}
-        seasons={seasons}
-        clubs={clubs}
-        canWrite={canWrite}
-        isAdmin={isAdmin}
-        showScheduleImport={false}
-        showMatchesEditor={false}
+      <PageHeader
+        badge="Admin"
+        title="Matchweeks"
+        subtitle={`Manage matchweek lifecycle and stats · ${season.name} ${season.year}`}
       />
+
+      <SectionCard title="Matchweek tools">
+        <ScoringAdminClient
+          postUrl="/api/scoring/stats"
+          matchWeeks={matchWeeks}
+          seasons={seasons}
+          clubs={clubs}
+          canWrite={canWrite}
+          isAdmin={isAdmin}
+          showScheduleImport={false}
+          showMatchesEditor={false}
+        />
+      </SectionCard>
     </div>
   );
 }

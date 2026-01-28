@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import AccountSettingsClient from "@/app/account/account-settings-client";
+import PageHeader from "@/components/layout/page-header";
+import SectionCard from "@/components/layout/section-card";
 
 export const runtime = "nodejs";
 
@@ -13,9 +15,12 @@ export default async function AccountPage() {
 
   if (!user) {
     return (
-      <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-6 text-sm text-zinc-500">
-        You need to sign in to view account settings.
-      </div>
+      <SectionCard
+        title="Account"
+        description="You need to sign in to view account settings."
+      >
+        <p className="text-sm text-[var(--text-muted)]">Authentication required.</p>
+      </SectionCard>
     );
   }
 
@@ -39,17 +44,10 @@ export default async function AccountPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-          Account
-        </p>
-        <h1 className="text-2xl font-semibold text-zinc-900">
-          Account settings
-        </h1>
-        <p className="text-sm text-zinc-500">
-          Manage your profile details and authentication.
-        </p>
-      </div>
+      <PageHeader
+        title="Account settings"
+        subtitle="Manage your profile details and authentication."
+      />
 
       <AccountSettingsClient
         email={user.email ?? ""}

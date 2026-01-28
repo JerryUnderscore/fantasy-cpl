@@ -1,5 +1,7 @@
 import ScoringAdminClient from "@/app/scoring-admin/scoring-admin-client";
 import { getAdminConsoleData } from "@/app/admin/admin-data";
+import PageHeader from "@/components/layout/page-header";
+import SectionCard from "@/components/layout/section-card";
 
 export const runtime = "nodejs";
 
@@ -15,39 +17,40 @@ export default async function AdminSchedulePage() {
 
   if (!season) {
     return (
-      <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-6 text-sm text-zinc-500">
-        Create or activate a season before managing the schedule.
-      </div>
+      <SectionCard
+        title="Schedule"
+        description="Create or activate a season before managing the schedule."
+      >
+        <p className="text-sm text-[var(--text-muted)]">
+          No active season found.
+        </p>
+      </SectionCard>
     );
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-          Schedule
-        </p>
-        <h1 className="text-2xl font-semibold text-zinc-900">
-          Schedule controls
-        </h1>
-        <p className="text-sm text-zinc-500">
-          Import matches, edit kickoff times, or remove test fixtures.
-        </p>
-      </div>
-
-      <ScoringAdminClient
-        postUrl="/api/scoring/stats"
-        matchWeeks={matchWeeks}
-        seasons={seasons}
-        clubs={clubs}
-        canWrite={canWrite}
-        isAdmin={isAdmin}
-        showDevTools={false}
-        showMatchWeekControls={false}
-        showStatsEditor={false}
-        showScheduleImport
-        showMatchesEditor
+      <PageHeader
+        badge="Admin"
+        title="Schedule"
+        subtitle="Import matches, edit kickoff times, or remove test fixtures."
       />
+
+      <SectionCard title="Schedule tools">
+        <ScoringAdminClient
+          postUrl="/api/scoring/stats"
+          matchWeeks={matchWeeks}
+          seasons={seasons}
+          clubs={clubs}
+          canWrite={canWrite}
+          isAdmin={isAdmin}
+          showDevTools={false}
+          showMatchWeekControls={false}
+          showStatsEditor={false}
+          showScheduleImport
+          showMatchesEditor
+        />
+      </SectionCard>
     </div>
   );
 }
