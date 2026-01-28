@@ -7,6 +7,7 @@ const navItems = [
   { href: "/admin/users", label: "Users" },
   { href: "/admin/matchweeks", label: "Matchweek Controls" },
   { href: "/admin/players", label: "Player Controls" },
+  { href: "/admin/landing-lineup", label: "Landing Lineup" },
   { href: "/admin/schedule", label: "Schedule" },
 ];
 

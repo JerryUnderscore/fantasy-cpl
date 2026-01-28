@@ -3,7 +3,7 @@
 import Image from "next/image";
 import LineupPitch from "@/components/lineup-pitch";
 import PlayerPitchSlot from "@/components/pitch/player-pitch-slot";
-import type { PositionKey } from "@/components/lineup-pitch";
+import type { PositionKey } from "@/lib/lineup-positions";
 import React from "react";
 
 export type StaticSlot = {

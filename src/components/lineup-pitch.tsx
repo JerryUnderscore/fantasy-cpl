@@ -1,17 +1,14 @@
 "use client";
 
 import React from "react";
+import {
+  POSITION_KEYS,
+  POSITION_LABELS,
+  type PositionKey,
+} from "@/lib/lineup-positions";
 
-export type PositionKey = "GK" | "DEF" | "MID" | "FWD";
-
-export const POSITION_KEYS: PositionKey[] = ["FWD", "MID", "DEF", "GK"];
-
-export const POSITION_LABELS: Record<PositionKey, string> = {
-  GK: "Goalkeeper",
-  DEF: "Defense",
-  MID: "Midfield",
-  FWD: "Attack",
-};
+export type { PositionKey };
+export { POSITION_KEYS, POSITION_LABELS };
 
 export type LineupPitchProps<Slot> = {
   startersByPosition: Record<PositionKey, Slot[]>;

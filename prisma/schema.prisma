@@ -22,17 +22,44 @@ model Profile {
 }
 
 model Season {
-  id         String      @id @default(cuid())
-  year       Int         @unique
-  name       String
-  isActive   Boolean     @default(false)
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-  drafts     Draft[]
-  leagues    League[]
-  matches    Match[]
-  matchWeeks MatchWeek[]
-  players    Player[]
+  id            String         @id @default(cuid())
+  year          Int            @unique
+  name          String
+  isActive      Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  drafts        Draft[]
+  leagues       League[]
+  matches       Match[]
+  matchWeeks    MatchWeek[]
+  players       Player[]
+  landingLineup LandingLineup?
+}
+
+model LandingLineup {
+  id        String              @id @default(cuid())
+  seasonId  String              @unique
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  season    Season              @relation(fields: [seasonId], references: [id])
+  slots     LandingLineupSlot[]
+}
+
+model LandingLineupSlot {
+  id        String             @id @default(cuid())
+  lineupId  String
+  playerId  String?
+  slotKey   String
+  group     LandingLineupGroup
+  position  PlayerPosition?
+  order     Int
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  lineup    LandingLineup      @relation(fields: [lineupId], references: [id], onDelete: Cascade)
+  player    Player?            @relation(fields: [playerId], references: [id])
+
+  @@unique([lineupId, slotKey])
+  @@index([playerId])
 }
 
 model Club {
@@ -60,6 +87,7 @@ model Player {
   updatedAt           DateTime                   @updatedAt
   draftPicks          DraftPick[]
   DraftQueueItem      DraftQueueItem[]
+  landingLineupSlots  LandingLineupSlot[]
   leaguePlayerWaivers LeaguePlayerWaiver[]
   waiverDropClaims    LeagueWaiverClaim[]        @relation("WaiverDropPlayer")
   waiverClaims        LeagueWaiverClaim[]
@@ -459,20 +487,20 @@ model LeagueTeamRecord {
 }
 
 model Draft {
-  id                   String           @id @default(cuid())
-  leagueId             String
-  seasonId             String
-  status               DraftStatus      @default(NOT_STARTED)
-  rounds               Int              @default(15)
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
-  currentPickStartedAt DateTime?
-  isPaused             Boolean          @default(false)
+  id                     String           @id @default(cuid())
+  leagueId               String
+  seasonId               String
+  status                 DraftStatus      @default(NOT_STARTED)
+  rounds                 Int              @default(15)
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+  currentPickStartedAt   DateTime?
+  isPaused               Boolean          @default(false)
   pausedRemainingSeconds Int?
-  league               League           @relation(fields: [leagueId], references: [id])
-  season               Season           @relation(fields: [seasonId], references: [id])
-  picks                DraftPick[]
-  DraftQueueItem       DraftQueueItem[]
+  league                 League           @relation(fields: [leagueId], references: [id])
+  season                 Season           @relation(fields: [seasonId], references: [id])
+  picks                  DraftPick[]
+  DraftQueueItem         DraftQueueItem[]
 
   @@unique([leagueId, seasonId])
   @@index([leagueId])
@@ -522,6 +550,11 @@ enum PlayerPosition {
   DEF
   MID
   FWD
+}
+
+enum LandingLineupGroup {
+  STARTER
+  BENCH
 }
 
 enum LeagueRole {

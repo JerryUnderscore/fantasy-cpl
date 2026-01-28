@@ -1,41 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
-import LandingLineup, {
-  type StaticSlot,
-} from "@/components/landing-lineup";
-import type { PositionKey } from "@/components/lineup-pitch";
+import LandingLineup, { type StaticSlot } from "@/components/landing-lineup";
+import type { PositionKey } from "@/lib/lineup-positions";
 import { prisma } from "@/lib/prisma";
 import { getActiveSeason } from "@/lib/matchweek";
-
-const STARTING_LINEUP: Array<{ key: PositionKey; players: string[] }> = [
-  { key: "FWD", players: ["Tiago Coimbra", "Tobias Warschewski"] },
-  {
-    key: "MID",
-    players: ["Manny Aparicio", "Kyle Bekker", "Ollie Bassett", "Sean Rea"],
-  },
-  {
-    key: "DEF",
-    players: [
-      "Daniel Nimick",
-      "Thomas Meilleur-Giguère",
-      "Daan Klomp",
-      "Noah Abatneh",
-    ],
-  },
-  { key: "GK", players: ["Nathan Ingham"] },
-];
-
-const BENCH_PLAYERS = [
-  "Marco Bustos",
-  "David Norman Jr.",
-  "Julian Altobelli",
-  "David Choinière",
-];
-
-const PLAYER_NAMES = [
-  ...STARTING_LINEUP.flatMap((group) => group.players),
-  ...BENCH_PLAYERS,
-];
+import {
+  DEFAULT_LANDING_BENCH,
+  DEFAULT_LANDING_PLAYER_NAMES,
+  DEFAULT_LANDING_STARTERS,
+} from "@/lib/landing-lineup";
 
 const FEATURE_CALLOUTS = [
   { icon: "/icons/soccer-ball.png", text: "Draft your team from CPL players." },
@@ -59,66 +32,131 @@ type PlayerLookup = {
 
 export default async function Home() {
   const season = await getActiveSeason();
-
-  const players = season
-    ? await prisma.player.findMany({
-        where: { seasonId: season.id, name: { in: PLAYER_NAMES } },
-        select: {
-          name: true,
-          position: true,
-          jerseyNumber: true,
-          club: { select: { shortName: true, slug: true } },
+  const lineup = season
+    ? await prisma.landingLineup.findUnique({
+        where: { seasonId: season.id },
+        include: {
+          slots: {
+            include: {
+              player: {
+                select: {
+                  name: true,
+                  position: true,
+                  jerseyNumber: true,
+                  club: { select: { shortName: true, slug: true } },
+                },
+              },
+            },
+          },
         },
       })
-    : [];
+    : null;
 
-  const lookup = new Map<string, PlayerLookup>();
+  const hasCustomLineup = (lineup?.slots.length ?? 0) > 0;
 
-  // Default entries so the pitch still renders even if a lookup fails.
-  for (const name of PLAYER_NAMES) {
-    lookup.set(name, {
-      name,
-      position: "Player",
-      clubName: null,
-      clubSlug: null,
-      jerseyNumber: null,
-    });
-  }
-
-  for (const player of players) {
-    lookup.set(player.name, {
-      name: player.name,
-      position: player.position,
-      jerseyNumber: player.jerseyNumber,
-      clubName: player.club?.shortName ?? null,
-      clubSlug: player.club?.slug ?? null,
-    });
-  }
-
-  const buildSlot = (name: string): StaticSlot => {
-    const player = lookup.get(name);
-    return {
-      id: name,
-      name,
-      clubName: player?.clubName ?? null,
-      clubSlug: player?.clubSlug ?? null,
-      position: player?.position ?? "Player",
-      jerseyNumber: player?.jerseyNumber ?? null,
-    };
-  };
-
-  const startersByPosition: Record<PositionKey, StaticSlot[]> = {
+  let startersByPosition: Record<PositionKey, StaticSlot[]> = {
     FWD: [],
     MID: [],
     DEF: [],
     GK: [],
   };
+  let benchSlots: StaticSlot[] = [];
 
-  for (const group of STARTING_LINEUP) {
-    startersByPosition[group.key] = group.players.map(buildSlot);
+  if (hasCustomLineup && lineup) {
+    const buildSlotFromLineup = (slot: {
+      slotKey: string;
+      position: PositionKey | null;
+      player: {
+        name: string;
+        position: string;
+        jerseyNumber: number | null;
+        club: { shortName: string | null; slug: string | null } | null;
+      } | null;
+    }): StaticSlot => {
+      const player = slot.player;
+      return {
+        id: slot.slotKey,
+        name: player?.name ?? "Open slot",
+        clubName: player?.club?.shortName ?? null,
+        clubSlug: player?.club?.slug ?? null,
+        position: player?.position ?? slot.position ?? "Player",
+        jerseyNumber: player?.jerseyNumber ?? null,
+      };
+    };
+
+    const starterSlots = lineup.slots
+      .filter((slot) => slot.group === "STARTER" && slot.position)
+      .sort((a, b) => a.order - b.order);
+
+    for (const slot of starterSlots) {
+      const position = slot.position as PositionKey;
+      startersByPosition[position] = [
+        ...(startersByPosition[position] ?? []),
+        buildSlotFromLineup(slot),
+      ];
+    }
+
+    benchSlots = lineup.slots
+      .filter((slot) => slot.group === "BENCH")
+      .sort((a, b) => a.order - b.order)
+      .map(buildSlotFromLineup);
+  } else {
+    const players = season
+      ? await prisma.player.findMany({
+          where: {
+            seasonId: season.id,
+            name: { in: DEFAULT_LANDING_PLAYER_NAMES },
+          },
+          select: {
+            name: true,
+            position: true,
+            jerseyNumber: true,
+            club: { select: { shortName: true, slug: true } },
+          },
+        })
+      : [];
+
+    const lookup = new Map<string, PlayerLookup>();
+
+    // Default entries so the pitch still renders even if a lookup fails.
+    for (const name of DEFAULT_LANDING_PLAYER_NAMES) {
+      lookup.set(name, {
+        name,
+        position: "Player",
+        clubName: null,
+        clubSlug: null,
+        jerseyNumber: null,
+      });
+    }
+
+    for (const player of players) {
+      lookup.set(player.name, {
+        name: player.name,
+        position: player.position,
+        jerseyNumber: player.jerseyNumber,
+        clubName: player.club?.shortName ?? null,
+        clubSlug: player.club?.slug ?? null,
+      });
+    }
+
+    const buildSlot = (name: string): StaticSlot => {
+      const player = lookup.get(name);
+      return {
+        id: name,
+        name,
+        clubName: player?.clubName ?? null,
+        clubSlug: player?.clubSlug ?? null,
+        position: player?.position ?? "Player",
+        jerseyNumber: player?.jerseyNumber ?? null,
+      };
+    };
+
+    for (const group of DEFAULT_LANDING_STARTERS) {
+      startersByPosition[group.key] = group.players.map(buildSlot);
+    }
+
+    benchSlots = DEFAULT_LANDING_BENCH.map(buildSlot);
   }
-
-  const benchSlots = BENCH_PLAYERS.map(buildSlot);
 
   return (
     <div className="flex flex-col gap-10">
