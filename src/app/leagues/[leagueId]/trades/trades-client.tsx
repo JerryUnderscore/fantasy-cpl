@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatPlayerName } from "@/lib/players";
 import TradeOfferModal from "./trade-offer-modal";
 import { getClubDisplayName } from "@/lib/clubs";
+import LoadingState from "@/components/layout/loading-state";
+import InlineError from "@/components/layout/inline-error";
+import EmptyState from "@/components/layout/empty-state";
 
 type TradePlayer = {
   id: string;
@@ -170,18 +173,14 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
 
   if (isLoading) {
     return (
-      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5 text-sm text-zinc-500">
-        Loading trades...
-      </div>
+      <LoadingState label="Loading trades…" />
     );
   }
 
   return (
     <div className="flex flex-col gap-6">
       {error ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-          {error}
-        </div>
+        <InlineError message={error} />
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -199,9 +198,10 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
       </div>
 
       {trades.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-6 text-sm text-zinc-500">
-          No trades yet.
-        </div>
+        <EmptyState
+          title="No trades yet"
+          description="Trades let you exchange players with other teams."
+        />
       ) : (
         <div className="grid gap-4">
           {trades.map((trade) => {

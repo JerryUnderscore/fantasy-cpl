@@ -36,7 +36,7 @@ export default function LeaguesPageLayout({
           ) : (
             <EmptyState
               title="No leagues yet"
-              description="Paste an invite code from a friend or create your own league."
+              description="Join a league to get started, or create a league and invite friends."
               primaryAction={<JoinLeaguePanel />}
               secondaryLink={<CreateLeaguePanel />}
             />

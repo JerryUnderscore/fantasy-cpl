@@ -13,6 +13,7 @@ import { formatPlayerName } from "@/lib/players";
 import { getClubDisplayName } from "@/lib/clubs";
 import LeaguePageHeader from "@/components/leagues/league-page-header";
 import PageHeader from "@/components/layout/page-header";
+import EmptyState from "@/components/layout/empty-state";
 
 export const runtime = "nodejs";
 
@@ -322,7 +323,12 @@ export default async function LeagueDetailPage({
             </p>
           </div>
           {standings.length === 0 ? (
-            <p className="mt-3 text-sm text-[var(--text-muted)]">No teams yet.</p>
+            <div className="mt-3">
+              <EmptyState
+                title="No teams yet"
+                description="Once teams join, standings will appear here."
+              />
+            </div>
           ) : (
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-full text-left text-sm">
@@ -386,9 +392,12 @@ export default async function LeagueDetailPage({
               </p>
             </div>
             {scheduleMatchesPayload.length === 0 ? (
-              <p className="mt-3 text-sm text-[var(--text-muted)]">
-                No matches scheduled yet.
-              </p>
+              <div className="mt-3">
+                <EmptyState
+                  title="No matches scheduled"
+                  description="CPL matchups will appear here once the schedule is published."
+                />
+              </div>
             ) : (
               <div className="mt-4">
                 <MatchScheduleList matches={scheduleMatchesPayload} />
@@ -404,9 +413,12 @@ export default async function LeagueDetailPage({
               <p className="text-xs text-[var(--text-muted)]">Claim window</p>
             </div>
             {waivers.length === 0 ? (
-              <p className="mt-3 text-sm text-[var(--text-muted)]">
-                No players on waivers.
-              </p>
+              <div className="mt-3">
+                <EmptyState
+                  title="No players on waivers"
+                  description="Waiver claims will appear here when players enter the window."
+                />
+              </div>
             ) : (
               <ul className="mt-4 flex flex-col gap-3">
                 {waivers.map((waiver) => (

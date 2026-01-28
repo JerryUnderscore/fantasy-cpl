@@ -29,7 +29,7 @@ const renderDashboard = (
     return (
       <EmptyState
         title="No teams yet"
-        description="Join or create a league to start managing your lineup and track deadlines."
+        description="Join a league to create your first team, or create a league and invite friends."
         primaryAction={
           <Link
             href="/leagues"
@@ -40,7 +40,7 @@ const renderDashboard = (
         }
         secondaryLink={
           <Link
-            href="/leagues"
+            href="/leagues/create"
             className="rounded-full border border-[var(--border)] px-5 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
           >
             Create league

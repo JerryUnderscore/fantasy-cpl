@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { formatPlayerName } from "@/lib/players";
 import { getClubDisplayName } from "@/lib/clubs";
+import LoadingState from "@/components/layout/loading-state";
+import InlineError from "@/components/layout/inline-error";
+import EmptyState from "@/components/layout/empty-state";
 
 type PlayerAvailabilityStatus = "FREE_AGENT" | "WAIVERS" | "ROSTERED";
 
@@ -850,17 +853,14 @@ export default function PlayersClient({ leagueId }: Props) {
       </div>
 
       {isLoading ? (
-        <div className="rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-500">
-          Loading players...
-        </div>
+        <LoadingState label="Loading players…" />
       ) : error ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-600">
-          {error}
-        </div>
+        <InlineError message={error} />
       ) : filteredPlayers.length === 0 ? (
-        <div className="rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-500">
-          No players match these filters.
-        </div>
+        <EmptyState
+          title="No players match these filters"
+          description="Try adjusting your position, status, or search filters."
+        />
       ) : (
         <ul className="flex flex-col gap-3">
           {filteredPlayers.map((player) => {

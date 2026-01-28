@@ -15,6 +15,7 @@ import { formatPlayerName } from "@/lib/players";
 import { getClubDisplayName } from "@/lib/clubs";
 import LeaguePageHeader from "@/components/leagues/league-page-header";
 import PageHeader from "@/components/layout/page-header";
+import SectionCard from "@/components/layout/section-card";
 
 export const runtime = "nodejs";
 
@@ -372,6 +373,20 @@ export default async function DraftPage({
               : null,
           }))}
         />
+
+        {draftStatus !== "LIVE" || draft?.isPaused ? (
+          <SectionCard title="Draft status">
+            <p className="text-sm text-[var(--text-muted)]">
+              {draftStatus === "NOT_STARTED"
+                ? "The draft hasn’t started yet. The commissioner will open it when the league is ready."
+                : draftStatus === "COMPLETE"
+                  ? "The draft is complete. You can review picks below."
+                  : draft?.isPaused
+                    ? "The draft is paused. Picks will resume once it is unpaused."
+                    : "Draft status is pending."}
+            </p>
+          </SectionCard>
+        ) : null}
 
         <section className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
           <div className="flex items-center justify-between">

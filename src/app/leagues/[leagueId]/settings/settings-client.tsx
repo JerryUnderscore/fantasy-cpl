@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import SectionCard from "@/components/layout/section-card";
+import LoadingState from "@/components/layout/loading-state";
+import InlineError from "@/components/layout/inline-error";
 
 type Settings = {
   joinMode: "OPEN" | "INVITE_ONLY";
@@ -171,11 +173,7 @@ export default function SettingsClient({ leagueId, leagueName }: Props) {
   };
 
   if (!form) {
-    return (
-      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5 text-sm text-zinc-600">
-        Loading settings…
-      </div>
-    );
+    return <LoadingState label="Loading settings…" />;
   }
 
   const draftPickSecondsNumber = Number(form.draftPickSeconds);
@@ -367,11 +365,7 @@ export default function SettingsClient({ leagueId, leagueName }: Props) {
         ) : null}
       </div>
 
-      {error ? (
-        <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineError message={error} /> : null}
 
       <div className="flex items-center justify-between">
         <button
