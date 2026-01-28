@@ -85,7 +85,12 @@ const buildDeadlines = (
     });
   }
 
-  return deadlines;
+  return deadlines.sort((a, b) => {
+    if (!a.at && !b.at) return 0;
+    if (!a.at) return 1;
+    if (!b.at) return -1;
+    return new Date(a.at).getTime() - new Date(b.at).getTime();
+  });
 };
 
 const buildWaiverSignal = async (

@@ -7,7 +7,32 @@ import { getClubDisplayName } from "@/lib/clubs";
 export const runtime = "nodejs";
 
 const positions = ["GK", "DEF", "MID", "FWD"] as const;
-const positionSet = new Set(positions);
+
+type Position = (typeof positions)[number];
+
+const normalizePosition = (raw: string): Position | null => {
+  const value = raw.trim().toUpperCase();
+  if (!value) return null;
+
+  if (["GK", "GOALKEEPER", "G"].includes(value)) return "GK";
+  if (["DEF", "DEFENDER", "DF", "D"].includes(value)) return "DEF";
+  if (["MID", "MIDFIELDER", "MF", "M"].includes(value)) return "MID";
+  if (["FWD", "FORWARD", "FW", "F"].includes(value)) return "FWD";
+
+  return null;
+};
+
+const normalizeLabel = (value: string) => {
+  const normalized = value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  return normalized
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
 
 const parseCsv = (input: string) => {
   const rows: string[][] = [];
@@ -34,7 +59,7 @@ const parseCsv = (input: string) => {
       if (char === "\r" && text[i + 1] === "\n") {
         i += 1;
       }
-      if (char === "," ) {
+      if (char === ",") {
         continue;
       }
       rows.push(currentRow);
@@ -172,12 +197,20 @@ async function importPlayersCsv(formData: FormData) {
   const file = formData.get("csvFile");
   const seasonId = formData.get("seasonId");
 
-  if (!(file instanceof File) || typeof seasonId !== "string") {
-    return;
+  if (!(file instanceof File)) {
+    throw new Error(
+      "CSV upload missing: form did not send a File (check encType).",
+    );
+  }
+  if (typeof seasonId !== "string" || !seasonId) {
+    throw new Error("Missing seasonId");
   }
 
   const csv = await file.text();
   const rows = parseCsv(csv);
+
+  console.log("Parsed CSV rows:", rows.length);
+
   if (rows.length < 2) {
     return;
   }
@@ -206,29 +239,65 @@ async function importPlayersCsv(formData: FormData) {
   });
   const clubMap = new Map<string, string>();
   clubs.forEach((club) => {
-    if (club.shortName) {
-      clubMap.set(club.shortName.toLowerCase(), club.id);
-    }
-    if (club.slug) {
-      clubMap.set(club.slug.toLowerCase(), club.id);
-    }
-    clubMap.set(club.name.toLowerCase(), club.id);
+    const labels = [club.name, club.shortName, club.slug].filter(
+      (value): value is string => Boolean(value),
+    );
+    labels.forEach((label) => {
+      const normalized = normalizeLabel(label);
+      if (normalized) {
+        clubMap.set(normalized, club.id);
+      }
+    });
   });
 
+  let accepted = 0;
+  let skippedMissing = 0;
+  let skippedBadPos = 0;
+  let skippedBadClub = 0;
+  const unknownClubs = new Map<string, number>();
+  const unknownPositions = new Map<string, number>();
+
   const operations: Array<ReturnType<typeof prisma.player.upsert>> = [];
+  const createRows: Array<{
+    id: string;
+    name: string;
+    seasonId: string;
+    clubId: string;
+    position: Position;
+    jerseyNumber: number | null;
+    active: true;
+  }> = [];
 
   for (const row of rows.slice(1)) {
-    const name = row[nameIndex]?.trim();
-    const positionRaw = row[positionIndex]?.trim().toUpperCase();
-    const clubLabel = row[clubIndex]?.trim().toLowerCase();
-    if (!name || !positionRaw || !clubLabel) {
+    const name = row[nameIndex]?.trim() ?? "";
+    if (!name) {
+      skippedMissing += 1;
       continue;
     }
-    if (!positionSet.has(positionRaw as (typeof positions)[number])) {
+
+    const positionRaw = row[positionIndex] ?? "";
+    const positionNorm = normalizePosition(positionRaw);
+    if (!positionNorm) {
+      skippedBadPos += 1;
+      const key = positionRaw.trim().toUpperCase() || "(empty)";
+      unknownPositions.set(key, (unknownPositions.get(key) ?? 0) + 1);
       continue;
     }
-    const clubId = clubMap.get(clubLabel);
+
+    const clubLabelRaw = row[clubIndex] ?? "";
+    const clubLabelNorm = normalizeLabel(clubLabelRaw);
+    if (!clubLabelNorm) {
+      skippedMissing += 1;
+      continue;
+    }
+
+    const clubId = clubMap.get(clubLabelNorm);
     if (!clubId) {
+      skippedBadClub += 1;
+      unknownClubs.set(
+        clubLabelNorm,
+        (unknownClubs.get(clubLabelNorm) ?? 0) + 1,
+      );
       continue;
     }
 
@@ -248,7 +317,7 @@ async function importPlayersCsv(formData: FormData) {
           seasonId_name: { seasonId, name },
         },
         update: {
-          position: positionRaw as (typeof positions)[number],
+          position: positionNorm,
           clubId,
           jerseyNumber,
           active: true,
@@ -257,19 +326,79 @@ async function importPlayersCsv(formData: FormData) {
           name,
           seasonId,
           clubId,
-          position: positionRaw as (typeof positions)[number],
+          position: positionNorm,
           jerseyNumber,
           active: true,
         },
       }),
     );
+
+    createRows.push({
+      id: crypto.randomUUID(),
+      name,
+      seasonId,
+      clubId,
+      position: positionNorm,
+      jerseyNumber,
+      active: true,
+    });
+    accepted += 1;
+  }
+
+  console.log("Import summary:", {
+    total: rows.length - 1,
+    accepted,
+    skippedMissing,
+    skippedBadPos,
+    skippedBadClub,
+  });
+
+  const topUnknownPositions = Array.from(unknownPositions.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+  const topUnknownClubs = Array.from(unknownClubs.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+
+  if (topUnknownPositions.length > 0) {
+    console.log("Top unknown positions:", topUnknownPositions);
+  }
+  if (topUnknownClubs.length > 0) {
+    console.log("Top unknown clubs:", topUnknownClubs);
   }
 
   if (operations.length === 0) {
     return;
   }
 
-  await prisma.$transaction(operations);
+  try {
+    await prisma.$transaction(operations);
+  } catch (error) {
+    console.error("Player upsert transaction failed:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    const shouldFallback =
+      message.includes("seasonId_name") ||
+      message.includes("Unique constraint") ||
+      message.includes("unique constraint") ||
+      message.includes("Invalid `prisma.player.upsert`");
+
+    if (!shouldFallback) {
+      throw error;
+    }
+
+    try {
+      const result = await prisma.player.createMany({
+        data: createRows,
+        skipDuplicates: true,
+      });
+      console.log("Fallback createMany result:", result);
+      console.log("Fallback update pass skipped: no unique constraint for upsert.");
+    } catch (createError) {
+      console.error("Fallback createMany failed:", createError);
+      throw createError;
+    }
+  }
+
   revalidatePath("/admin/players");
 }
 
