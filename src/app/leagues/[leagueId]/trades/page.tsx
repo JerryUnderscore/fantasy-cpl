@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
 import TradesClient from "./trades-client";
 import LeaguePageHeader from "@/components/leagues/league-page-header";
+import PageHeader from "@/components/layout/page-header";
+import SectionCard from "@/components/layout/section-card";
 
 export const runtime = "nodejs";
 
@@ -117,16 +119,22 @@ export default async function LeagueTradesPage({
             Back to league
           </Link>
           <LeaguePageHeader
-            title="Trades"
-            leagueName={league.name}
+            title={league.name}
+            leagueName={`Season ${league.season.name} ${league.season.year}`}
             showBadgeTooltip={membership.role === "OWNER"}
           />
           <p className="text-sm text-zinc-500">
-            Season: {league.season.name} {league.season.year}
+            {league.season.name} {league.season.year}
           </p>
         </div>
 
-        <TradesClient leagueId={leagueId} />
+        <PageHeader
+          title="Trades"
+          subtitle="Propose and review trades in this league."
+        />
+        <SectionCard title="Trade center">
+          <TradesClient leagueId={leagueId} />
+        </SectionCard>
       </div>
     </div>
   );

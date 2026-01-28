@@ -14,6 +14,7 @@ import { ROSTER_LIMITS } from "@/lib/roster";
 import { formatPlayerName } from "@/lib/players";
 import { getClubDisplayName } from "@/lib/clubs";
 import LeaguePageHeader from "@/components/leagues/league-page-header";
+import PageHeader from "@/components/layout/page-header";
 
 export const runtime = "nodejs";
 
@@ -150,13 +151,17 @@ export default async function DraftPage({
               Back to league
             </Link>
             <LeaguePageHeader
-              title="League draft"
-              leagueName={league.name}
+              title={league.name}
+              leagueName={`Season ${league.season.name} ${league.season.year}`}
               showBadgeTooltip={membership.role === "OWNER"}
             />
             <p className="text-sm text-zinc-500">
               Season: {league.season.name} {league.season.year}
             </p>
+            <PageHeader
+              title="League draft"
+              subtitle="Make picks, manage your queue, and track the draft board."
+            />
           </div>
           <p className="text-sm text-zinc-600">
             Drafting is only available during an active season.
@@ -323,13 +328,17 @@ export default async function DraftPage({
             Back to league
           </Link>
           <LeaguePageHeader
-            title="League draft"
-            leagueName={league.name}
+            title={league.name}
+            leagueName={`Season ${league.season.name} ${league.season.year}`}
             showBadgeTooltip={membership.role === "OWNER"}
           />
           <p className="text-sm text-zinc-500">
-            Season: {league.season.name} {league.season.year}
+            {league.season.name} {league.season.year}
           </p>
+          <PageHeader
+            title="League draft"
+            subtitle="Make picks, manage your queue, and track the draft board."
+          />
         </div>
 
         <DraftClient

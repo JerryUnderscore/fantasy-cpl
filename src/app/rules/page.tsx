@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import PageHeader from "@/components/layout/page-header";
 
 type RulesSection = {
   id: string;
@@ -360,12 +361,10 @@ export default function RulesPage() {
           >
             ← Back to dashboard
           </Link>
-          <h1 className="text-3xl font-semibold text-[var(--text)]">
-            Rules & Guidelines
-          </h1>
-          <p className="text-sm text-[var(--text-muted)]">
-            The Fantasy CPL beta follows a unified rule set for every league.
-          </p>
+          <PageHeader
+            title="Rules & Guidelines"
+            subtitle="The Fantasy CPL beta follows a unified rule set for every league."
+          />
         </div>
 
         <section className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-5">

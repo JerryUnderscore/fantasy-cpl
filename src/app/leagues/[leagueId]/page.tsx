@@ -12,6 +12,7 @@ import { normalizeLeagueWaiverTimes } from "@/lib/waivers";
 import { formatPlayerName } from "@/lib/players";
 import { getClubDisplayName } from "@/lib/clubs";
 import LeaguePageHeader from "@/components/leagues/league-page-header";
+import PageHeader from "@/components/layout/page-header";
 
 export const runtime = "nodejs";
 
@@ -251,7 +252,7 @@ export default async function LeagueDetailPage({
           </Link>
           <LeaguePageHeader
             title={league.name}
-            leagueName={league.name}
+            leagueName={`Season ${league.season.name} ${league.season.year}`}
             showBadgeTooltip={membership.role === "OWNER"}
             actions={
               <>
@@ -279,8 +280,12 @@ export default async function LeagueDetailPage({
             }
           />
           <p className="text-sm text-[var(--text-muted)]">
-            Season: {league.season.name} {league.season.year}
+            {league.season.name} {league.season.year}
           </p>
+          <PageHeader
+            title="Overview"
+            subtitle="Standings, schedule, and waiver activity for this league."
+          />
           <div className="mt-3 flex flex-wrap gap-3 text-sm font-semibold text-[var(--text-muted)]">
             <Link
               href={`/leagues/${league.id}/players`}

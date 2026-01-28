@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import LeaguePageHeader from "@/components/leagues/league-page-header";
+import PageHeader from "@/components/layout/page-header";
 
 export const runtime = "nodejs";
 
@@ -32,7 +33,14 @@ export default async function Page({
           >
             Back to league
           </Link>
-          <LeaguePageHeader title="Draft prep" leagueName={league.name} />
+          <LeaguePageHeader
+            title={league.name}
+            leagueName="Draft preparation"
+          />
+          <PageHeader
+            title="Draft prep"
+            subtitle="Review the draft board inside the live draft view."
+          />
         </div>
         <p className="text-sm text-zinc-600">
           Draft preparation happens inside the live draft view.

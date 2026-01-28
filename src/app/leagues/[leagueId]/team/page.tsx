@@ -10,6 +10,7 @@ import LineupControls from "./lineup-controls";
 import { buildRosterSlots } from "@/lib/roster";
 import { getActiveMatchWeekForSeason } from "@/lib/matchweek";
 import LeaguePageHeader from "@/components/leagues/league-page-header";
+import PageHeader from "@/components/layout/page-header";
 
 export const runtime = "nodejs";
 
@@ -358,13 +359,17 @@ export default async function MyTeamRosterPage({
             Back to league
           </Link>
           <LeaguePageHeader
-            title={team.name}
-            leagueName={league.name}
+            title={league.name}
+            leagueName={`Season ${league.season.name} ${league.season.year}`}
             showBadgeTooltip={membership.role === "OWNER"}
           />
           <p className="text-sm text-[var(--text-muted)]">
             {league.season.name} · {league.season.year}
           </p>
+          <PageHeader
+            title="Team roster"
+            subtitle={`Manage lineups and roster moves for ${team.name}.`}
+          />
         </div>
 
         {selectedMatchWeek ? (

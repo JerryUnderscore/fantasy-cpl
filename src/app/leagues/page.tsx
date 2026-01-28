@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
 import LeaguesPageLayout from "@/components/leagues/leagues-page-layout";
 import { loadLeaguesView } from "@/lib/leagues-view";
+import PageHeader from "@/components/layout/page-header";
+import EmptyState from "@/components/layout/empty-state";
 
 export const runtime = "nodejs";
 
@@ -27,22 +29,24 @@ export default async function LeaguesPage() {
   if (!user) {
     return (
       <div className="min-h-screen bg-[var(--background)] px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-10 shadow-sm">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-semibold text-[var(--text)]">
-              Invite-only leagues
-            </h1>
-            <p className="text-sm text-[var(--text-muted)]">
-              Sign in to create or join your league.
-            </p>
-          </div>
-          <AuthButtons isAuthenticated={false} />
-          <Link
-            href="/"
-            className="text-sm font-medium text-[var(--text-muted)] underline-offset-4 hover:text-[var(--text)] hover:underline"
-          >
-            Back to home
-          </Link>
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+          <PageHeader
+            title="Leagues"
+            subtitle="Sign in to create or join your league."
+          />
+          <EmptyState
+            title="Invite-only leagues"
+            description="Create a league or join with an invite code."
+            primaryAction={<AuthButtons isAuthenticated={false} />}
+            secondaryLink={
+              <Link
+                href="/"
+                className="rounded-full border border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
+              >
+                Back to home
+              </Link>
+            }
+          />
         </div>
       </div>
     );
@@ -55,19 +59,23 @@ export default async function LeaguesPage() {
   if (!profile) {
     return (
       <div className="min-h-screen bg-[var(--background)] px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-[var(--text)]">
-            Profile not synced
-          </h1>
-          <p className="text-sm text-[var(--text-muted)]">
-            Please sync your profile from the home page and try again.
-          </p>
-          <Link
-            href="/"
-            className="text-sm font-medium text-[var(--text-muted)] underline-offset-4 hover:text-[var(--text)] hover:underline"
-          >
-            Go to home
-          </Link>
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+          <PageHeader
+            title="Leagues"
+            subtitle="Sign in to create or join your league."
+          />
+          <EmptyState
+            title="Profile not synced"
+            description="Please sync your profile from the home page and try again."
+            secondaryLink={
+              <Link
+                href="/"
+                className="rounded-full border border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
+              >
+                Go to home
+              </Link>
+            }
+          />
         </div>
       </div>
     );

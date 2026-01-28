@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import LeaguePageHeader from "@/components/leagues/league-page-header";
+import PageHeader from "@/components/layout/page-header";
 
 export const runtime = "nodejs";
 
@@ -32,7 +33,14 @@ export default async function ScoringAdminPage({
           >
             Back to league
           </Link>
-          <LeaguePageHeader title="Scoring admin" leagueName={league.name} />
+          <LeaguePageHeader
+            title={league.name}
+            leagueName="Scoring administration"
+          />
+          <PageHeader
+            title="Scoring admin"
+            subtitle="Open the global scoring tool to manage matchweek stats."
+          />
         </div>
         <p className="text-sm text-zinc-600">
           Scoring administration lives in the global scoring tool.

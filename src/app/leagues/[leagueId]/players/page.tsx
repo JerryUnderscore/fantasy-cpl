@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
 import PlayersClient from "./players-client";
 import LeaguePageHeader from "@/components/leagues/league-page-header";
+import PageHeader from "@/components/layout/page-header";
+import SectionCard from "@/components/layout/section-card";
 
 export const runtime = "nodejs";
 
@@ -121,16 +123,22 @@ export default async function LeaguePlayersPage({
             Back to league
           </Link>
           <LeaguePageHeader
-            title="Players"
-            leagueName={league.name}
+            title={league.name}
+            leagueName={`Season ${league.season.name} ${league.season.year}`}
             showBadgeTooltip={membership.role === "OWNER"}
           />
           <p className="text-sm text-zinc-500">
-            Season: {league.season.name} {league.season.year}
+            {league.season.name} {league.season.year}
           </p>
         </div>
+        <PageHeader
+          title="Players"
+          subtitle="League player pool and availability."
+        />
 
-        <PlayersClient leagueId={league.id} />
+        <SectionCard title="Players">
+          <PlayersClient leagueId={league.id} />
+        </SectionCard>
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import AuthButtons from "@/components/auth-buttons";
 import { getActiveMatchWeekForSeason } from "@/lib/matchweek";
 import TradeRosterClient from "./trade-roster-client";
 import LeaguePageHeader from "@/components/leagues/league-page-header";
+import PageHeader from "@/components/layout/page-header";
 
 export const runtime = "nodejs";
 
@@ -307,9 +308,13 @@ export default async function TeamRosterPage({
             Back to league
           </Link>
           <LeaguePageHeader
-            title={team.name}
-            leagueName={league.name}
+            title={league.name}
+            leagueName={`Season ${league.season.name} ${league.season.year}`}
             showBadgeTooltip={membership.role === "OWNER"}
+          />
+          <PageHeader
+            title="Team roster"
+            subtitle={`Roster view for ${team.name}.`}
           />
           <p className="text-sm text-zinc-500">
             Owner: {team.profile.displayName ?? "Unknown"}

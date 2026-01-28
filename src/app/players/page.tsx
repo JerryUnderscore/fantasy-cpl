@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import PlayersClient from "./players-client";
+import PageHeader from "@/components/layout/page-header";
+import SectionCard from "@/components/layout/section-card";
+import EmptyState from "@/components/layout/empty-state";
 
 export const runtime = "nodejs";
 
@@ -18,9 +21,12 @@ export default async function PlayersPage() {
   if (!season) {
     return (
       <div className="min-h-screen bg-[var(--background)] px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-[var(--text)]">Players</h1>
-          <p className="text-sm text-[var(--text-muted)]">No active season found.</p>
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+          <PageHeader title="CPL player stats" subtitle="CPL player stats for the beta season." />
+          <EmptyState
+            title="No active season"
+            description="Create or activate a season to view CPL player stats."
+          />
         </div>
       </div>
     );
@@ -28,17 +34,14 @@ export default async function PlayersPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] px-6 py-16">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 rounded-3xl border border-[var(--border)] bg-[var(--surface2)] p-10 shadow-sm">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-semibold text-[var(--text)]">
-            CPL player stats
-          </h1>
-          <p className="text-sm text-[var(--text-muted)]">
-            CPL player stats for the beta season ({season.name}).
-          </p>
-        </div>
-
-        <PlayersClient players={season.players} />
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
+        <PageHeader
+          title="CPL player stats"
+          subtitle={`CPL player stats for the beta season (${season.name}).`}
+        />
+        <SectionCard title="Player stats">
+          <PlayersClient players={season.players} />
+        </SectionCard>
       </div>
     </div>
   );
