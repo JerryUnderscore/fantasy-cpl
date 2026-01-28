@@ -13,6 +13,7 @@ import {
 import { ROSTER_LIMITS } from "@/lib/roster";
 import { formatPlayerName } from "@/lib/players";
 import { getClubDisplayName } from "@/lib/clubs";
+import LeaguePageHeader from "@/components/leagues/league-page-header";
 
 export const runtime = "nodejs";
 
@@ -148,9 +149,13 @@ export default async function DraftPage({
             >
               Back to league
             </Link>
-            <h1 className="text-3xl font-semibold text-black">{league.name}</h1>
+            <LeaguePageHeader
+              title="League draft"
+              leagueName={league.name}
+              showBadgeTooltip={membership.role === "OWNER"}
+            />
             <p className="text-sm text-zinc-500">
-              {league.season.name} · {league.season.year}
+              Season: {league.season.name} {league.season.year}
             </p>
           </div>
           <p className="text-sm text-zinc-600">
@@ -317,9 +322,13 @@ export default async function DraftPage({
           >
             Back to league
           </Link>
-          <h1 className="text-3xl font-semibold text-black">League draft</h1>
+          <LeaguePageHeader
+            title="League draft"
+            leagueName={league.name}
+            showBadgeTooltip={membership.role === "OWNER"}
+          />
           <p className="text-sm text-zinc-500">
-            {league.name} · {league.season.name} {league.season.year}
+            Season: {league.season.name} {league.season.year}
           </p>
         </div>
 

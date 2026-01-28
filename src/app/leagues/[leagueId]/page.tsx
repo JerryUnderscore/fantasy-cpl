@@ -11,6 +11,7 @@ import { getCurrentMatchWeekForSeason } from "@/lib/matchweek";
 import { normalizeLeagueWaiverTimes } from "@/lib/waivers";
 import { formatPlayerName } from "@/lib/players";
 import { getClubDisplayName } from "@/lib/clubs";
+import LeaguePageHeader from "@/components/leagues/league-page-header";
 
 export const runtime = "nodejs";
 
@@ -248,33 +249,37 @@ export default async function LeagueDetailPage({
           >
             Back to leagues
           </Link>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold text-[var(--text)]">
-              {league.name}
-            </h1>
-            {showDraftButton ? (
-              <Link
-                href={`/leagues/${league.id}/draft`}
-              className="inline-flex items-center justify-center rounded-full bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition hover:bg-[var(--accent-muted)]"
-              style={{ color: "#101014" }}
-              >
-                Draft
-              </Link>
-            ) : null}
-            {membership.role === "OWNER" ? (
-              <Link
-                href={`/leagues/${league.id}/settings`}
-                className="inline-flex items-center justify-center rounded-full border border-[var(--border)] p-2 text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
-                aria-label="League settings"
-              >
-                <span role="img" aria-hidden="true" className="text-lg">
-                  ⚙️
-                </span>
-              </Link>
-            ) : null}
-          </div>
+          <LeaguePageHeader
+            title={league.name}
+            leagueName={league.name}
+            showBadgeTooltip={membership.role === "OWNER"}
+            actions={
+              <>
+                {showDraftButton ? (
+                  <Link
+                    href={`/leagues/${league.id}/draft`}
+                    className="inline-flex items-center justify-center rounded-full bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition hover:bg-[var(--accent-muted)]"
+                    style={{ color: "#101014" }}
+                  >
+                    Draft
+                  </Link>
+                ) : null}
+                {membership.role === "OWNER" ? (
+                  <Link
+                    href={`/leagues/${league.id}/settings`}
+                    className="inline-flex items-center justify-center rounded-full border border-[var(--border)] p-2 text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
+                    aria-label="League settings"
+                  >
+                    <span role="img" aria-hidden="true" className="text-lg">
+                      ⚙️
+                    </span>
+                  </Link>
+                ) : null}
+              </>
+            }
+          />
           <p className="text-sm text-[var(--text-muted)]">
-            {league.season.name} · {league.season.year}
+            Season: {league.season.name} {league.season.year}
           </p>
           <div className="mt-3 flex flex-wrap gap-3 text-sm font-semibold text-[var(--text-muted)]">
             <Link

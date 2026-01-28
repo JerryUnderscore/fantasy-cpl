@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
 import SettingsClient from "./settings-client";
+import LeaguePageHeader from "@/components/leagues/league-page-header";
 
 export const runtime = "nodejs";
 
@@ -113,8 +114,6 @@ export default async function LeagueSettingsPage({
       draftScheduledAt: true,
       joinMode: true,
       rosterSize: true,
-      keepersEnabled: true,
-      keeperCount: true,
       waiverPeriodHours: true,
       createdBy: { select: { displayName: true } },
     },
@@ -137,9 +136,8 @@ export default async function LeagueSettingsPage({
         ? "Casual (untimed)"
         : "No draft";
   const joinLabel = leagueSummary.joinMode === "OPEN" ? "Open" : "Invite only";
-  const keeperLabel = leagueSummary.keepersEnabled
-    ? `Enabled (${leagueSummary.keeperCount ?? 0} keepers)`
-    : "Disabled";
+  const goalkeeperRequirement = "Optional";
+  const goalkeeperHelper = "Teams may start a GK but are not required to.";
   const commissionerName =
     leagueSummary.createdBy.displayName?.trim() || "Commissioner";
 
@@ -160,12 +158,13 @@ export default async function LeagueSettingsPage({
           >
             Back to league
           </Link>
-          <h1 className="text-3xl font-semibold text-[var(--accent-muted)]">
-            League settings
-          </h1>
+          <LeaguePageHeader
+            title="League settings"
+            leagueName={leagueSummary.name}
+            showBadgeTooltip={isOwner}
+          />
           <p className="text-sm text-zinc-500">
-            {leagueSummary.name} · {leagueSummary.season.name}{" "}
-            {leagueSummary.season.year}
+            Season: {leagueSummary.season.name} {leagueSummary.season.year}
           </p>
         </div>
 
@@ -262,10 +261,13 @@ export default async function LeagueSettingsPage({
             </div>
             <div className="rounded-2xl border border-zinc-200 bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Keepers
+                Goalkeeper requirement
               </p>
               <p className="mt-2 text-sm font-semibold text-zinc-900">
-                {keeperLabel}
+                {goalkeeperRequirement}
+              </p>
+              <p className="mt-1 text-xs text-zinc-500">
+                {goalkeeperHelper}
               </p>
             </div>
             <div className="rounded-2xl border border-zinc-200 bg-white p-4">

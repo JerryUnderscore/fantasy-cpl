@@ -9,6 +9,7 @@ import MatchWeekSelector from "./matchweek-selector";
 import LineupControls from "./lineup-controls";
 import { buildRosterSlots } from "@/lib/roster";
 import { getActiveMatchWeekForSeason } from "@/lib/matchweek";
+import LeaguePageHeader from "@/components/leagues/league-page-header";
 
 export const runtime = "nodejs";
 
@@ -112,7 +113,7 @@ export default async function MyTeamRosterPage({
     where: {
       leagueId_profileId: { leagueId, profileId: profile.id },
     },
-    select: { id: true },
+    select: { id: true, role: true },
   });
 
   if (!membership) {
@@ -356,9 +357,13 @@ export default async function MyTeamRosterPage({
           >
             Back to league
           </Link>
-          <h1 className="text-3xl font-semibold text-[var(--accent)]">{team.name}</h1>
+          <LeaguePageHeader
+            title={team.name}
+            leagueName={league.name}
+            showBadgeTooltip={membership.role === "OWNER"}
+          />
           <p className="text-sm text-[var(--text-muted)]">
-            {league.name} · {league.season.name} {league.season.year}
+            {league.season.name} · {league.season.year}
           </p>
         </div>
 

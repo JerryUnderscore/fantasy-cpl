@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
 import { getActiveMatchWeekForSeason } from "@/lib/matchweek";
 import TradeRosterClient from "./trade-roster-client";
+import LeaguePageHeader from "@/components/leagues/league-page-header";
 
 export const runtime = "nodejs";
 
@@ -95,7 +96,7 @@ export default async function TeamRosterPage({
     where: {
       leagueId_profileId: { leagueId, profileId: profile.id },
     },
-    select: { id: true },
+    select: { id: true, role: true },
   });
 
   if (!membership) {
@@ -305,12 +306,16 @@ export default async function TeamRosterPage({
           >
             Back to league
           </Link>
-          <h1 className="text-3xl font-semibold text-black">{team.name}</h1>
+          <LeaguePageHeader
+            title={team.name}
+            leagueName={league.name}
+            showBadgeTooltip={membership.role === "OWNER"}
+          />
           <p className="text-sm text-zinc-500">
             Owner: {team.profile.displayName ?? "Unknown"}
           </p>
           <p className="text-xs uppercase tracking-wide text-zinc-500">
-            {league.name} · {league.season.name} {league.season.year}
+            Season: {league.season.name} {league.season.year}
           </p>
         </div>
 

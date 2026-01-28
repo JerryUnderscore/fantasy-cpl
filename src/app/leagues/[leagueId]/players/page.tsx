@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
 import PlayersClient from "./players-client";
+import LeaguePageHeader from "@/components/leagues/league-page-header";
 
 export const runtime = "nodejs";
 
@@ -85,7 +86,7 @@ export default async function LeaguePlayersPage({
     where: {
       leagueId_profileId: { leagueId, profileId: profile.id },
     },
-    select: { id: true },
+    select: { id: true, role: true },
   });
 
   if (!membership) {
@@ -119,9 +120,13 @@ export default async function LeaguePlayersPage({
           >
             Back to league
           </Link>
-          <h1 className="text-3xl font-semibold text-black">Players</h1>
+          <LeaguePageHeader
+            title="Players"
+            leagueName={league.name}
+            showBadgeTooltip={membership.role === "OWNER"}
+          />
           <p className="text-sm text-zinc-500">
-            {league.name} · {league.season.name} {league.season.year}
+            Season: {league.season.name} {league.season.year}
           </p>
         </div>
 
