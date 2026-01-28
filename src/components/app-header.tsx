@@ -111,7 +111,7 @@ export default function AppHeader({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`rounded-full px-4 py-2 transition ${
+                  className={`rounded-full px-4 py-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)] ${
                     isActive
                       ? "text-[var(--text)] underline decoration-[var(--accent)] underline-offset-4"
                       : "text-[var(--text-muted)] hover:text-[var(--text)]"

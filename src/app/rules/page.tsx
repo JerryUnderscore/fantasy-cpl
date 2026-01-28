@@ -29,6 +29,7 @@ export default function RulesPage() {
   const [openSections, setOpenSections] = useState<Set<string>>(
     () => new Set(),
   );
+  const [activeSection, setActiveSection] = useState<string | null>(null);
 
   const sections = useMemo<RulesSection[]>(
     () => [
@@ -322,6 +323,7 @@ export default function RulesPage() {
       if (window.location.hash !== `#${id}`) {
         window.history.replaceState(null, "", `#${id}`);
       }
+      setActiveSection(id);
       if (shouldScroll) {
         scrollToSection(id);
       }
@@ -343,7 +345,12 @@ export default function RulesPage() {
       if (!hash) return;
       if (!anchorIds.includes(hash as (typeof anchorIds)[number])) return;
       openSection(hash);
+      setActiveSection(hash);
       scrollToSection(hash);
+      const button = document.getElementById(`${hash}-button`);
+      if (button instanceof HTMLElement) {
+        button.focus();
+      }
     };
 
     handleHash();
@@ -395,16 +402,21 @@ export default function RulesPage() {
               <div
                 key={section.id}
                 id={section.id}
-                className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)]"
+                className={`rounded-2xl border bg-[var(--surface2)] ${
+                  activeSection === section.id
+                    ? "border-[var(--accent)]"
+                    : "border-[var(--border)]"
+                }`}
               >
                 <div className="flex items-center justify-between gap-4 p-5">
                   <button
+                    id={`${section.id}-button`}
                     type="button"
                     onClick={() => {
                       toggleSection(section.id);
                       setHash(section.id, true);
                     }}
-                    className="flex flex-1 items-center justify-between gap-3 text-left text-base font-semibold text-[var(--text)]"
+                    className="flex flex-1 items-center justify-between gap-3 text-left text-base font-semibold text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface2)]"
                     aria-expanded={isOpen}
                     aria-controls={`${section.id}-content`}
                   >
