@@ -290,10 +290,10 @@ export default async function LeagueDetailPage({
               Trades
             </Link>
             <Link
-              href={`/leagues/${league.id}/rules`}
+              href={`/leagues/${league.id}/settings`}
               className="transition hover:text-[var(--text)] hover:underline underline-offset-4"
             >
-              League rules
+              League settings
             </Link>
           </div>
         </div>
