@@ -7,11 +7,11 @@ import { useEffect, useMemo, useState } from "react";
 import UserMenu from "./user-menu";
 
 const NAV_ITEMS = [
-  { label: "My Teams", href: "/my-teams" },
-  { label: "Leagues", href: "/leagues" },
-  { label: "Stats", href: "/players" },
-  { label: "Schedule", href: "/schedule" },
-  { label: "Rules", href: "/rules" },
+  { label: "My Teams", href: "/my-teams", matchers: ["/my-teams"] },
+  { label: "Leagues", href: "/leagues", matchers: ["/leagues"] },
+  { label: "Stats", href: "/players", matchers: ["/players"] },
+  { label: "Schedule", href: "/schedule", matchers: ["/schedule"] },
+  { label: "Rules", href: "/rules", matchers: ["/rules"] },
 ] as const;
 
 const padTwo = (value: number) => String(value).padStart(2, "0");
@@ -83,7 +83,11 @@ export default function AppHeader({
     <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface)] backdrop-blur">
       <div className="mx-auto flex w-full max-w-[1300px] flex-wrap items-center justify-between gap-4 px-6 py-4">
           <div className="flex items-center gap-6">
-            <Link href="/" className="flex items-center gap-2" aria-label="Fantasy CPL home">
+            <Link
+              href={isAuthenticated ? "/my-teams" : "/"}
+              className="flex items-center gap-2"
+              aria-label="Fantasy CPL home"
+            >
               <Image
                 src="/brand/fantasy-cpl-logo.png"
                 alt="Fantasy CPL logo"
@@ -98,25 +102,25 @@ export default function AppHeader({
 
           <nav className="flex flex-1 flex-wrap items-center justify-center gap-3 overflow-x-auto px-2 text-sm font-semibold text-[var(--text-muted)]">
             {NAV_ITEMS.map((item) => {
-            const isActive =
-              item.href === "/"
-                ? normalizedPath === "/"
-                : normalizedPath === item.href ||
-                  normalizedPath.startsWith(`${item.href}/`);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`rounded-full px-4 py-2 transition ${
-                  isActive
-                    ? "border border-[var(--accent)] bg-[var(--surface2)] text-[var(--accent)]"
-                    : "border border-transparent text-[var(--text-muted)] hover:text-[var(--text)]"
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+              const isActive = item.matchers.some(
+                (matcher) =>
+                  normalizedPath === matcher ||
+                  normalizedPath.startsWith(`${matcher}/`),
+              );
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`rounded-full px-4 py-2 transition ${
+                    isActive
+                      ? "text-[var(--text)] underline decoration-[var(--accent)] underline-offset-4"
+                      : "text-[var(--text-muted)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
         </nav>
 
         <div className="flex items-center gap-3">

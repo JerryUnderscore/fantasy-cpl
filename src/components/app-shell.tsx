@@ -3,8 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import ProfileSync from "@/components/profile-sync";
 import AppHeader from "@/components/app-header";
 import {
-  getActiveSeason,
-  getCurrentMatchWeekForSeason,
+  getHeaderMatchweekInfo,
 } from "@/lib/matchweek";
 
 type AppShellProps = {
@@ -43,42 +42,15 @@ export default async function AppShell({ children }: AppShellProps) {
   const isAdmin = profile?.isAdmin ?? false;
   const isAuthenticated = Boolean(user);
 
-  const activeSeason = await getActiveSeason();
   let lineupLockAt: Date | null = null;
   let nextMatchweekStartsAt: Date | null = null;
   let currentMatchWeekStatus: string | null = null;
 
-  if (activeSeason) {
-    const currentMatchWeek = await getCurrentMatchWeekForSeason(activeSeason.id);
-    if (currentMatchWeek) {
-      currentMatchWeekStatus = currentMatchWeek.status;
-      const earliestCurrentKickoff = await prisma.match.findFirst({
-        where: { matchWeekId: currentMatchWeek.id },
-        orderBy: { kickoffAt: "asc" },
-        select: { kickoffAt: true },
-      });
-      lineupLockAt =
-        earliestCurrentKickoff?.kickoffAt ?? currentMatchWeek.lockAt ?? null;
-
-      const nextMatchWeek = await prisma.matchWeek.findFirst({
-        where: {
-          seasonId: activeSeason.id,
-          number: { gt: currentMatchWeek.number },
-        },
-        orderBy: { number: "asc" },
-        select: { id: true, lockAt: true },
-      });
-
-      if (nextMatchWeek) {
-        const earliestNextKickoff = await prisma.match.findFirst({
-          where: { matchWeekId: nextMatchWeek.id },
-          orderBy: { kickoffAt: "asc" },
-          select: { kickoffAt: true },
-        });
-        nextMatchweekStartsAt =
-          earliestNextKickoff?.kickoffAt ?? nextMatchWeek.lockAt ?? null;
-      }
-    }
+  if (user) {
+    const headerInfo = await getHeaderMatchweekInfo();
+    lineupLockAt = headerInfo.lineupLockAt;
+    nextMatchweekStartsAt = headerInfo.nextMatchweekStartsAt;
+    currentMatchWeekStatus = headerInfo.currentMatchWeekStatus;
   }
 
   return (

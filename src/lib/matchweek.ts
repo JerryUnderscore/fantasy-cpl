@@ -83,6 +83,65 @@ export const getCurrentMatchWeek = async () => {
   return getCurrentMatchWeekForSeason(season.id);
 };
 
+type HeaderMatchweekInfo = {
+  currentMatchWeekStatus: string | null;
+  lineupLockAt: Date | null;
+  nextMatchweekStartsAt: Date | null;
+};
+
+export const getHeaderMatchweekInfo = async (): Promise<HeaderMatchweekInfo> => {
+  const activeSeason = await getActiveSeason();
+  if (!activeSeason) {
+    return {
+      currentMatchWeekStatus: null,
+      lineupLockAt: null,
+      nextMatchweekStartsAt: null,
+    };
+  }
+
+  const currentMatchWeek = await getCurrentMatchWeekForSeason(activeSeason.id);
+  if (!currentMatchWeek) {
+    return {
+      currentMatchWeekStatus: null,
+      lineupLockAt: null,
+      nextMatchweekStartsAt: null,
+    };
+  }
+
+  const earliestCurrentKickoff = await prisma.match.findFirst({
+    where: { matchWeekId: currentMatchWeek.id },
+    orderBy: { kickoffAt: "asc" },
+    select: { kickoffAt: true },
+  });
+
+  const nextMatchWeek = await prisma.matchWeek.findFirst({
+    where: {
+      seasonId: activeSeason.id,
+      number: { gt: currentMatchWeek.number },
+    },
+    orderBy: { number: "asc" },
+    select: { id: true, lockAt: true },
+  });
+
+  let nextMatchweekStartsAt: Date | null = null;
+  if (nextMatchWeek) {
+    const earliestNextKickoff = await prisma.match.findFirst({
+      where: { matchWeekId: nextMatchWeek.id },
+      orderBy: { kickoffAt: "asc" },
+      select: { kickoffAt: true },
+    });
+    nextMatchweekStartsAt =
+      earliestNextKickoff?.kickoffAt ?? nextMatchWeek.lockAt ?? null;
+  }
+
+  return {
+    currentMatchWeekStatus: currentMatchWeek.status ?? null,
+    lineupLockAt:
+      earliestCurrentKickoff?.kickoffAt ?? currentMatchWeek.lockAt ?? null,
+    nextMatchweekStartsAt,
+  };
+};
+
 export const recalculateMatchWeekLockAt = async (matchWeekIds: string[]) => {
   const uniqueIds = Array.from(new Set(matchWeekIds)).filter(Boolean);
   if (uniqueIds.length === 0) {

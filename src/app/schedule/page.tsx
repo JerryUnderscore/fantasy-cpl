@@ -43,7 +43,7 @@ export default async function SchedulePage() {
             </Link>
           </div>
           <p className="text-sm text-[var(--text-muted)]">
-            Upcoming matchups for season {season?.name ?? "—"}.
+            CPL schedule for the beta season {season?.name ?? "—"}.
           </p>
         </div>
         {scheduleMatches.length === 0 ? (

@@ -31,10 +31,10 @@ export default async function PlayersPage() {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 rounded-3xl border border-[var(--border)] bg-[var(--surface2)] p-10 shadow-sm">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-semibold text-[var(--text)]">
-            {season.name} Players
+            CPL player stats
           </h1>
           <p className="text-sm text-[var(--text-muted)]">
-            Active season player pool.
+            CPL player stats for the beta season ({season.name}).
           </p>
         </div>
 

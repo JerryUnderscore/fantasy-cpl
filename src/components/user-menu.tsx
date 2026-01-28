@@ -105,13 +105,6 @@ export default function UserMenu({
           >
             Account settings
           </Link>
-          <Link
-            href="/leagues"
-            className="block rounded-xl px-3 py-2 text-sm text-[var(--text)] transition hover:bg-[var(--surface2)]"
-            role="menuitem"
-          >
-            My leagues
-          </Link>
           {hasOwnedLeagues ? (
             <Link
               href="/settings/leagues"
