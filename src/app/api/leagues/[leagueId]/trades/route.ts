@@ -90,7 +90,7 @@ export async function GET(_: NextRequest, ctx: Ctx) {
                 name: true,
                 jerseyNumber: true,
                 position: true,
-                club: { select: { shortName: true } },
+                club: { select: { shortName: true, slug: true, name: true } },
               },
             },
           },

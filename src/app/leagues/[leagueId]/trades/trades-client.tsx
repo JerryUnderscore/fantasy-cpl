@@ -13,7 +13,7 @@ type TradePlayer = {
   name: string;
   jerseyNumber: number | null;
   position: string;
-  club: { shortName: string | null; slug: string } | null;
+  club: { shortName: string | null; slug: string; name: string } | null;
 };
 
 type TradeItem = {
@@ -102,7 +102,7 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
 
   const buildRosterLabel = (player: TradePlayer) =>
     `${player.position} · ${
-      player.club ? getClubDisplayName(player.club.slug, null) : ""
+      player.club ? getClubDisplayName(player.club.slug, player.club.name) : ""
     }`.trim();
 
   const handleTradeAction = async (tradeId: string, action: string) => {

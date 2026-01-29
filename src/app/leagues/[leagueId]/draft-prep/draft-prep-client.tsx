@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatPlayerName } from "@/lib/players";
 import { getClubDisplayName } from "@/lib/clubs";
+import SectionCard from "@/components/layout/section-card";
 
 type PlayerPosition = "GK" | "DEF" | "MID" | "FWD";
 
@@ -68,7 +69,6 @@ export default function DraftPrepClient({
   const [draftId, setDraftId] = useState<string | null>(null);
   const hasLoadedQueue = useRef(false);
   const hasSkippedInitialSave = useRef(false);
-  const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const playersById = useMemo(() => {
     return new Map(players.map((player) => [player.id, player]));
@@ -85,14 +85,11 @@ export default function DraftPrepClient({
 
   const filteredPlayers = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
+    const escapedSearch = normalizedSearch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const wordBoundaryRegex =
+      normalizedSearch.length > 0 ? new RegExp(`\\b${escapedSearch}`) : null;
     return players
       .filter((player) => {
-        if (
-          normalizedSearch &&
-          !player.name.toLowerCase().includes(normalizedSearch)
-        ) {
-          return false;
-        }
         if (positionFilter !== "ALL" && player.position !== positionFilter) {
           return false;
         }
@@ -100,9 +97,30 @@ export default function DraftPrepClient({
           const label = buildClubLabel(player.club);
           if (label !== clubFilter) return false;
         }
-        return true;
+        if (!normalizedSearch) return true;
+        return player.name.toLowerCase().includes(normalizedSearch);
       })
       .sort((a, b) => {
+        if (!normalizedSearch) {
+          if (a.position !== b.position) {
+            return positionOrder[a.position] - positionOrder[b.position];
+          }
+          return a.name.localeCompare(b.name);
+        }
+
+        const aName = a.name.toLowerCase();
+        const bName = b.name.toLowerCase();
+        const aRank = aName.startsWith(normalizedSearch)
+          ? 0
+          : wordBoundaryRegex?.test(aName)
+            ? 1
+            : 2;
+        const bRank = bName.startsWith(normalizedSearch)
+          ? 0
+          : wordBoundaryRegex?.test(bName)
+            ? 1
+            : 2;
+        if (aRank !== bRank) return aRank - bRank;
         if (a.position !== b.position) {
           return positionOrder[a.position] - positionOrder[b.position];
         }
@@ -120,8 +138,6 @@ export default function DraftPrepClient({
     if (!hasLoadedQueue.current) return;
     setQueueIds((prev) => prev.filter((id) => playersById.has(id)));
   }, [playersById]);
-
-  const canSaveQueue = Boolean(draftId);
 
   const loadQueue = useCallback(async () => {
     setQueueError(null);
@@ -145,6 +161,7 @@ export default function DraftPrepClient({
       const message =
         error instanceof Error ? error.message : "Failed to load queue";
       setQueueError(message);
+      hasLoadedQueue.current = true;
     }
   }, [leagueId, playersById]);
 
@@ -154,7 +171,6 @@ export default function DraftPrepClient({
 
   const saveQueue = useCallback(
     async (nextQueue: string[]) => {
-      if (!canSaveQueue) return;
       setQueueStatus("saving");
       setQueueError(null);
       try {
@@ -167,6 +183,7 @@ export default function DraftPrepClient({
         if (!res.ok) {
           throw new Error(payload?.error ?? "Failed to save queue");
         }
+        if (payload?.draftId) setDraftId(payload.draftId);
         setQueueStatus("saved");
       } catch (error) {
         setQueueStatus("error");
@@ -175,30 +192,18 @@ export default function DraftPrepClient({
         );
       }
     },
-    [leagueId, canSaveQueue],
+    [leagueId],
   );
 
   useEffect(() => {
     if (!hasLoadedQueue.current) return;
-    if (!canSaveQueue) return;
     if (!hasSkippedInitialSave.current) {
       hasSkippedInitialSave.current = true;
       return;
     }
-    if (saveTimeout.current) {
-      clearTimeout(saveTimeout.current);
-    }
     setQueueStatus("idle");
-    saveTimeout.current = setTimeout(() => {
-      void saveQueue(queueIds);
-    }, 600);
-
-    return () => {
-      if (saveTimeout.current) {
-        clearTimeout(saveTimeout.current);
-      }
-    };
-  }, [queueIds, saveQueue, canSaveQueue]);
+    void saveQueue(queueIds);
+  }, [queueIds, saveQueue]);
 
   const addToQueue = (playerId: string) => {
     setQueueIds((prev) => (prev.includes(playerId) ? prev : [...prev, playerId]));
@@ -222,15 +227,11 @@ export default function DraftPrepClient({
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-      <section className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-6">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xl font-semibold text-black">Player pool</h2>
-          <p className="text-sm text-zinc-500">
-            Search and build your draft queue from the active league roster.
-          </p>
-        </div>
-
-        <div className="mt-6 grid gap-3 lg:grid-cols-[minmax(0,2fr)_repeat(2,minmax(0,1fr))]">
+      <SectionCard
+        title="Player pool"
+        description="Search and build your draft queue from the active league roster."
+      >
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_repeat(2,minmax(0,1fr))]">
           <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
             Search
             <input
@@ -272,70 +273,71 @@ export default function DraftPrepClient({
           </label>
         </div>
 
-        <div className="mt-6 flex items-center justify-between text-sm text-zinc-500">
+        <div className="mt-5 flex items-center justify-between text-sm text-zinc-500">
           <span>{filteredPlayers.length} players</span>
           <span className="text-xs uppercase tracking-wide">
             {queueIds.length} queued
           </span>
         </div>
 
-        <div className="mt-4 divide-y divide-zinc-100 rounded-2xl border border-zinc-100 bg-white">
+        <div className="mt-4 max-h-[520px] overflow-y-auto rounded-2xl border border-zinc-100 bg-white">
           {filteredPlayers.length === 0 ? (
             <div className="p-6 text-sm text-zinc-500">
               No players match these filters.
             </div>
           ) : (
-            filteredPlayers.map((player) => {
-              const queued = queueIds.includes(player.id);
-              const clubLabel = buildClubLabel(player.club);
-              return (
-                <div
-                  key={player.id}
-                  className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-zinc-900">
-                      {formatPlayerName(player.name, player.jerseyNumber)}
-                    </p>
-                    <p className="text-xs uppercase tracking-wide text-zinc-500">
-                      {positionLabel(player.position)} - {clubLabel}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    title={queued ? "Remove from queue" : "Add to queue"}
-                    aria-label={queued ? "Remove from queue" : "Add to queue"}
-                    onClick={() =>
-                      queued
-                        ? removeFromQueue(player.id)
-                        : addToQueue(player.id)
-                    }
+            <div className="divide-y divide-zinc-100">
+              {filteredPlayers.map((player) => {
+                const queued = queueIds.includes(player.id);
+                const clubLabel = buildClubLabel(player.club);
+                return (
+                  <div
+                    key={player.id}
+                    className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-zinc-900">
+                        {formatPlayerName(player.name, player.jerseyNumber)}
+                      </p>
+                      <p className="text-xs uppercase tracking-wide text-zinc-500">
+                        {positionLabel(player.position)} - {clubLabel}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      title={queued ? "Remove from queue" : "Add to queue"}
+                      aria-label={queued ? "Remove from queue" : "Add to queue"}
+                      onClick={() =>
+                        queued
+                          ? removeFromQueue(player.id)
+                          : addToQueue(player.id)
+                      }
                     className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold transition ${
                       queued
                         ? "border border-zinc-200 bg-zinc-100 text-zinc-600 hover:border-zinc-300"
-                        : "border border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300"
+                        : "border border-[#c7a55b] bg-[#c7a55b] text-black hover:opacity-90"
                     }`}
                   >
                     {queued ? "✓" : "➕"}
                   </button>
-                </div>
-              );
-            })
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
-      </section>
+      </SectionCard>
 
       <aside className="flex flex-col gap-6">
-        <section className="rounded-2xl border border-zinc-100 bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            Roster constraints
-          </p>
-          <p className="mt-1 text-xs text-zinc-500">Current roster</p>
-          <div className="mt-3 flex flex-col gap-2 text-sm text-zinc-600">
+        <SectionCard title="Roster constraints" description="Current roster">
+          <div className="flex flex-col gap-2 text-sm text-zinc-600">
             <div className="flex items-center justify-between">
-              <span>Roster size</span>
+              <span>Drafted players</span>
               <span className="font-semibold text-zinc-900">
-                {constraints.rosterSize}
+                {Object.values(constraints.rosterCounts).reduce(
+                  (sum, count) => sum + count,
+                  0,
+                )}
               </span>
             </div>
             {constraints.positionLimits ? (
@@ -372,38 +374,29 @@ export default function DraftPrepClient({
               </div>
             ) : null}
           </div>
-        </section>
+        </SectionCard>
 
-        <section className="rounded-2xl border border-zinc-100 bg-white p-6 shadow-sm">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold text-black">Queue</h2>
-              <p className="text-xs text-zinc-500">
-                Order matters. Top players will auto-fill if you miss a pick.
-              </p>
-            </div>
-            <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        <SectionCard
+          title="Queue"
+          description="Order matters. Top players will auto-fill if you miss a pick."
+          actions={
+            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
               {queueIds.length} total
             </span>
-          </div>
-
-          {!canSaveQueue ? (
-            <div className="mt-4 rounded-xl border border-dashed border-zinc-200 bg-zinc-50 p-4 text-xs text-zinc-500">
-              Draft queue will save once the draft has been created.
-            </div>
-          ) : null}
+          }
+        >
           {queueError ? (
-            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
               {queueError}
             </div>
           ) : null}
-          <div className="mt-4 text-xs uppercase tracking-wide text-zinc-500">
+          <div className="mt-3 text-xs uppercase tracking-wide text-zinc-500">
             {queueStatus === "saving" && "Saving..."}
             {queueStatus === "saved" && "Saved"}
             {queueStatus === "error" && "Save failed"}
           </div>
 
-          <div className="mt-4 flex flex-col gap-3">
+          <div className="mt-4 flex max-h-[360px] flex-col gap-3 overflow-y-auto pr-1">
             {queuePlayers.length === 0 ? (
               <div className="rounded-xl border border-dashed border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-500">
                 Add players to build your queue.
@@ -452,7 +445,7 @@ export default function DraftPrepClient({
               ))
             )}
           </div>
-        </section>
+        </SectionCard>
       </aside>
     </div>
   );

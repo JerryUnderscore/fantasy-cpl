@@ -16,6 +16,7 @@ import { getClubDisplayName } from "@/lib/clubs";
 import LeaguePageHeader from "@/components/leagues/league-page-header";
 import PageHeader from "@/components/layout/page-header";
 import SectionCard from "@/components/layout/section-card";
+import MyTeamPanel from "./my-team-panel";
 
 export const runtime = "nodejs";
 
@@ -35,7 +36,7 @@ type DraftPickSummary = {
     name: string;
     jerseyNumber: number | null;
     position: string;
-    club: { shortName: string | null; slug: string } | null;
+    club: { shortName: string | null; slug: string; name: string } | null;
   };
 };
 
@@ -218,7 +219,7 @@ export default async function DraftPage({
               name: true,
               jerseyNumber: true,
               position: true,
-              club: { select: { shortName: true, slug: true } },
+              club: { select: { shortName: true, slug: true, name: true } },
             },
           },
         },
@@ -243,6 +244,23 @@ export default async function DraftPage({
   const currentPick = draft
     ? computeCurrentPick(teams, picks, draft.rounds)
     : null;
+  const onDeckPick =
+    currentPick && draft
+      ? computeCurrentPick(
+          teams,
+          [
+            ...picks.map((pick) => ({
+              pickNumber: pick.pickNumber,
+              fantasyTeamId: pick.fantasyTeamId,
+            })),
+            {
+              pickNumber: currentPick.pickNumber,
+              fantasyTeamId: currentPick.fantasyTeamId,
+            },
+          ],
+          draft.rounds,
+        )
+      : null;
 
   const draftDeadline =
     draft && currentPick
@@ -344,6 +362,7 @@ export default async function DraftPage({
 
         <DraftClient
           leagueId={leagueId}
+          draftId={draft?.id ?? null}
           isOwner={membership.role === "OWNER"}
           draftStatus={draftStatus}
           isPaused={draft?.isPaused ?? false}
@@ -359,6 +378,17 @@ export default async function DraftPage({
                 }
               : null
           }
+          onDeck={
+            onDeckPick
+              ? {
+                  pickNumber: onDeckPick.pickNumber,
+                  round: onDeckPick.round,
+                  slotInRound: onDeckPick.slotInRound,
+                  fantasyTeamName: onDeckPick.fantasyTeamName,
+                }
+              : null
+          }
+          totalPicks={totalPicks}
           draftMode={league.draftMode}
           deadline={draftDeadline ? draftDeadline.toISOString() : null}
           scheduledAt={league.draftScheduledAt?.toISOString() ?? null}
@@ -388,49 +418,140 @@ export default async function DraftPage({
           </SectionCard>
         ) : null}
 
-        <section className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-              Draft history
-            </h2>
-            <span className="text-xs text-zinc-500">
-              {draftedCount} picks
-            </span>
+        {!draft ? (
+          <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-10 text-center">
+            <p className="text-base font-semibold text-zinc-800">
+              Draft not created yet
+            </p>
+            <p className="mt-2 text-sm text-zinc-500">
+              The commissioner will create the draft when the league is ready.
+            </p>
           </div>
-          {picks.length === 0 ? (
-            <p className="mt-3 text-sm text-zinc-500">No picks yet.</p>
-          ) : (
-            <ul className="mt-4 flex flex-col gap-2">
-              {picks.map((pick) => (
-                <li
-                  key={pick.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3"
-                >
-                  <div className="flex flex-col">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                      Pick {pick.pickNumber} · Round {pick.round}
-                    </span>
-                    <span className="text-sm font-semibold text-zinc-900">
-                      {formatPlayerName(
-                        pick.player.name,
-                        pick.player.jerseyNumber,
-                      )}
-                    </span>
-                    <span className="text-xs text-zinc-500">
-                      {pick.player.position} ·{" "}
-                      {pick.player.club
-                        ? getClubDisplayName(pick.player.club.slug, null)
-                        : "—"}
-                    </span>
-                  </div>
-                  <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                    {pick.fantasyTeam.name}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        ) : (
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,1.2fr)]">
+            <SectionCard
+              title="Draft board"
+              description={`${draftedCount} picks · ${remainingPicks} remaining`}
+            >
+              <div className="max-h-[520px] overflow-auto rounded-2xl border border-[var(--border)] bg-white">
+                <table className="min-w-full border-separate border-spacing-0">
+                  <thead>
+                    <tr className="bg-[var(--surface2)]">
+                      <th className="sticky left-0 z-10 w-20 border-b border-[var(--border)] bg-[var(--surface2)] px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                        Round
+                      </th>
+                      {teams.map((team) => {
+                        const isCurrentUserTeam = currentTeam?.id === team.id;
+                        return (
+                          <th
+                            key={team.id}
+                            className={`border-b border-[var(--border)] px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)] ${
+                              isCurrentUserTeam
+                                ? "bg-sky-50"
+                                : "bg-[var(--surface2)]"
+                            }`}
+                          >
+                            <div className="flex flex-col">
+                              <span className="text-zinc-700">{team.name}</span>
+                              {isCurrentUserTeam ? (
+                                <span className="text-[10px] font-medium text-sky-700">
+                                  My team
+                                </span>
+                              ) : null}
+                            </div>
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from({ length: rounds }, (_, index) => index + 1).map(
+                      (roundNumber) => (
+                        <tr key={roundNumber} className="border-b border-zinc-200">
+                          <td className="sticky left-0 z-10 border-b border-[var(--border)] bg-white px-3 py-4 text-sm font-semibold text-zinc-700">
+                            {roundNumber}
+                          </td>
+                          {teams.map((team) => {
+                            const pick = picksByRoundTeam.get(
+                              `${roundNumber}-${team.id}`,
+                            );
+                            const isCurrentPick =
+                              currentPick?.round === roundNumber &&
+                              currentPick?.fantasyTeamId === team.id &&
+                              draftStatus === "LIVE";
+                            const isCurrentUserTeam =
+                              currentTeam?.id === team.id;
+
+                            return (
+                              <td
+                                key={team.id}
+                                className={`border-b border-[var(--border)] px-4 py-4 align-top text-xs ${
+                                  isCurrentPick
+                                    ? "bg-amber-50"
+                                    : isCurrentUserTeam
+                                      ? "bg-sky-50"
+                                      : "bg-white"
+                                }`}
+                              >
+                                {pick ? (
+                                  <div className="flex flex-col gap-1">
+                                    <span className="font-semibold text-zinc-900">
+                                      {formatPlayerName(
+                                        pick.player.name,
+                                        pick.player.jerseyNumber,
+                                      )}
+                                    </span>
+                                    <span className="text-[10px] text-zinc-500">
+                                      {pick.player.position} ·{" "}
+                                      {pick.player.club
+                                        ? getClubDisplayName(
+                                            pick.player.club.slug,
+                                            pick.player.club.name,
+                                          )
+                                        : "—"}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-sm text-zinc-400">—</span>
+                                )}
+
+                                {isCurrentPick ? (
+                                  <div className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                                    On the clock
+                                  </div>
+                                ) : null}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ),
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </SectionCard>
+
+            <div className="flex flex-col gap-6">
+              <SectionCard title="Draft summary">
+                <div className="flex flex-col gap-2 text-sm text-zinc-700">
+                  <p>Drafted picks: {draftedCount}</p>
+                  <p>Remaining picks: {remainingPicks}</p>
+                  <p>Total rounds: {rounds}</p>
+                </div>
+              </SectionCard>
+
+              {currentTeam ? (
+                <MyTeamPanel picks={myTeamPicks} />
+              ) : (
+                <SectionCard title="My team">
+                  <p className="text-sm text-[var(--text-muted)]">
+                    Join a team to see your draft picks.
+                  </p>
+                </SectionCard>
+              )}
+            </div>
+          </div>
+        )}
 
         <DraftPrepClient
           leagueId={leagueId}
@@ -444,164 +565,6 @@ export default async function DraftPage({
           }}
           players={queuePlayers}
         />
-
-        {!draft ? (
-          <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-10 text-center">
-            <p className="text-base font-semibold text-zinc-800">
-              Draft not created yet
-            </p>
-            <p className="mt-2 text-sm text-zinc-500">
-              The commissioner will create the draft when the league is ready.
-            </p>
-          </div>
-        ) : (
-          <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
-            <div className="overflow-x-auto rounded-2xl border border-zinc-200">
-              <table className="min-w-full border-separate border-spacing-0">
-                <thead>
-                  <tr className="bg-zinc-50">
-                    <th className="sticky left-0 z-10 w-20 border-b border-zinc-200 bg-zinc-50 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                      Round
-                    </th>
-                    {teams.map((team) => {
-                      const isCurrentUserTeam = currentTeam?.id === team.id;
-                      return (
-                        <th
-                          key={team.id}
-                          className={`border-b border-zinc-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 ${
-                            isCurrentUserTeam ? "bg-sky-50" : "bg-zinc-50"
-                          }`}
-                        >
-                          <div className="flex flex-col">
-                            <span className="text-zinc-700">{team.name}</span>
-                            {isCurrentUserTeam ? (
-                              <span className="text-[10px] font-medium text-sky-700">
-                                My team
-                              </span>
-                            ) : null}
-                          </div>
-                        </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.from({ length: rounds }, (_, index) => index + 1).map(
-                    (roundNumber) => (
-                      <tr key={roundNumber} className="border-b border-zinc-200">
-                        <td className="sticky left-0 z-10 border-b border-zinc-200 bg-white px-3 py-4 text-sm font-semibold text-zinc-700">
-                          {roundNumber}
-                        </td>
-                        {teams.map((team) => {
-                          const pick = picksByRoundTeam.get(
-                            `${roundNumber}-${team.id}`,
-                          );
-                          const isCurrentPick =
-                            currentPick?.round === roundNumber &&
-                            currentPick?.fantasyTeamId === team.id &&
-                            draftStatus === "LIVE";
-                          const isCurrentUserTeam = currentTeam?.id === team.id;
-
-                          return (
-                            <td
-                              key={team.id}
-                              className={`border-b border-zinc-200 px-4 py-4 align-top text-sm ${
-                                isCurrentPick
-                                  ? "bg-amber-50"
-                                  : isCurrentUserTeam
-                                    ? "bg-sky-50"
-                                    : "bg-white"
-                              }`}
-                            >
-                              {pick ? (
-                                <div className="flex flex-col gap-1">
-                                  <span className="font-semibold text-zinc-900">
-                                    {formatPlayerName(
-                                      pick.player.name,
-                                      pick.player.jerseyNumber,
-                                    )}
-                                  </span>
-                                  <span className="text-xs text-zinc-500">
-                                    {pick.player.position} ·{" "}
-                                    {pick.player.club
-                                      ? getClubDisplayName(
-                                          pick.player.club.slug,
-                                          null,
-                                        )
-                                      : "—"}
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="text-sm text-zinc-400">—</span>
-                              )}
-
-                              {isCurrentPick ? (
-                                <div className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                                  On the clock
-                                </div>
-                              ) : null}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ),
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex flex-col gap-4">
-              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                  Draft summary
-                </p>
-                <div className="mt-3 flex flex-col gap-2 text-sm text-zinc-700">
-                  <p>Drafted picks: {draftedCount}</p>
-                  <p>Remaining picks: {remainingPicks}</p>
-                  <p>Total rounds: {rounds}</p>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                  My team
-                </p>
-
-                {currentTeam ? (
-                  myTeamPicks.length ? (
-                    <ul className="mt-3 flex flex-col gap-3">
-                      {myTeamPicks.map((pick) => (
-                        <li key={pick.id} className="rounded-xl bg-white p-3">
-                          <p className="text-sm font-semibold text-zinc-900">
-                            {formatPlayerName(
-                              pick.player.name,
-                              pick.player.jerseyNumber,
-                            )}
-                          </p>
-                          <p className="text-xs text-zinc-500">
-                            {pick.player.position} ·{" "}
-                            {pick.player.club
-                              ? getClubDisplayName(pick.player.club.slug, null)
-                              : "—"}
-                          </p>
-                          <p className="mt-1 text-[10px] uppercase tracking-wide text-zinc-400">
-                            Round {pick.round} · Pick {pick.pickNumber}
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="mt-3 text-sm text-zinc-500">No picks yet.</p>
-                  )
-                ) : (
-                  <p className="mt-3 text-sm text-zinc-500">
-                    Join a team to see your draft picks.
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

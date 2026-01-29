@@ -123,7 +123,7 @@ export async function PUT(request: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
-    const draft = await prisma.draft.findUnique({
+    let draft = await prisma.draft.findUnique({
       where: {
         leagueId_seasonId: { leagueId, seasonId: league.seasonId },
       },
@@ -131,10 +131,18 @@ export async function PUT(request: NextRequest, ctx: Ctx) {
     });
 
     if (!draft) {
-      return NextResponse.json(
-        { error: "Draft not created yet" },
-        { status: 409 },
-      );
+      draft = await prisma.draft.create({
+        data: {
+          leagueId,
+          seasonId: league.seasonId,
+          status: "NOT_STARTED",
+          rounds: 15,
+          currentPickStartedAt: null,
+          isPaused: false,
+          pausedRemainingSeconds: null,
+        },
+        select: { id: true },
+      });
     }
 
     const body = await request.json().catch(() => null);
@@ -174,7 +182,7 @@ export async function PUT(request: NextRequest, ctx: Ctx) {
       }
     });
 
-    return NextResponse.json({ count: orderedQueue.length });
+    return NextResponse.json({ count: orderedQueue.length, draftId: draft.id });
   } catch (error) {
     if ((error as { status?: number }).status === 401) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

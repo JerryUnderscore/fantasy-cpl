@@ -26,7 +26,7 @@ type SlotView = {
     name: string;
     jerseyNumber: number | null;
     position: string;
-    club: { shortName: string | null; slug: string } | null;
+    club: { shortName: string | null; slug: string; name: string } | null;
   } | null;
 };
 
@@ -185,7 +185,7 @@ export default async function MyTeamRosterPage({
           name: true,
           jerseyNumber: true,
           position: true,
-          club: { select: { shortName: true, slug: true } },
+          club: { select: { shortName: true, slug: true, name: true } },
         },
       },
     },
@@ -227,7 +227,7 @@ export default async function MyTeamRosterPage({
           id: string;
           name: string;
           position: string;
-          club: { shortName: string | null; slug: string } | null;
+          club: { shortName: string | null; slug: string; name: string } | null;
         } | null;
       }>
     | null = null;
@@ -296,7 +296,7 @@ export default async function MyTeamRosterPage({
             name: true,
             jerseyNumber: true,
             position: true,
-            club: { select: { shortName: true, slug: true } },
+            club: { select: { shortName: true, slug: true, name: true } },
           },
         },
       },

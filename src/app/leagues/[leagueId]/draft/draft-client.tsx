@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { formatPlayerName } from "@/lib/players";
+import { useDraftRealtime } from "./use-draft-realtime";
 
 type AvailablePlayer = {
   id: string;
@@ -23,12 +24,15 @@ type DraftMode = "LIVE" | "CASUAL" | "NONE";
 
 type Props = {
   leagueId: string;
+  draftId: string | null;
   isOwner: boolean;
   draftStatus: "NOT_STARTED" | "LIVE" | "COMPLETE";
   isPaused: boolean;
   pausedRemainingSeconds: number | null;
   queuedPlayerIds: string[];
   onTheClock: OnTheClock | null;
+  onDeck: OnTheClock | null;
+  totalPicks: number;
   draftMode: DraftMode;
   deadline: string | null;
   scheduledAt: string | null;
@@ -52,12 +56,15 @@ type ModalState = {
 
 export default function DraftClient({
   leagueId,
+  draftId,
   isOwner,
   draftStatus,
   isPaused,
   pausedRemainingSeconds,
   queuedPlayerIds,
   onTheClock,
+  onDeck,
+  totalPicks,
   draftMode,
   deadline,
   scheduledAt,
@@ -93,6 +100,15 @@ export default function DraftClient({
       ? new Date(scheduledAt).toLocaleString()
       : null;
 
+  const refreshDraft = useCallback(() => {
+    router.refresh();
+  }, [router]);
+
+  const { isConnected: isRealtimeConnected } = useDraftRealtime({
+    draftId,
+    onChange: refreshDraft,
+  });
+
   useEffect(() => {
     if (deadlineMs === null || draftStatus !== "LIVE" || isPaused) return;
     const interval = window.setInterval(() => {
@@ -100,6 +116,43 @@ export default function DraftClient({
     }, 1000);
     return () => window.clearInterval(interval);
   }, [deadlineMs, draftStatus, isPaused]);
+
+  useEffect(() => {
+    if (draftStatus !== "LIVE" || isPaused || draftMode !== "LIVE") return;
+    let isActive = true;
+
+    const resolveOverdue = async () => {
+      try {
+        const res = await fetch(
+          `/api/leagues/${leagueId}/draft/resolve-overdue`,
+          { method: "POST" },
+        );
+        const payload = await res.json().catch(() => null);
+        if (!isActive) return;
+        if (payload?.updated) {
+          router.refresh();
+        }
+      } catch {
+        // Ignore resolve errors; polling or realtime will catch up.
+      }
+    };
+
+    void resolveOverdue();
+    const interval = window.setInterval(resolveOverdue, 2500);
+    return () => {
+      isActive = false;
+      window.clearInterval(interval);
+    };
+  }, [draftStatus, isPaused, draftMode, leagueId, router]);
+
+  useEffect(() => {
+    if (draftStatus !== "LIVE" || isPaused) return;
+    if (isRealtimeConnected) return;
+    const interval = window.setInterval(() => {
+      router.refresh();
+    }, 2500);
+    return () => window.clearInterval(interval);
+  }, [draftStatus, isPaused, isRealtimeConnected, router]);
 
   const filteredPlayers = useMemo(() => {
     const query = modal?.search.trim().toLowerCase() ?? "";
@@ -279,60 +332,109 @@ export default function DraftClient({
   };
 
   const statusLabel = isPaused ? "PAUSED" : draftStatus;
-  const clockLabel = isPaused
+  const timerLabel = isPaused
+    ? "Paused"
+    : draftMode === "LIVE"
+      ? "Time left"
+      : "Casual";
+  const timerValue = isPaused
     ? pausedSeconds !== null
-      ? `Paused · ${formatSeconds(pausedSeconds)} left`
-      : "Paused"
+      ? formatSeconds(pausedSeconds)
+      : "—"
     : remainingSeconds !== null
-      ? `Time left: ${formatSeconds(remainingSeconds)}`
-      : "Live draft";
+      ? formatSeconds(remainingSeconds)
+      : "—";
+  const statusPillClass =
+    draftStatus === "LIVE" && !isPaused
+      ? "border-red-200 bg-red-600 text-white"
+      : isPaused
+        ? "border-amber-200 bg-amber-50 text-amber-700"
+        : "border-zinc-200 bg-white text-zinc-600";
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-5">
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="rounded-full border border-zinc-300 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-700">
-            {statusLabel}
-          </span>
-          <p className="text-sm text-zinc-700">
-            Pick {onTheClock?.pickNumber ?? "—"}
-          </p>
-          <p className="text-sm text-zinc-700">
-            Round {onTheClock?.round ?? "—"}
-          </p>
-          <p className="text-sm text-zinc-700">
-            On the clock: {draftStatus === "LIVE" ? onTheClock?.fantasyTeamName ?? "—" : "—"}
-          </p>
+    <div className="flex flex-col gap-4">
+      <div className="sticky top-6 z-20 rounded-2xl border border-zinc-800 bg-[#0f1115] p-4 shadow-sm md:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <span
+              className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusPillClass}`}
+            >
+              {statusLabel}
+            </span>
+            <p className="text-sm text-zinc-300">
+              Pick {onTheClock?.pickNumber ?? "—"} / {totalPicks || "—"}
+            </p>
+            <p className="text-sm text-zinc-300">
+              Round {onTheClock?.round ?? "—"}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+              {timerLabel}
+            </p>
+            <p className="text-lg font-semibold text-zinc-100">{timerValue}</p>
+          </div>
         </div>
-        <div className="text-sm text-zinc-600">
-          {draftMode === "LIVE" ? (
-            <span>{clockLabel}</span>
-          ) : draftMode === "CASUAL" ? (
-            <span>Casual draft</span>
-          ) : null}
+
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="rounded-xl border border-zinc-800 bg-[#242424] px-3 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+              Now picking
+            </p>
+            <p className="text-sm font-semibold text-zinc-100">
+              {draftStatus === "LIVE"
+                ? onTheClock?.fantasyTeamName ?? "—"
+                : "—"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-zinc-800 bg-[#242424] px-3 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+              On deck
+            </p>
+            <p className="text-sm font-semibold text-zinc-100">
+              {draftStatus === "LIVE" ? onDeck?.fantasyTeamName ?? "—" : "—"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-zinc-800 bg-[#242424] px-3 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+              Pick
+            </p>
+            <p className="text-sm font-semibold text-zinc-100">
+              {onTheClock?.pickNumber ?? "—"} / {totalPicks || "—"}
+            </p>
+          </div>
         </div>
-      </div>
 
-      {draftMode === "LIVE" && scheduledLabel && draftStatus === "NOT_STARTED" ? (
-        <p className="text-xs text-zinc-500">
-          Draft starts at: {scheduledLabel}
-        </p>
-      ) : null}
+        {draftMode === "LIVE" && scheduledLabel && draftStatus === "NOT_STARTED" ? (
+          <p className="mt-3 text-xs text-zinc-400">
+            Draft starts at: {scheduledLabel}
+          </p>
+        ) : null}
 
-      {canPick && !isPaused ? (
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="mt-4 flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={() => openModal("MAKE_PICK")}
-            className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white"
+            disabled={!canPick || isPaused || isPending}
+            className="rounded-full bg-[#c7a55b] px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
           >
             Make pick
           </button>
-          <p className="text-xs text-zinc-500">
-            You are on the clock. Choose a player to lock in this pick.
-          </p>
+          <button
+            type="button"
+            onClick={advanceDraft}
+            disabled={!canPick || isPaused || isPending}
+            className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 disabled:opacity-50"
+          >
+            Auto-pick now
+          </button>
+          {canPick && !isPaused ? (
+            <p className="text-xs text-zinc-500">
+              You are on the clock. Choose a player to lock in this pick.
+            </p>
+          ) : null}
         </div>
-      ) : null}
+      </div>
 
       {showManualTools ? (
         <div className="flex flex-wrap items-center gap-3">
@@ -368,14 +470,6 @@ export default function DraftClient({
           ) : null}
           {draftStatus === "LIVE" ? (
             <>
-              <button
-                type="button"
-                onClick={advanceDraft}
-                disabled={isPending}
-                className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 disabled:opacity-60"
-              >
-                Auto-pick now
-              </button>
               <button
                 type="button"
                 onClick={() => openModal("FORCE_PICK")}
@@ -486,11 +580,28 @@ export default function DraftClient({
                     return (
                       <li
                         key={player.id}
-                        className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm ${
+                        className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm transition ${
                           isSelected
-                            ? "border-black bg-zinc-50"
-                            : "border-zinc-200"
+                            ? "border-[#c7a55b] bg-[#c7a55b]/10"
+                            : "border-zinc-200 hover:border-[#c7a55b] hover:bg-[#c7a55b]/5"
                         }`}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() =>
+                          setModal((prev) =>
+                            prev ? { ...prev, selectedPlayerId: player.id } : prev,
+                          )
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setModal((prev) =>
+                              prev
+                                ? { ...prev, selectedPlayerId: player.id }
+                                : prev,
+                            );
+                          }
+                        }}
                       >
                         <div className="flex flex-col">
                           <span className="font-semibold text-zinc-900">
@@ -503,23 +614,6 @@ export default function DraftClient({
                             {player.position} · {player.club ?? "—"}
                           </span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setModal((prev) =>
-                              prev
-                                ? { ...prev, selectedPlayerId: player.id }
-                                : prev,
-                            )
-                          }
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            isSelected
-                              ? "bg-black text-white"
-                              : "border border-zinc-200 text-zinc-600"
-                          }`}
-                        >
-                          {isSelected ? "Selected" : "Select"}
-                        </button>
                       </li>
                     );
                   })}

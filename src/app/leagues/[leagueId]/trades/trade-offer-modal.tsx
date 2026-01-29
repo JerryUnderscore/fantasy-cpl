@@ -9,7 +9,7 @@ type TradePlayer = {
   name: string;
   jerseyNumber: number | null;
   position: string;
-  club: { shortName: string | null } | null;
+  club: { shortName: string | null; slug: string; name: string } | null;
 };
 
 type TradeTeam = {
@@ -33,7 +33,7 @@ type Props = {
 
 const buildPlayerLabel = (player: TradePlayer) =>
   `${player.position} · ${
-    player.club ? getClubDisplayName(player.club.slug, null) : ""
+    player.club ? getClubDisplayName(player.club.slug, player.club.name) : ""
   }`.trim();
 
 export default function TradeOfferModal({

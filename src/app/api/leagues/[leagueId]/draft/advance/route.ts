@@ -31,11 +31,20 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
       where: {
         leagueId_profileId: { leagueId, profileId: profile.id },
       },
-      select: { role: true },
+      select: { id: true },
     });
 
-    if (!membership || membership.role !== "OWNER") {
+    if (!membership) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const userTeam = await prisma.fantasyTeam.findUnique({
+      where: { leagueId_profileId: { leagueId, profileId: profile.id } },
+      select: { id: true },
+    });
+
+    if (!userTeam) {
+      return NextResponse.json({ error: "Team not found" }, { status: 403 });
     }
 
     const league = await prisma.league.findUnique({
@@ -130,6 +139,10 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
             return { updated: true };
           }
           return { updated: false };
+        }
+
+        if (currentPick.fantasyTeamId !== userTeam.id) {
+          return { updated: false, notYourPick: true };
         }
 
         const rosterPositions = await tx.rosterSlot.findMany({
@@ -268,6 +281,13 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+
+    if (result.notYourPick) {
+      return NextResponse.json(
+        { error: "Not your pick" },
+        { status: 409 },
+      );
+    }
 
     return NextResponse.json({ ok: true, updated: result.updated });
   } catch (error) {
