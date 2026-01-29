@@ -1,9 +1,7 @@
 "use client";
 
 import Image from "next/image";
-
-const getKitSrc = (slug?: string | null) =>
-  slug ? `/kits/${slug}.svg` : null;
+import { getKitSrc } from "@/lib/kits";
 
 export type PlayerPitchSlotProps = {
   playerName?: string | null;

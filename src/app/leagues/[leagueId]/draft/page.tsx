@@ -16,6 +16,7 @@ import { getClubDisplayName } from "@/lib/clubs";
 import LeaguePageHeader from "@/components/leagues/league-page-header";
 import PageHeader from "@/components/layout/page-header";
 import SectionCard from "@/components/layout/section-card";
+import { clickableRow } from "@/components/layout/ui-interactions";
 import MyTeamPanel from "./my-team-panel";
 
 export const runtime = "nodejs";
@@ -485,7 +486,7 @@ export default async function DraftPage({
                             return (
                               <td
                                 key={team.id}
-                                className={`border-b border-[var(--border)] px-4 py-4 align-top text-xs ${
+                                className={`border-b border-[var(--border)] px-4 py-4 align-top text-xs ${clickableRow} ${
                                   isCurrentPick
                                     ? "bg-amber-50"
                                     : isCurrentUserTeam

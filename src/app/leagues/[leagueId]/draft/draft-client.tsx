@@ -4,6 +4,16 @@ import { useMemo, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { formatPlayerName } from "@/lib/players";
 import { useDraftRealtime } from "./use-draft-realtime";
+import {
+  clickableRow,
+  clickableSurface,
+  iconButton,
+} from "@/components/layout/ui-interactions";
+import {
+  getLastNameKey,
+  getNameSearchRank,
+  normalizeSearchText,
+} from "@/lib/search";
 
 type AvailablePlayer = {
   id: string;
@@ -155,7 +165,7 @@ export default function DraftClient({
   }, [draftStatus, isPaused, isRealtimeConnected, router]);
 
   const filteredPlayers = useMemo(() => {
-    const query = modal?.search.trim().toLowerCase() ?? "";
+    const query = normalizeSearchText(modal?.search ?? "");
     const queuedSet = new Set(queuedPlayerIds);
     const filtered = availablePlayers.filter((player) => {
       if (
@@ -171,30 +181,35 @@ export default function DraftClient({
         return false;
       }
       if (!query) return true;
-      const jerseyLabel =
-        player.jerseyNumber !== null ? String(player.jerseyNumber) : "";
-      return `${player.name} ${jerseyLabel} ${player.position} ${player.club ?? ""}`
-        .toLowerCase()
-        .includes(query);
+      return getNameSearchRank(player.name, query) > 0;
     });
 
     const queueOrder = new Map(
       queuedPlayerIds.map((id, index) => [id, index]),
     );
-    const queued: AvailablePlayer[] = [];
-    const others: AvailablePlayer[] = [];
-    for (const player of filtered) {
-      if (queueOrder.has(player.id)) {
-        queued.push(player);
-      } else {
-        others.push(player);
-      }
-    }
-    queued.sort(
-      (a, b) =>
-        (queueOrder.get(a.id) ?? 0) - (queueOrder.get(b.id) ?? 0),
-    );
-    return [...queued, ...others];
+    const scored = filtered.map((player) => ({
+      player,
+      rank: query ? getNameSearchRank(player.name, query) : 0,
+      lastName: getLastNameKey(player.name),
+      queuedIndex: queueOrder.has(player.id) ? queueOrder.get(player.id) ?? 0 : null,
+    }));
+
+    const queued = scored
+      .filter((entry) => entry.queuedIndex !== null)
+      .sort(
+        (a, b) =>
+          (a.queuedIndex ?? 0) - (b.queuedIndex ?? 0),
+      );
+    const others = scored
+      .filter((entry) => entry.queuedIndex === null)
+      .sort((a, b) => {
+        if (a.rank !== b.rank) return b.rank - a.rank;
+        const lastNameDiff = a.lastName.localeCompare(b.lastName);
+        if (lastNameDiff !== 0) return lastNameDiff;
+        return a.player.name.localeCompare(b.player.name);
+      });
+
+    return [...queued, ...others].map((entry) => entry.player);
   }, [
     availablePlayers,
     modal?.search,
@@ -416,7 +431,7 @@ export default function DraftClient({
             type="button"
             onClick={() => openModal("MAKE_PICK")}
             disabled={!canPick || isPaused || isPending}
-            className="rounded-full bg-[#c7a55b] px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
+            className={`rounded-full bg-[#c7a55b] px-4 py-2 text-sm font-semibold text-black disabled:opacity-50 ${clickableSurface}`}
           >
             Make pick
           </button>
@@ -424,7 +439,7 @@ export default function DraftClient({
             type="button"
             onClick={advanceDraft}
             disabled={!canPick || isPaused || isPending}
-            className="rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 disabled:opacity-50"
+            className={`rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 disabled:opacity-50 ${clickableSurface}`}
           >
             Auto-pick now
           </button>
@@ -443,7 +458,7 @@ export default function DraftClient({
               type="button"
               onClick={startDraft}
               disabled={isPending}
-              className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              className={`rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 ${clickableSurface}`}
             >
               Start draft
             </button>
@@ -453,7 +468,7 @@ export default function DraftClient({
               type="button"
               onClick={resumeDraft}
               disabled={isPending}
-              className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              className={`rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 ${clickableSurface}`}
             >
               Resume draft
             </button>
@@ -463,7 +478,7 @@ export default function DraftClient({
               type="button"
               onClick={pauseDraft}
               disabled={isPending}
-              className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 disabled:opacity-60"
+              className={`rounded-full border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 disabled:opacity-60 ${clickableSurface}`}
             >
               Pause draft
             </button>
@@ -474,7 +489,7 @@ export default function DraftClient({
                 type="button"
                 onClick={() => openModal("FORCE_PICK")}
                 disabled={isPending}
-                className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                className={`rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 ${clickableSurface}`}
               >
                 Force pick
               </button>
@@ -503,7 +518,7 @@ export default function DraftClient({
               <button
                 type="button"
                 onClick={closeModal}
-                className="text-sm text-zinc-500 hover:text-zinc-800"
+                className={`${iconButton} text-sm text-zinc-500 hover:text-zinc-800`}
               >
                 Close
               </button>
@@ -580,7 +595,7 @@ export default function DraftClient({
                     return (
                       <li
                         key={player.id}
-                        className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm transition ${
+                        className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm ${clickableRow} ${
                           isSelected
                             ? "border-[#c7a55b] bg-[#c7a55b]/10"
                             : "border-zinc-200 hover:border-[#c7a55b] hover:bg-[#c7a55b]/5"
@@ -625,7 +640,7 @@ export default function DraftClient({
               <button
                 type="button"
                 onClick={closeModal}
-                className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600"
+                className={`rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600 ${clickableSurface}`}
                 disabled={isPending}
               >
                 Cancel
@@ -634,7 +649,7 @@ export default function DraftClient({
                 type="button"
                 onClick={() => submitPick(modal.mode)}
                 disabled={!modal.selectedPlayerId || isPending}
-                className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                className={`rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 ${clickableSurface}`}
               >
                 {isPending ? "Submitting..." : "Confirm pick"}
               </button>

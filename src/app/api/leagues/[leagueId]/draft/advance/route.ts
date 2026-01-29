@@ -147,39 +147,51 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
 
         const rosterPositions = await tx.rosterSlot.findMany({
           where: { fantasyTeamId: currentPick.fantasyTeamId, playerId: { not: null } },
-          select: { player: { select: { position: true } } },
+          select: { player: { select: { position: true, clubId: true } } },
         });
         const currentPositions = rosterPositions
           .map((row) => row.player?.position)
           .filter((position): position is NonNullable<typeof position> =>
             Boolean(position),
           );
-        const canAddPosition = (position: PlayerPosition) =>
+        const currentClubIds = rosterPositions.map((row) => row.player?.clubId ?? null);
+        const canAddPlayer = (position: PlayerPosition, clubId?: string | null) =>
           validateRosterAddition({
             rosterSize: league.rosterSize,
             currentPositions,
+            currentClubIds,
             addPosition: position,
+            addClubId: clubId ?? null,
           }).ok;
 
         const queuedItems = await tx.draftQueueItem.findMany({
           where: {
             draftId: txDraft.id,
             fantasyTeamId: currentPick.fantasyTeamId,
-            player: {
+            Player: {
               seasonId: league.season.id,
               active: true,
               draftPicks: { none: { draftId: txDraft.id } },
             },
           },
           orderBy: { rank: "asc" },
-          select: { playerId: true, player: { select: { position: true } } },
+          select: {
+            playerId: true,
+            Player: { select: { position: true, clubId: true } },
+          },
         });
 
         const queuedCandidate = queuedItems.find((item) =>
-          item.player?.position ? canAddPosition(item.player.position) : false,
+          item.Player?.position
+            ? canAddPlayer(item.Player.position, item.Player.clubId)
+            : false,
         );
 
-        let fallbackPlayer: { id: string; position: PlayerPosition } | null = null;
+        let fallbackPlayer: {
+          id: string;
+          position: PlayerPosition;
+          clubId: string | null;
+        } | null = null;
         if (!queuedCandidate) {
           const fallbackPlayers = await tx.player.findMany({
             where: {
@@ -188,18 +200,19 @@ export async function POST(_request: NextRequest, ctx: Ctx) {
               draftPicks: { none: { draftId: txDraft.id } },
             },
             orderBy: { name: "asc" },
-            select: { id: true, position: true },
-            take: 200,
+            select: { id: true, position: true, clubId: true },
           });
           fallbackPlayer =
-            fallbackPlayers.find((player) => canAddPosition(player.position)) ??
+            fallbackPlayers.find((player) =>
+              canAddPlayer(player.position, player.clubId),
+            ) ??
             null;
         }
 
         const playerId =
           queuedCandidate?.playerId ?? fallbackPlayer?.id ?? null;
         const playerPosition =
-          queuedCandidate?.player?.position ?? fallbackPlayer?.position ?? null;
+          queuedCandidate?.Player?.position ?? fallbackPlayer?.position ?? null;
 
         if (!playerId || !playerPosition) {
           return { updated: false };

@@ -3,7 +3,7 @@ import { MatchWeekStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
 import { getCurrentMatchWeekForSeason } from "@/lib/matchweek";
-import { getNextEasternTimeAt } from "@/lib/time";
+import { addHoursUtc } from "@/lib/time";
 import { validateRosterAddition } from "@/lib/roster";
 
 export const runtime = "nodejs";
@@ -84,7 +84,6 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       select: {
         id: true,
         seasonId: true,
-        waiverPeriodHours: true,
         draftMode: true,
         rosterSize: true,
       },
@@ -144,7 +143,13 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
     const player = await prisma.player.findUnique({
       where: { id: playerId },
-      select: { id: true, seasonId: true, active: true, position: true },
+      select: {
+        id: true,
+        seasonId: true,
+        active: true,
+        position: true,
+        clubId: true,
+      },
     });
 
     if (!player || !player.active || player.seasonId !== league.seasonId) {
@@ -207,7 +212,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
         slotNumber: true,
         playerId: true,
         isStarter: true,
-        player: { select: { position: true } },
+        player: { select: { position: true, clubId: true } },
       },
     });
 
@@ -242,11 +247,15 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       .filter((position): position is NonNullable<typeof position> =>
         Boolean(position),
       );
+    const currentClubIds = slots.map((slot) => slot.player?.clubId ?? null);
     const validation = validateRosterAddition({
       rosterSize: league.rosterSize,
       currentPositions,
       addPosition: player.position,
       dropPosition: dropSlot?.player?.position ?? null,
+      currentClubIds,
+      addClubId: player.clubId ?? null,
+      dropClubId: dropSlot?.player?.clubId ?? null,
     });
 
     if (!validation.ok) {
@@ -300,15 +309,8 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       );
     }
 
-    const fallbackHours =
-      typeof league.waiverPeriodHours === "number" &&
-      Number.isFinite(league.waiverPeriodHours) &&
-      league.waiverPeriodHours >= 0
-        ? league.waiverPeriodHours
-        : 24;
     const waiverAvailableAt = dropSlot?.playerId
-      ? getNextEasternTimeAt(now, 4, 0) ??
-        new Date(now.getTime() + fallbackHours * 60 * 60 * 1000)
+      ? addHoursUtc(now, 24)
       : null;
 
     await prisma.$transaction(async (tx) => {

@@ -6,9 +6,8 @@ import AuthButtons from "@/components/auth-buttons";
 import MatchScheduleList, {
   type ScheduleMatch,
 } from "@/components/match-schedule";
-import { formatEasternDateTime } from "@/lib/time";
 import { getCurrentMatchWeekForSeason } from "@/lib/matchweek";
-import { normalizeLeagueWaiverTimes } from "@/lib/waivers";
+import LocalDateTime from "@/components/local-date-time";
 import { formatPlayerName } from "@/lib/players";
 import { getClubDisplayName } from "@/lib/clubs";
 import LeaguePageHeader from "@/components/leagues/league-page-header";
@@ -218,11 +217,6 @@ export default async function LeagueDetailPage({
     }),
   );
 
-  const normalizedReset = await normalizeLeagueWaiverTimes(
-    prisma,
-    league.id,
-    new Date(),
-  );
   const waivers = await prisma.leaguePlayerWaiver.findMany({
     where: { leagueId, player: { active: true } },
     orderBy: { waiverAvailableAt: "asc" },
@@ -443,12 +437,7 @@ export default async function LeagueDetailPage({
                     </p>
                     <p className="mt-1 text-xs text-[var(--text-muted)]">
                       Clears:{" "}
-                      {formatEasternDateTime(
-                        new Date(
-                          normalizedReset ?? waiver.waiverAvailableAt,
-                        ),
-                      )}{" "}
-                      ET
+                      <LocalDateTime value={waiver.waiverAvailableAt} />
                     </p>
                   </li>
                 ))}

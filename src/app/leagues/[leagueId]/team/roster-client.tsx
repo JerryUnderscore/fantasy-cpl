@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { getClubDisplayName } from "@/lib/clubs";
+import { getKitSrc } from "@/lib/kits";
 import LineupPitch, {
   POSITION_KEYS,
   type PositionKey,
@@ -31,8 +32,7 @@ type Props = {
   isLocked?: boolean;
 };
 
-const getKitSrc = (slot: Slot) =>
-  slot.player?.club?.slug ? `/kits/${slot.player.club.slug}.svg` : null;
+const getSlotKitSrc = (slot: Slot) => getKitSrc(slot.player?.club?.slug);
 
 const buildSlotClubName = (club: Slot["player"]["club"] | null) =>
   club?.slug ? getClubDisplayName(club.slug, club.name ?? club.shortName ?? null) : null;
@@ -55,8 +55,11 @@ export default function RosterClient({
   const [isUpdating, setIsUpdating] = useState(false);
   const [starterSwapOpen, setStarterSwapOpen] = useState(false);
   const [pendingStarter, setPendingStarter] = useState<Slot | null>(null);
+  const [dropConfirmOpen, setDropConfirmOpen] = useState(false);
+  const [pendingDropSlot, setPendingDropSlot] = useState<Slot | null>(null);
   const [draggedSlotId, setDraggedSlotId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const cancelDropButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     setSlots(initialSlots);
@@ -65,6 +68,8 @@ export default function RosterClient({
     setDropTargetId(null);
     setStarterSwapOpen(false);
     setPendingStarter(null);
+    setDropConfirmOpen(false);
+    setPendingDropSlot(null);
   }, [initialSlots, matchWeekNumber]);
 
   const sortedSlots = useMemo(
@@ -145,7 +150,8 @@ export default function RosterClient({
   };
 
   const clearSlot = (slot: Slot) => {
-    updateRoster({ action: "clear", slotId: slot.id });
+    setPendingDropSlot(slot);
+    setDropConfirmOpen(true);
   };
 
   const toggleStarter = (slot: Slot, isStarter: boolean) => {
@@ -189,6 +195,32 @@ export default function RosterClient({
       setPendingStarter(null);
     }
   };
+
+  const confirmDrop = async () => {
+    if (!pendingDropSlot || isUpdating) return;
+    const success = await updateRoster({
+      action: "clear",
+      slotId: pendingDropSlot.id,
+    });
+    if (success) {
+      setDropConfirmOpen(false);
+      setPendingDropSlot(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!dropConfirmOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setDropConfirmOpen(false);
+        setPendingDropSlot(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    cancelDropButtonRef.current?.focus();
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [dropConfirmOpen]);
 
   const canDragFromBench = (slot: Slot) =>
     !isLocked &&
@@ -295,7 +327,7 @@ export default function RosterClient({
 
   const renderBenchSlot = (slot: Slot, index: number) => {
     const canDrag = canDragFromBench(slot);
-    const kitSrc = getKitSrc(slot);
+    const kitSrc = getSlotKitSrc(slot);
     return (
       <div
         key={slot.id}
@@ -389,6 +421,52 @@ export default function RosterClient({
 
   return (
     <div className="flex flex-col gap-6">
+      {dropConfirmOpen && pendingDropSlot ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-md rounded-3xl bg-white p-6 shadow-lg"
+          >
+            <h3 className="text-lg font-semibold text-zinc-900">
+              Drop player?
+            </h3>
+            <p className="mt-2 text-sm text-zinc-600">
+              You are about to drop{" "}
+              <span className="font-semibold text-zinc-900">
+                {pendingDropSlot.player?.name ?? "this player"}
+              </span>
+              .
+            </p>
+            <div className="mt-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
+              {pendingDropSlot.player?.position ?? "MID"} ·{" "}
+              {buildSlotClubName(pendingDropSlot.player?.club ?? null) ??
+                "Unknown club"}
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                ref={cancelDropButtonRef}
+                type="button"
+                onClick={() => {
+                  setDropConfirmOpen(false);
+                  setPendingDropSlot(null);
+                }}
+                className="rounded-full border border-zinc-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600 transition hover:border-zinc-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDrop}
+                disabled={isUpdating}
+                className="rounded-full bg-red-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-red-500 disabled:opacity-60"
+              >
+                Drop
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {starterSwapOpen && pendingStarter ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-lg">

@@ -1,6 +1,5 @@
 import { MatchWeekStatus, PlayerPosition, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getNextEasternTimeAt } from "@/lib/time";
 import { validateRosterAddition } from "@/lib/roster";
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
@@ -31,18 +30,10 @@ export const normalizeLeagueWaiverTimes = async (
   leagueId: string,
   now: Date = new Date(),
 ) => {
-  const nextReset = getNextEasternTimeAt(now, 4, 0);
-  if (!nextReset) return null;
-
-  await db.leaguePlayerWaiver.updateMany({
-    where: {
-      leagueId,
-      waiverAvailableAt: { not: nextReset },
-    },
-    data: { waiverAvailableAt: nextReset },
-  });
-
-  return nextReset;
+  void db;
+  void leagueId;
+  void now;
+  return null;
 };
 
 const getSeasonLockInfo = async (db: DbClient, seasonId: string) => {
@@ -307,7 +298,7 @@ const processLeagueWaiversInTransaction = async (
         fantasyTeamId: true,
         dropPlayerId: true,
         createdAt: true,
-        player: { select: { position: true } },
+        player: { select: { position: true, clubId: true } },
       },
     });
 
@@ -362,12 +353,13 @@ const processLeagueWaiversInTransaction = async (
           slotNumber: true,
           playerId: true,
           isStarter: true,
-          player: { select: { position: true } },
+          player: { select: { position: true, clubId: true } },
         },
       });
       const currentPositions = slots
         .map((slot) => slot.player?.position)
         .filter((position): position is PlayerPosition => Boolean(position));
+      const currentClubIds = slots.map((slot) => slot.player?.clubId ?? null);
 
       if (claim.dropPlayerId) {
         const dropSlot = slots.find(
@@ -381,6 +373,9 @@ const processLeagueWaiversInTransaction = async (
           currentPositions,
           addPosition: claim.player.position,
           dropPosition: dropSlot.player?.position ?? null,
+          currentClubIds,
+          addClubId: claim.player.clubId ?? null,
+          dropClubId: dropSlot.player?.clubId ?? null,
         });
         if (!validation.ok) {
           continue;
@@ -418,6 +413,8 @@ const processLeagueWaiversInTransaction = async (
         rosterSize,
         currentPositions,
         addPosition: claim.player.position,
+        currentClubIds,
+        addClubId: claim.player.clubId ?? null,
       });
       if (!validation.ok) {
         continue;

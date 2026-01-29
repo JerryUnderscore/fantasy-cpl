@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
 import { buildRosterSlots, validateRosterAddition } from "@/lib/roster";
 import { getCurrentMatchWeekForSeason } from "@/lib/matchweek";
-import { getNextEasternTimeAt } from "@/lib/time";
+import { addHoursUtc } from "@/lib/time";
 
 export const runtime = "nodejs";
 
@@ -25,10 +25,6 @@ type RosterSlotView = {
 };
 
 const STARTERS_REQUIRED = 11;
-const CLUB_ROSTER_LIMIT = 4;
-
-const normalizeClubSlug = (slug?: string | null) =>
-  slug ? slug.toLowerCase() : null;
 
 const getProfile = async (userId: string) =>
   prisma.profile.findUnique({
@@ -425,20 +421,12 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
     const league = await prisma.league.findUnique({
       where: { id: leagueId },
-      select: { id: true, seasonId: true, waiverPeriodHours: true, rosterSize: true },
+      select: { id: true, seasonId: true, rosterSize: true },
     });
 
     if (!league) {
       return NextResponse.json({ error: "League not found" }, { status: 404 });
     }
-
-    // Default waiver window (hours) if unset/null/invalid
-    const waiverHours =
-      typeof league.waiverPeriodHours === "number" &&
-      Number.isFinite(league.waiverPeriodHours) &&
-      league.waiverPeriodHours >= 0
-        ? league.waiverPeriodHours
-        : 24;
 
     const team = await prisma.fantasyTeam.findUnique({
       where: {
@@ -528,7 +516,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
           player: {
             select: {
               position: true,
-              club: { select: { slug: true } },
+              clubId: true,
             },
           },
         },
@@ -545,7 +533,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
           seasonId: true,
           active: true,
           position: true,
-          club: { select: { slug: true } },
+          clubId: true,
         },
       });
 
@@ -614,7 +602,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
           player: {
             select: {
               position: true,
-              club: { select: { slug: true } },
+              clubId: true,
             },
           },
         },
@@ -622,42 +610,19 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       const currentPositions = rosterPositions
         .map((row) => row.player?.position)
         .filter((position): position is PlayerPosition => Boolean(position));
+      const currentClubIds = rosterPositions.map((row) => row.player?.clubId ?? null);
       const validation = validateRosterAddition({
         rosterSize: league.rosterSize,
         currentPositions,
+        currentClubIds,
         addPosition: player.position,
         dropPosition: slot.player?.position ?? null,
+        addClubId: player.clubId ?? null,
+        dropClubId: slot.player?.clubId ?? null,
       });
 
       if (!validation.ok) {
         return NextResponse.json({ error: validation.error }, { status: 409 });
-      }
-
-      const clubCounts = new Map<string, number>();
-      rosterPositions.forEach((row) => {
-        const slug = normalizeClubSlug(row.player?.club?.slug);
-        if (slug) {
-          clubCounts.set(slug, (clubCounts.get(slug) ?? 0) + 1);
-        }
-      });
-
-      const dropSlug = normalizeClubSlug(slot.player?.club?.slug);
-      if (dropSlug) {
-        const previous = clubCounts.get(dropSlug) ?? 0;
-        clubCounts.set(dropSlug, Math.max(0, previous - 1));
-      }
-
-      const pickupSlug = normalizeClubSlug(player.club?.slug);
-      if (pickupSlug) {
-        const newCount = (clubCounts.get(pickupSlug) ?? 0) + 1;
-        if (newCount > CLUB_ROSTER_LIMIT) {
-          return NextResponse.json(
-            {
-              error: `Roster limit reached: you may only carry ${CLUB_ROSTER_LIMIT} players from the same club.`,
-            },
-            { status: 409 },
-          );
-        }
       }
 
       await prisma.rosterSlot.update({
@@ -735,8 +700,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
       }
 
       const waiverAvailableAt = slot.playerId
-        ? getNextEasternTimeAt(new Date(), 4, 0) ??
-          new Date(Date.now() + waiverHours * 60 * 60 * 1000)
+        ? addHoursUtc(new Date(), 24)
         : null;
 
       await prisma.$transaction(async (tx) => {

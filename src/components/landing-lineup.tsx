@@ -4,6 +4,7 @@ import Image from "next/image";
 import LineupPitch from "@/components/lineup-pitch";
 import PlayerPitchSlot from "@/components/pitch/player-pitch-slot";
 import type { PositionKey } from "@/lib/lineup-positions";
+import { getKitSrc } from "@/lib/kits";
 import React from "react";
 
 export type StaticSlot = {
@@ -20,9 +21,6 @@ type Props = {
   bench: StaticSlot[];
   benchDescription?: React.ReactNode;
 };
-
-const getKitSrc = (slug?: string | null) =>
-  slug ? `/kits/${slug}.svg` : null;
 
 export default function LandingLineup({
   startersByPosition,

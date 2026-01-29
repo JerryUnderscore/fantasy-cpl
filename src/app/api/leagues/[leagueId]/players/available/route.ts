@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSupabaseUser } from "@/lib/auth";
-import { normalizeLeagueWaiverTimes } from "@/lib/waivers";
 
 export const runtime = "nodejs";
 
@@ -75,8 +74,6 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
     }
 
     const now = new Date();
-
-    await normalizeLeagueWaiverTimes(prisma, leagueId, new Date());
 
     const [players, rosterSlots, waivers] = await Promise.all([
       prisma.player.findMany({

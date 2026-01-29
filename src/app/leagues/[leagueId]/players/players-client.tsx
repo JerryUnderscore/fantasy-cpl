@@ -7,6 +7,11 @@ import { getClubDisplayName } from "@/lib/clubs";
 import LoadingState from "@/components/layout/loading-state";
 import InlineError from "@/components/layout/inline-error";
 import EmptyState from "@/components/layout/empty-state";
+import {
+  getLastNameKey,
+  getNameSearchRank,
+  normalizeSearchText,
+} from "@/lib/search";
 
 type PlayerAvailabilityStatus = "FREE_AGENT" | "WAIVERS" | "ROSTERED";
 
@@ -587,7 +592,7 @@ export default function PlayersClient({ leagueId }: Props) {
 
   const filteredPlayers = useMemo(() => {
     const base = data?.players ?? [];
-    const query = searchTerm.trim().toLowerCase();
+    const query = normalizeSearchText(searchTerm);
 
     const filtered = base.filter((player) => {
       if (statusFilter !== "ALL" && player.status !== statusFilter) {
@@ -601,34 +606,39 @@ export default function PlayersClient({ leagueId }: Props) {
           return false;
         }
       }
-      if (query) {
-        const name = player.name.toLowerCase();
-        if (!name.includes(query)) {
-          return false;
-        }
-      }
+      if (query && getNameSearchRank(player.name, query) === 0) return false;
       return true;
     });
 
-    const withSort = [...filtered];
-    withSort.sort((a, b) => {
-      if (sortOption === "STATUS") {
-        const statusDiff = statusOrder[a.status] - statusOrder[b.status];
-        if (statusDiff !== 0) return statusDiff;
+    const scored = filtered.map((player) => ({
+      player,
+      rank: query ? getNameSearchRank(player.name, query) : 0,
+      lastName: getLastNameKey(player.name),
+    }));
+
+    scored.sort((a, b) => {
+      if (query && a.rank !== b.rank) return b.rank - a.rank;
+      if (!query) {
+        if (sortOption === "STATUS") {
+          const statusDiff = statusOrder[a.player.status] - statusOrder[b.player.status];
+          if (statusDiff !== 0) return statusDiff;
+        }
+        if (sortOption === "WAIVER_SOON") {
+          const aDate = a.player.waiverAvailableAt
+            ? new Date(a.player.waiverAvailableAt).getTime()
+            : Number.POSITIVE_INFINITY;
+          const bDate = b.player.waiverAvailableAt
+            ? new Date(b.player.waiverAvailableAt).getTime()
+            : Number.POSITIVE_INFINITY;
+          if (aDate !== bDate) return aDate - bDate;
+        }
       }
-      if (sortOption === "WAIVER_SOON") {
-        const aDate = a.waiverAvailableAt
-          ? new Date(a.waiverAvailableAt).getTime()
-          : Number.POSITIVE_INFINITY;
-        const bDate = b.waiverAvailableAt
-          ? new Date(b.waiverAvailableAt).getTime()
-          : Number.POSITIVE_INFINITY;
-        if (aDate !== bDate) return aDate - bDate;
-      }
-      return a.name.localeCompare(b.name);
+      const lastNameDiff = a.lastName.localeCompare(b.lastName);
+      if (lastNameDiff !== 0) return lastNameDiff;
+      return a.player.name.localeCompare(b.player.name);
     });
 
-    return withSort;
+    return scored.map((entry) => entry.player);
   }, [data, searchTerm, statusFilter, positionFilter, clubFilter, sortOption]);
 
   const counts = data?.counts ?? {

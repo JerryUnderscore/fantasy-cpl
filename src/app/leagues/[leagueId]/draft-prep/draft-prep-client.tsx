@@ -4,6 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatPlayerName } from "@/lib/players";
 import { getClubDisplayName } from "@/lib/clubs";
 import SectionCard from "@/components/layout/section-card";
+import {
+  clickableRow,
+  clickableSurface,
+  iconButton,
+} from "@/components/layout/ui-interactions";
 
 type PlayerPosition = "GK" | "DEF" | "MID" | "FWD";
 
@@ -293,7 +298,7 @@ export default function DraftPrepClient({
                 return (
                   <div
                     key={player.id}
-                    className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                    className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 ${clickableRow}`}
                   >
                     <div>
                       <p className="text-sm font-medium text-zinc-900">
@@ -312,14 +317,14 @@ export default function DraftPrepClient({
                           ? removeFromQueue(player.id)
                           : addToQueue(player.id)
                       }
-                    className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold transition ${
-                      queued
-                        ? "border border-zinc-200 bg-zinc-100 text-zinc-600 hover:border-zinc-300"
-                        : "border border-[#c7a55b] bg-[#c7a55b] text-black hover:opacity-90"
-                    }`}
-                  >
-                    {queued ? "✓" : "➕"}
-                  </button>
+                      className={`inline-flex h-9 w-9 items-center justify-center text-sm font-semibold ${iconButton} ${
+                        queued
+                          ? "border border-zinc-200 bg-zinc-100 text-zinc-600 hover:border-zinc-300"
+                          : "border border-[#c7a55b] bg-[#c7a55b] text-black hover:opacity-90"
+                      }`}
+                    >
+                      {queued ? "✓" : "➕"}
+                    </button>
                   </div>
                 );
               })}
@@ -405,7 +410,7 @@ export default function DraftPrepClient({
               queuePlayers.map((player, index) => (
                 <div
                   key={player.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2"
+                  className={`flex items-center justify-between gap-3 rounded-xl border border-zinc-100 bg-zinc-50 px-3 py-2 ${clickableSurface}`}
                 >
                   <div>
                     <p className="text-sm font-medium text-zinc-900">
@@ -422,21 +427,21 @@ export default function DraftPrepClient({
                     <button
                       type="button"
                       onClick={() => moveQueueItem(player.id, "UP")}
-                      className="rounded-full border border-zinc-200 bg-white px-2 py-1 text-xs font-semibold text-zinc-600 hover:border-zinc-300"
+                      className={`rounded-full border border-zinc-200 bg-white px-2 py-1 text-xs font-semibold text-zinc-600 ${clickableSurface}`}
                     >
                       Up
                     </button>
                     <button
                       type="button"
                       onClick={() => moveQueueItem(player.id, "DOWN")}
-                      className="rounded-full border border-zinc-200 bg-white px-2 py-1 text-xs font-semibold text-zinc-600 hover:border-zinc-300"
+                      className={`rounded-full border border-zinc-200 bg-white px-2 py-1 text-xs font-semibold text-zinc-600 ${clickableSurface}`}
                     >
                       Down
                     </button>
                     <button
                       type="button"
                       onClick={() => removeFromQueue(player.id)}
-                      className="rounded-full border border-zinc-200 bg-white px-2 py-1 text-xs font-semibold text-zinc-600 hover:border-zinc-300"
+                      className={`rounded-full border border-zinc-200 bg-white px-2 py-1 text-xs font-semibold text-zinc-600 ${clickableSurface}`}
                     >
                       Remove
                     </button>

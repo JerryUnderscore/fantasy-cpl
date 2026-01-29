@@ -106,6 +106,7 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
     }`.trim();
 
   const handleTradeAction = async (tradeId: string, action: string) => {
+    setError(null);
     try {
       const res = await fetch(
         `/api/leagues/${leagueId}/trades/${tradeId}`,

@@ -154,7 +154,13 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
         const player = await tx.player.findUnique({
           where: { id: playerId },
-          select: { id: true, seasonId: true, active: true, position: true },
+          select: {
+            id: true,
+            seasonId: true,
+            active: true,
+            position: true,
+            clubId: true,
+          },
         });
 
         if (!player || !player.active || player.seasonId !== league.season.id) {
@@ -177,17 +183,20 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
         const rosterPositions = await tx.rosterSlot.findMany({
           where: { fantasyTeamId: onTheClockTeam.id, playerId: { not: null } },
-          select: { player: { select: { position: true } } },
+          select: { player: { select: { position: true, clubId: true } } },
         });
         const currentPositions = rosterPositions
           .map((row) => row.player?.position)
           .filter((position): position is NonNullable<typeof position> =>
             Boolean(position),
           );
+        const currentClubIds = rosterPositions.map((row) => row.player?.clubId ?? null);
         const validation = validateRosterAddition({
           rosterSize: league.rosterSize,
           currentPositions,
           addPosition: player.position,
+          currentClubIds,
+          addClubId: player.clubId ?? null,
         });
 
         if (!validation.ok) {

@@ -21,7 +21,7 @@ const formatCountdown = (ms: number) => {
   const days = Math.floor(safeMs / 86_400_000);
   const hours = Math.floor((safeMs % 86_400_000) / 3_600_000);
   const minutes = Math.floor((safeMs % 3_600_000) / 60_000);
-  return `${days}:${padTwo(hours)}:${padTwo(minutes)}`;
+  return `${days}d ${padTwo(hours)}h ${padTwo(minutes)}m`;
 };
 
 type AppHeaderProps = {

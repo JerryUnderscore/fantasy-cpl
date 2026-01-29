@@ -19,25 +19,29 @@ const getProfile = async (userId: string) =>
     select: { id: true },
   });
 
-const buildPositionsAfterTrade = (
+const buildRosterAfterTrade = (
   rosterSlots: Array<{
     playerId: string | null;
-    player: { position: PlayerPosition } | null;
+    player: { position: PlayerPosition; clubId: string } | null;
   }>,
   outgoingIds: Set<string>,
   incomingSlots: Array<{
     playerId: string | null;
-    player: { position: PlayerPosition } | null;
+    player: { position: PlayerPosition; clubId: string } | null;
   }>,
   incomingIds: Set<string>,
 ) => {
   const remaining = rosterSlots
     .filter((slot) => slot.playerId && !outgoingIds.has(slot.playerId))
-    .map((slot) => slot.player!.position);
+    .map((slot) => slot.player!);
   const incoming = incomingSlots
     .filter((slot) => slot.playerId && incomingIds.has(slot.playerId))
-    .map((slot) => slot.player!.position);
-  return [...remaining, ...incoming];
+    .map((slot) => slot.player!);
+  const merged = [...remaining, ...incoming];
+  return {
+    positions: merged.map((player) => player.position),
+    clubIds: merged.map((player) => player.clubId ?? null),
+  };
 };
 
 export async function PATCH(request: NextRequest, ctx: Ctx) {
@@ -171,7 +175,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
           id: true,
           slotNumber: true,
           playerId: true,
-          player: { select: { position: true } },
+          player: { select: { position: true, clubId: true } },
         },
       }),
       prisma.rosterSlot.findMany({
@@ -183,7 +187,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
           id: true,
           slotNumber: true,
           playerId: true,
-          player: { select: { position: true } },
+          player: { select: { position: true, clubId: true } },
         },
       }),
     ]);
@@ -234,25 +238,25 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
         where: { fantasyTeamId: trade.offeredByTeamId, playerId: { not: null } },
         select: {
           playerId: true,
-          player: { select: { position: true } },
+          player: { select: { position: true, clubId: true } },
         },
       }),
       prisma.rosterSlot.findMany({
         where: { fantasyTeamId: trade.offeredToTeamId, playerId: { not: null } },
         select: {
           playerId: true,
-          player: { select: { position: true } },
+          player: { select: { position: true, clubId: true } },
         },
       }),
     ]);
 
-    const offeringPositions = buildPositionsAfterTrade(
+    const offeringRosterAfter = buildRosterAfterTrade(
       offeringRoster,
       offeredSet,
       receivingRoster,
       requestedSet,
     );
-    const receivingPositions = buildPositionsAfterTrade(
+    const receivingRosterAfter = buildRosterAfterTrade(
       receivingRoster,
       requestedSet,
       offeringRoster,
@@ -261,7 +265,8 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
     const offeringValidation = validateRosterComposition({
       rosterSize: trade.league.rosterSize,
-      positions: offeringPositions,
+      positions: offeringRosterAfter.positions,
+      clubIds: offeringRosterAfter.clubIds,
     });
     if (!offeringValidation.ok) {
       return NextResponse.json({ error: offeringValidation.error }, { status: 409 });
@@ -269,7 +274,8 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
     const receivingValidation = validateRosterComposition({
       rosterSize: trade.league.rosterSize,
-      positions: receivingPositions,
+      positions: receivingRosterAfter.positions,
+      clubIds: receivingRosterAfter.clubIds,
     });
     if (!receivingValidation.ok) {
       return NextResponse.json({ error: receivingValidation.error }, { status: 409 });

@@ -8,11 +8,22 @@ export const ROSTER_LIMITS = {
     FWD: 1,
   },
   max: {
-    GK: 1,
+    GK: 2,
   },
 };
 
+export const CLUB_ROSTER_LIMIT = 4;
+
 export type RosterPositionCounts = Record<PlayerPosition, number>;
+
+const buildClubCounts = (clubIds: Array<string | null | undefined>) => {
+  const counts = new Map<string, number>();
+  clubIds.forEach((clubId) => {
+    if (!clubId) return;
+    counts.set(clubId, (counts.get(clubId) ?? 0) + 1);
+  });
+  return counts;
+};
 
 export const buildPositionCounts = (
   positions: PlayerPosition[],
@@ -28,13 +39,19 @@ export const buildPositionCounts = (
 export const validateRosterAddition = ({
   rosterSize,
   currentPositions,
+  currentClubIds,
   addPosition,
+  addClubId,
   dropPosition,
+  dropClubId,
 }: {
   rosterSize: number;
   currentPositions: PlayerPosition[];
+  currentClubIds?: Array<string | null | undefined>;
   addPosition: PlayerPosition;
+  addClubId?: string | null;
   dropPosition?: PlayerPosition | null;
+  dropClubId?: string | null;
 }) => {
   const safeRosterSize = Number.isFinite(rosterSize)
     ? Math.max(0, Math.floor(rosterSize))
@@ -57,6 +74,21 @@ export const validateRosterAddition = ({
       ok: false,
       error: `Roster limit reached: you can only carry ${maxGoalkeepers} goalkeeper${maxGoalkeepers === 1 ? "" : "s"}.`,
     };
+  }
+
+  if (addClubId) {
+    const clubCounts = buildClubCounts(currentClubIds ?? []);
+    if (dropClubId) {
+      const previous = clubCounts.get(dropClubId) ?? 0;
+      clubCounts.set(dropClubId, Math.max(0, previous - 1));
+    }
+    const nextCount = (clubCounts.get(addClubId) ?? 0) + 1;
+    if (nextCount > CLUB_ROSTER_LIMIT) {
+      return {
+        ok: false,
+        error: `Roster limit reached: you may only carry ${CLUB_ROSTER_LIMIT} players from the same club.`,
+      };
+    }
   }
 
   const remainingSlots = safeRosterSize - (currentTotal + 1);
@@ -82,9 +114,11 @@ export const validateRosterAddition = ({
 export const validateRosterComposition = ({
   rosterSize,
   positions,
+  clubIds,
 }: {
   rosterSize: number;
   positions: PlayerPosition[];
+  clubIds?: Array<string | null | undefined>;
 }) => {
   const safeRosterSize = Number.isFinite(rosterSize)
     ? Math.max(0, Math.floor(rosterSize))
@@ -101,6 +135,18 @@ export const validateRosterComposition = ({
       ok: false,
       error: `Roster limit reached: you can only carry ${maxGoalkeepers} goalkeeper${maxGoalkeepers === 1 ? "" : "s"}.`,
     };
+  }
+
+  if (clubIds) {
+    const clubCounts = buildClubCounts(clubIds);
+    for (const count of clubCounts.values()) {
+      if (count > CLUB_ROSTER_LIMIT) {
+        return {
+          ok: false,
+          error: `Roster limit reached: you may only carry ${CLUB_ROSTER_LIMIT} players from the same club.`,
+        };
+      }
+    }
   }
 
   const remainingSlots = safeRosterSize - positions.length;

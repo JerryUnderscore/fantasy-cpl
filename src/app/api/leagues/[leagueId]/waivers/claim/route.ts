@@ -102,7 +102,13 @@ export async function POST(request: NextRequest, ctx: Ctx) {
 
     const player = await prisma.player.findUnique({
       where: { id: playerId },
-      select: { id: true, seasonId: true, active: true, position: true },
+      select: {
+        id: true,
+        seasonId: true,
+        active: true,
+        position: true,
+        clubId: true,
+      },
     });
 
     if (!player || !player.active || player.seasonId !== league.seasonId) {
@@ -171,7 +177,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
         id: true,
         playerId: true,
         isStarter: true,
-        player: { select: { position: true } },
+        player: { select: { position: true, clubId: true } },
       },
     });
 
@@ -206,11 +212,15 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       .filter((position): position is NonNullable<typeof position> =>
         Boolean(position),
       );
+    const currentClubIds = slots.map((slot) => slot.player?.clubId ?? null);
     const validation = validateRosterAddition({
       rosterSize: league.rosterSize,
       currentPositions,
       addPosition: player.position,
       dropPosition: dropSlot?.player?.position ?? null,
+      currentClubIds,
+      addClubId: player.clubId ?? null,
+      dropClubId: dropSlot?.player?.clubId ?? null,
     });
 
     if (!validation.ok) {

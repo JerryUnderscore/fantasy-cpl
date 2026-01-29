@@ -139,3 +139,6 @@ export const getNextEasternTimeAt = (
   )} ${pad(hour)}:${pad(minute)}`;
   return parseEasternDateTime(nextInput);
 };
+
+export const addHoursUtc = (date: Date, hours: number) =>
+  new Date(date.getTime() + hours * 60 * 60 * 1000);
