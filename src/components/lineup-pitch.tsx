@@ -47,7 +47,7 @@ export default function LineupPitch<Slot>({
         <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/80" />
         <div className="absolute left-1/2 top-4 h-16 w-36 -translate-x-1/2 rounded-b-[18px] border-2 border-white/60" />
         <div className="absolute left-1/2 bottom-4 h-16 w-36 -translate-x-1/2 rounded-t-[18px] border-2 border-white/60" />
-        <div className="relative z-10 grid h-full grid-rows-4 gap-3 px-4 py-6">
+        <div className="relative z-10 grid h-full grid-rows-4 gap-6 px-4 py-6">
           {POSITION_KEYS.map((key) => {
             const rowSlots = startersByPosition[key] ?? [];
             const count = rowSlots.length;
@@ -60,14 +60,14 @@ export default function LineupPitch<Slot>({
             return (
               <div
                 key={key}
-                className="relative flex flex-col items-center justify-center gap-3"
+                className="relative flex flex-col items-center justify-center gap-4"
               >
                 <div className="text-center text-[10px] font-semibold uppercase tracking-[0.35em] text-white/70">
                   {POSITION_LABELS[key]}
                 </div>
                 <div className="relative w-full">
                   {count > 0 ? (
-                    <div className="relative h-32">
+                    <div className="relative h-44">
                       {rowSlots.map((slot, index) => {
                         const x = computeX(index);
                         return (

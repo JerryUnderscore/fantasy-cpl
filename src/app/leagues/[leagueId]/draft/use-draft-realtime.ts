@@ -10,10 +10,7 @@ export const useDraftRealtime = ({ draftId, onChange }: UseDraftRealtimeOptions)
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    if (!draftId) {
-      setIsConnected(false);
-      return undefined;
-    }
+    if (!draftId) return undefined;
 
     const supabase = createClient();
     const channel = supabase
@@ -47,5 +44,5 @@ export const useDraftRealtime = ({ draftId, onChange }: UseDraftRealtimeOptions)
     };
   }, [draftId, onChange]);
 
-  return { isConnected };
+  return { isConnected: draftId ? isConnected : false };
 };

@@ -87,7 +87,7 @@ const renderDashboard = (
 export default async function MyTeamsPage({
   searchParams,
 }: {
-  searchParams?: SearchParams | Promise<SearchParams>;
+  searchParams?: Promise<SearchParams>;
 }) {
   const params = searchParams ? await searchParams : {};
   const requestedTeamId = params?.teamId;

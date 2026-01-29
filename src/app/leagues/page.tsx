@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
 import LeaguesPageLayout from "@/components/leagues/leagues-page-layout";
-import { loadLeaguesView } from "@/lib/leagues-view";
+import { getTestLeaguesView, loadLeaguesView } from "@/lib/leagues-view";
 import PageHeader from "@/components/layout/page-header";
 import EmptyState from "@/components/layout/empty-state";
 

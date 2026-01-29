@@ -4,9 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
 import TradesClient from "./trades-client";
-import LeaguePageHeader from "@/components/leagues/league-page-header";
-import PageHeader from "@/components/layout/page-header";
-import SectionCard from "@/components/layout/section-card";
+import LeaguePageShell from "@/components/leagues/league-page-shell";
 
 export const runtime = "nodejs";
 
@@ -15,10 +13,17 @@ type LeagueParams = { leagueId: string };
 export default async function LeagueTradesPage({
   params,
 }: {
-  params: LeagueParams;
+  params: Promise<LeagueParams>;
 }) {
   const { leagueId } = await params;
   if (!leagueId) notFound();
+
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { id: true, name: true, season: true },
+  });
+
+  if (!league) notFound();
 
   const supabase = await createClient();
   const {
@@ -27,23 +32,15 @@ export default async function LeagueTradesPage({
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-zinc-50 px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl bg-white p-10 shadow-sm">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-semibold text-black">Trades</h1>
-            <p className="text-sm text-zinc-500">
-              Sign in to view trade offers.
-            </p>
-          </div>
+      <LeaguePageShell
+        backHref={`/leagues/${leagueId}`}
+        leagueTitle={league.name}
+        seasonLabel={`Season ${league.season.name} ${league.season.year}`}
+        pageTitle="Trades"
+        pageSubtitle="Sign in to view trade offers."
+      >
           <AuthButtons isAuthenticated={false} />
-          <Link
-            href={`/leagues/${leagueId}`}
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
-          >
-            Back to league
-          </Link>
-        </div>
-      </div>
+      </LeaguePageShell>
     );
   }
 
@@ -54,31 +51,22 @@ export default async function LeagueTradesPage({
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-zinc-50 px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl bg-white p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-black">
-            Profile not synced
-          </h1>
-          <p className="text-sm text-zinc-500">
-            Please sync your profile from the home page and try again.
-          </p>
+      <LeaguePageShell
+        backHref={`/leagues/${leagueId}`}
+        leagueTitle={league.name}
+        seasonLabel={`Season ${league.season.name} ${league.season.year}`}
+        pageTitle="Trades"
+        pageSubtitle="Please sync your profile from the home page and try again."
+      >
           <Link
             href="/"
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
+            className="text-sm font-medium text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text)] hover:underline"
           >
             Go to home
           </Link>
-        </div>
-      </div>
+      </LeaguePageShell>
     );
   }
-
-  const league = await prisma.league.findUnique({
-    where: { id: leagueId },
-    select: { id: true, name: true, season: true },
-  });
-
-  if (!league) notFound();
 
   const membership = await prisma.leagueMember.findUnique({
     where: {
@@ -89,53 +77,34 @@ export default async function LeagueTradesPage({
 
   if (!membership) {
     return (
-      <div className="min-h-screen bg-zinc-50 px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl bg-white p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-black">
-            Not a league member
-          </h1>
-          <p className="text-sm text-zinc-500">
-            You need to join this league before viewing its trades.
-          </p>
-          <Link
-            href="/leagues"
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
-          >
-            Back to leagues
-          </Link>
-        </div>
-      </div>
+      <LeaguePageShell
+        backHref="/leagues"
+        backLabel="Back to leagues"
+        leagueTitle={league.name}
+        seasonLabel={`Season ${league.season.name} ${league.season.year}`}
+        pageTitle="Trades"
+        pageSubtitle="You need to join this league before viewing its trades."
+      >
+        <Link
+          href="/leagues"
+          className="text-sm font-medium text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text)] hover:underline"
+        >
+          Browse leagues
+        </Link>
+      </LeaguePageShell>
     );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 px-6 py-16">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 rounded-3xl bg-white p-10 shadow-sm">
-        <div className="flex flex-col gap-2">
-          <Link
-            href={`/leagues/${leagueId}`}
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
-          >
-            Back to league
-          </Link>
-          <LeaguePageHeader
-            title={league.name}
-            leagueName={`Season ${league.season.name} ${league.season.year}`}
-            showBadgeTooltip={membership.role === "OWNER"}
-          />
-          <p className="text-sm text-zinc-500">
-            {league.season.name} {league.season.year}
-          </p>
-        </div>
-
-        <PageHeader
-          title="Trades"
-          subtitle="Propose and review trades in this league."
-        />
-        <SectionCard title="Trade center">
-          <TradesClient leagueId={leagueId} />
-        </SectionCard>
-      </div>
-    </div>
+    <LeaguePageShell
+      backHref={`/leagues/${leagueId}`}
+      leagueTitle={league.name}
+      seasonLabel={`Season ${league.season.name} ${league.season.year}`}
+      pageTitle="Trades"
+      pageSubtitle="Propose and review trades in this league."
+      showBadgeTooltip={membership.role === "OWNER"}
+    >
+      <TradesClient leagueId={leagueId} />
+    </LeaguePageShell>
   );
 }

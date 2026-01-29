@@ -7,6 +7,7 @@ import { getClubDisplayName } from "@/lib/clubs";
 import LoadingState from "@/components/layout/loading-state";
 import InlineError from "@/components/layout/inline-error";
 import EmptyState from "@/components/layout/empty-state";
+import SectionCard from "@/components/layout/section-card";
 import {
   getLastNameKey,
   getNameSearchRank,
@@ -666,50 +667,50 @@ export default function PlayersClient({ leagueId }: Props) {
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
             Free agents
           </p>
-          <p className="mt-2 text-2xl font-semibold text-zinc-900">
+          <p className="mt-2 text-2xl font-semibold text-[var(--text)]">
             {counts.FREE_AGENT}
           </p>
         </div>
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
             Waivers
           </p>
-          <p className="mt-2 text-2xl font-semibold text-zinc-900">
+          <p className="mt-2 text-2xl font-semibold text-[var(--text)]">
             {counts.WAIVERS}
           </p>
         </div>
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
             Rostered
           </p>
-          <p className="mt-2 text-2xl font-semibold text-zinc-900">
+          <p className="mt-2 text-2xl font-semibold text-[var(--text)]">
             {counts.ROSTERED}
           </p>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-zinc-200 bg-white p-5">
+      <SectionCard title="Filters">
         <div className="flex flex-col gap-3">
           <input
             type="search"
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
             placeholder="Search players"
-            className="w-full rounded-2xl border border-zinc-200 px-4 py-2 text-sm text-zinc-900 placeholder:text-zinc-400"
+            className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)]"
           />
           <div className="grid gap-3 md:grid-cols-4">
-            <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
               Status
               <select
                 value={statusFilter}
                 onChange={(event) =>
                   setStatusFilter(event.target.value as StatusFilter)
                 }
-                className="rounded-2xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
               >
                 <option value="ALL">All</option>
                 <option value="FREE_AGENT">Free agents</option>
@@ -717,14 +718,14 @@ export default function PlayersClient({ leagueId }: Props) {
                 <option value="ROSTERED">Rostered</option>
               </select>
             </label>
-            <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
               Position
               <select
                 value={positionFilter}
                 onChange={(event) =>
                   setPositionFilter(event.target.value as PositionFilter)
                 }
-                className="rounded-2xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
               >
                 <option value="ALL">All</option>
                 <option value="GK">GK</option>
@@ -733,12 +734,12 @@ export default function PlayersClient({ leagueId }: Props) {
                 <option value="FWD">FWD</option>
               </select>
             </label>
-            <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
               Club
               <select
                 value={clubFilter}
                 onChange={(event) => setClubFilter(event.target.value)}
-                className="rounded-2xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
               >
                 <option value="ALL">All</option>
                 {clubs.map((club) => (
@@ -748,14 +749,14 @@ export default function PlayersClient({ leagueId }: Props) {
                 ))}
               </select>
             </label>
-            <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
               Sort
               <select
                 value={sortOption}
                 onChange={(event) =>
                   setSortOption(event.target.value as SortOption)
                 }
-                className="rounded-2xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
               >
                 <option value="NAME_ASC">Name A-Z</option>
                 <option value="STATUS">Status</option>
@@ -763,7 +764,7 @@ export default function PlayersClient({ leagueId }: Props) {
               </select>
             </label>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
             <span>{filteredPlayers.length} players</span>
             <button
               type="button"
@@ -774,19 +775,19 @@ export default function PlayersClient({ leagueId }: Props) {
                 setClubFilter("ALL");
                 setSortOption("NAME_ASC");
               }}
-              className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900"
+              className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
             >
               Clear filters
             </button>
           </div>
           {rosterError ? (
-            <div className="text-xs text-amber-600">{rosterError}</div>
+            <div className="text-xs text-[var(--warning)]">{rosterError}</div>
           ) : null}
         </div>
-      </div>
+      </SectionCard>
 
       {actionMessage ? (
-        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-4 text-sm text-[var(--text-muted)]">
           {actionMessage}
         </div>
       ) : null}
@@ -795,7 +796,7 @@ export default function PlayersClient({ leagueId }: Props) {
           {notifications.map((notice) => (
             <div
               key={notice.id}
-              className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700"
+              className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-3 text-sm text-[var(--text)]"
             >
               {notice.message}
             </div>
@@ -803,40 +804,38 @@ export default function PlayersClient({ leagueId }: Props) {
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-zinc-200 bg-white p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-zinc-900">
-              My Pending Claims
-            </p>
-            <p className="text-xs text-zinc-500">
-              Claims you have waiting on waivers.
-            </p>
-          </div>
-          <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+      <SectionCard
+        title="Pending claims"
+        description="Claims you have waiting on waivers."
+        actions={
+          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
             {pendingClaims.length} pending
           </span>
-        </div>
+        }
+      >
         {claimsError ? (
-          <p className="mt-3 text-xs text-amber-600">{claimsError}</p>
+          <InlineError message={claimsError} />
         ) : pendingClaims.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-500">No pending claims.</p>
+          <EmptyState
+            title="No pending claims"
+            description="Your waiver claims will appear here once submitted."
+          />
         ) : (
-          <ul className="mt-4 flex flex-col gap-2">
+          <ul className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] divide-y divide-[var(--border)]">
             {pendingClaims.map((claim) => (
               <li
                 key={claim.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3"
+                className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"
               >
                 <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-zinc-900">
+                  <span className="text-sm font-semibold text-[var(--text)]">
                     {formatPlayerName(
                       claim.player.name,
                       claim.player.jerseyNumber,
                     )}
                   </span>
                   {claim.dropPlayer ? (
-                    <span className="text-xs text-zinc-500">
+                    <span className="text-xs text-[var(--text-muted)]">
                       Drop:{" "}
                       {formatPlayerName(
                         claim.dropPlayer.name,
@@ -844,23 +843,23 @@ export default function PlayersClient({ leagueId }: Props) {
                       )}
                     </span>
                   ) : (
-                    <span className="text-xs text-zinc-500">Drop: None</span>
+                    <span className="text-xs text-[var(--text-muted)]">Drop: None</span>
                   )}
-                  <span className="text-xs text-zinc-500">
+                  <span className="text-xs text-[var(--text-muted)]">
                     Priority at submission: #{claim.priorityNumberAtSubmit}
                   </span>
-                  <span className="text-xs text-zinc-500">
+                  <span className="text-xs text-[var(--text-muted)]">
                     {formatClaimCountdown(claim.waiverAvailableAt)}
                   </span>
                 </div>
-                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-700">
+                <span className="rounded-full bg-[var(--surface2)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                   Pending
                 </span>
               </li>
             ))}
           </ul>
         )}
-      </div>
+      </SectionCard>
 
       {isLoading ? (
         <LoadingState label="Loading players…" />
@@ -872,85 +871,87 @@ export default function PlayersClient({ leagueId }: Props) {
           description="Try adjusting your position, status, or search filters."
         />
       ) : (
-        <ul className="flex flex-col gap-3">
-          {filteredPlayers.map((player) => {
-            const clubLabel = buildClubLabel(player.club);
-            const statusClasses =
-              player.status === "FREE_AGENT"
-                ? "bg-emerald-100 text-emerald-700"
-                : player.status === "WAIVERS"
-                  ? "bg-amber-100 text-amber-700"
-                  : "bg-zinc-200 text-zinc-700";
-            return (
-              <li
-                key={player.id}
-                className="rounded-2xl border border-zinc-200 bg-white p-4"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex flex-col gap-1">
-                    <p className="text-base font-semibold text-zinc-900">
-                      {formatPlayerName(player.name, player.jerseyNumber)}
-                    </p>
-                    <p className="text-xs text-zinc-500">
-                      {player.position} · {clubLabel}
-                    </p>
+        <SectionCard title="Players">
+          <ul className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] divide-y divide-[var(--border)]">
+            {filteredPlayers.map((player, index) => {
+              const clubLabel = buildClubLabel(player.club);
+              const statusClasses =
+                player.status === "FREE_AGENT"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : player.status === "WAIVERS"
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-[var(--surface2)] text-[var(--text-muted)]";
+              return (
+                <li
+                  key={player.id}
+                  className={`px-4 py-3 ${index % 2 === 1 ? "bg-[var(--surface2)]" : "bg-[var(--surface)]"}`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex flex-col gap-1">
+                      <p className="text-sm font-semibold text-[var(--text)]">
+                        {formatPlayerName(player.name, player.jerseyNumber)}
+                      </p>
+                      <p className="text-xs text-[var(--text-muted)]">
+                        {player.position} · {clubLabel}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusClasses}`}
+                      >
+                        {player.status.replace("_", " ")}
+                      </span>
+                      {player.status === "WAIVERS" ? (
+                        <button
+                          type="button"
+                          onClick={() => handleActionClick("CLAIM", player.id)}
+                          disabled={
+                            claimingPlayerId === player.id ||
+                            claimedPlayerIds.has(player.id)
+                          }
+                          className="rounded-full bg-[var(--text)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--background)] disabled:opacity-60"
+                        >
+                          {claimedPlayerIds.has(player.id)
+                            ? "Claimed"
+                            : claimingPlayerId === player.id
+                              ? "Claiming..."
+                              : "Claim"}
+                        </button>
+                      ) : player.status === "FREE_AGENT" ? (
+                        <button
+                          type="button"
+                          onClick={() => handleActionClick("ADD", player.id)}
+                          disabled={claimingPlayerId === player.id}
+                          className="rounded-full border border-[var(--border)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text)] disabled:opacity-60"
+                        >
+                          {claimingPlayerId === player.id ? "Adding..." : "Add"}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled
+                          className="rounded-full border border-[var(--border)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]"
+                        >
+                          Rostered
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusClasses}`}
-                    >
-                      {player.status.replace("_", " ")}
-                    </span>
-                    {player.status === "WAIVERS" ? (
-                      <button
-                        type="button"
-                        onClick={() => handleActionClick("CLAIM", player.id)}
-                        disabled={
-                          claimingPlayerId === player.id ||
-                          claimedPlayerIds.has(player.id)
-                        }
-                        className="rounded-full bg-black px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white disabled:opacity-60"
-                      >
-                        {claimedPlayerIds.has(player.id)
-                          ? "Claimed"
-                          : claimingPlayerId === player.id
-                            ? "Claiming..."
-                            : "Claim"}
-                      </button>
-                    ) : player.status === "FREE_AGENT" ? (
-                      <button
-                        type="button"
-                        onClick={() => handleActionClick("ADD", player.id)}
-                        disabled={claimingPlayerId === player.id}
-                        className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-700 disabled:opacity-60"
-                      >
-                        {claimingPlayerId === player.id ? "Adding..." : "Add"}
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled
-                        className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-400"
-                      >
-                        Rostered
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {player.status === "WAIVERS" ? (
-                  <p className="mt-2 text-xs text-zinc-500">
-                    Clears: {formatDateTime(player.waiverAvailableAt) ?? "TBD"}
-                  </p>
-                ) : null}
-                {player.status === "ROSTERED" ? (
-                  <p className="mt-2 text-xs text-zinc-500">
-                    Rostered by: {player.rosteredByTeamName ?? "Unknown team"}
-                  </p>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
+                  {player.status === "WAIVERS" ? (
+                    <p className="mt-2 text-xs text-[var(--text-muted)]">
+                      Clears: {formatDateTime(player.waiverAvailableAt) ?? "TBD"}
+                    </p>
+                  ) : null}
+                  {player.status === "ROSTERED" ? (
+                    <p className="mt-2 text-xs text-[var(--text-muted)]">
+                      Rostered by: {player.rosteredByTeamName ?? "Unknown team"}
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </SectionCard>
       )}
 
       {modalOpen ? (

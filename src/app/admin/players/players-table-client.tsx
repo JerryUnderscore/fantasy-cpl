@@ -8,6 +8,7 @@ type ClubOption = {
   id: string;
   name: string;
   shortName: string | null;
+  slug: string | null;
 };
 
 type PlayerRow = {
@@ -17,7 +18,7 @@ type PlayerRow = {
   active: boolean;
   clubId: string;
   jerseyNumber: number | null;
-  club: { name: string; shortName: string | null } | null;
+  club: { name: string; shortName: string | null; slug: string | null } | null;
 };
 
 type Props = {

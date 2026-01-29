@@ -5,8 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
 import { getActiveMatchWeekForSeason } from "@/lib/matchweek";
 import TradeRosterClient from "./trade-roster-client";
-import LeaguePageHeader from "@/components/leagues/league-page-header";
-import PageHeader from "@/components/layout/page-header";
+import LeaguePageShell from "@/components/leagues/league-page-shell";
 
 export const runtime = "nodejs";
 
@@ -17,6 +16,7 @@ type SlotView = {
   slotNumber: number;
   isStarter: boolean;
   player: {
+    id: string;
     name: string;
     jerseyNumber: number | null;
     position: string;
@@ -30,7 +30,16 @@ export default async function TeamRosterPage({
   params: Promise<TeamParams>;
 }) {
   const { leagueId, teamId } = await params;
-    if (!leagueId || !teamId) notFound();
+  if (!leagueId || !teamId) notFound();
+
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { id: true, name: true, season: true },
+  });
+
+  if (!league) {
+    notFound();
+  }
 
   const supabase = await createClient();
   const {
@@ -39,23 +48,15 @@ export default async function TeamRosterPage({
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-zinc-50 px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl bg-white p-10 shadow-sm">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-semibold text-black">Team roster</h1>
-            <p className="text-sm text-zinc-500">
-              Sign in to view this team roster.
-            </p>
-          </div>
+      <LeaguePageShell
+        backHref={`/leagues/${leagueId}`}
+        leagueTitle={league.name}
+        seasonLabel={`Season ${league.season.name} ${league.season.year}`}
+        pageTitle="Team roster"
+        pageSubtitle="Sign in to view this team roster."
+      >
           <AuthButtons isAuthenticated={false} />
-          <Link
-            href={`/leagues/${leagueId}`}
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
-          >
-            Back to league
-          </Link>
-        </div>
-      </div>
+      </LeaguePageShell>
     );
   }
 
@@ -65,32 +66,21 @@ export default async function TeamRosterPage({
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-zinc-50 px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl bg-white p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-black">
-            Profile not synced
-          </h1>
-          <p className="text-sm text-zinc-500">
-            Please sync your profile from the home page and try again.
-          </p>
+      <LeaguePageShell
+        backHref={`/leagues/${leagueId}`}
+        leagueTitle={league.name}
+        seasonLabel={`Season ${league.season.name} ${league.season.year}`}
+        pageTitle="Team roster"
+        pageSubtitle="Please sync your profile from the home page and try again."
+      >
           <Link
             href="/"
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
+            className="text-sm font-medium text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text)] hover:underline"
           >
             Go to home
           </Link>
-        </div>
-      </div>
+      </LeaguePageShell>
     );
-  }
-
-  const league = await prisma.league.findUnique({
-    where: { id: leagueId },
-    select: { id: true, name: true, season: true },
-  });
-
-  if (!league) {
-    notFound();
   }
 
   const membership = await prisma.leagueMember.findUnique({
@@ -102,22 +92,21 @@ export default async function TeamRosterPage({
 
   if (!membership) {
     return (
-      <div className="min-h-screen bg-zinc-50 px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl bg-white p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-black">
-            Not a league member
-          </h1>
-          <p className="text-sm text-zinc-500">
-            You need to join this league before viewing its teams.
-          </p>
-          <Link
-            href="/leagues"
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
-          >
-            Back to leagues
-          </Link>
-        </div>
-      </div>
+      <LeaguePageShell
+        backHref="/leagues"
+        backLabel="Back to leagues"
+        leagueTitle={league.name}
+        seasonLabel={`Season ${league.season.name} ${league.season.year}`}
+        pageTitle="Team roster"
+        pageSubtitle="You need to join this league before viewing its teams."
+      >
+        <Link
+          href="/leagues"
+          className="text-sm font-medium text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text)] hover:underline"
+        >
+          Browse leagues
+        </Link>
+      </LeaguePageShell>
     );
   }
 
@@ -134,6 +123,7 @@ export default async function TeamRosterPage({
           isStarter: true,
           player: {
             select: {
+              id: true,
               name: true,
               jerseyNumber: true,
               position: true,
@@ -248,10 +238,11 @@ export default async function TeamRosterPage({
         isStarter: true,
         player: {
           select: {
+            id: true,
             name: true,
             jerseyNumber: true,
             position: true,
-            club: { select: { shortName: true } },
+            club: { select: { shortName: true, slug: true, name: true } },
           },
         },
       },
@@ -298,43 +289,32 @@ export default async function TeamRosterPage({
   const allowTrade = Boolean(viewerTeam && viewerTeam.id !== team.id);
 
   return (
-    <div className="min-h-screen bg-zinc-50 px-6 py-16">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 rounded-3xl bg-white p-10 shadow-sm">
-        <div className="flex flex-col gap-2">
-          <Link
-            href={`/leagues/${leagueId}`}
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
-          >
-            Back to league
-          </Link>
-          <LeaguePageHeader
-            title={league.name}
-            leagueName={`Season ${league.season.name} ${league.season.year}`}
-            showBadgeTooltip={membership.role === "OWNER"}
-          />
-          <PageHeader
-            title="Team roster"
-            subtitle={`Roster view for ${team.name}.`}
-          />
-          <p className="text-sm text-zinc-500">
-            Owner: {team.profile.displayName ?? "Unknown"}
-          </p>
-          <p className="text-xs uppercase tracking-wide text-zinc-500">
+    <LeaguePageShell
+      backHref={`/leagues/${leagueId}`}
+      leagueTitle={league.name}
+      seasonLabel={`Season ${league.season.name} ${league.season.year}`}
+      pageTitle="Team roster"
+      pageSubtitle={`Roster view for ${team.name}.`}
+      showBadgeTooltip={membership.role === "OWNER"}
+      headerContent={
+        <div className="flex flex-col gap-1 text-sm font-normal text-[var(--text-muted)]">
+          <span>Owner: {team.profile.displayName ?? "Unknown"}</span>
+          <span className="text-xs uppercase tracking-wide">
             Season: {league.season.name} {league.season.year}
-          </p>
+          </span>
         </div>
-
-        <TradeRosterClient
-          leagueId={leagueId}
-          allowTrade={allowTrade}
-          targetTeam={{ id: team.id, name: team.name }}
-          viewerTeam={viewerTeam}
-          starters={starters}
-          bench={bench}
-          viewerPlayers={viewerPlayers}
-          targetPlayers={targetPlayers}
-        />
-      </div>
-    </div>
+      }
+    >
+      <TradeRosterClient
+        leagueId={leagueId}
+        allowTrade={allowTrade}
+        targetTeam={{ id: team.id, name: team.name }}
+        viewerTeam={viewerTeam}
+        starters={starters}
+        bench={bench}
+        viewerPlayers={viewerPlayers}
+        targetPlayers={targetPlayers}
+      />
+    </LeaguePageShell>
   );
 }

@@ -4,9 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
 import SettingsClient from "./settings-client";
-import LeaguePageHeader from "@/components/leagues/league-page-header";
-import PageHeader from "@/components/layout/page-header";
 import SectionCard from "@/components/layout/section-card";
+import LeaguePageShell from "@/components/leagues/league-page-shell";
 
 export const runtime = "nodejs";
 
@@ -15,92 +14,10 @@ type SettingsParams = { leagueId: string };
 export default async function LeagueSettingsPage({
   params,
 }: {
-  params: SettingsParams;
+  params: Promise<SettingsParams>;
 }) {
   const { leagueId } = await params;
   if (!leagueId) notFound();
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-zinc-50 px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl bg-white p-10 shadow-sm">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-semibold text-[var(--accent-muted)]">
-              League settings
-            </h1>
-            <p className="text-sm text-zinc-500">
-              Sign in to view league settings.
-            </p>
-          </div>
-          <AuthButtons isAuthenticated={false} />
-          <Link
-            href="/leagues"
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
-          >
-            Back to leagues
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const profile = await prisma.profile.findUnique({
-    where: { id: user.id },
-  });
-
-  if (!profile) {
-    return (
-      <div className="min-h-screen bg-zinc-50 px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl bg-white p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-black">
-            Profile not synced
-          </h1>
-          <p className="text-sm text-zinc-500">
-            Please sync your profile from the home page and try again.
-          </p>
-          <Link
-            href="/"
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
-          >
-            Go to home
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const membership = await prisma.leagueMember.findUnique({
-    where: {
-      leagueId_profileId: { leagueId, profileId: profile.id },
-    },
-    select: { role: true },
-  });
-
-  if (!membership) {
-    return (
-      <div className="min-h-screen bg-zinc-50 px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl bg-white p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-black">
-            Not a league member
-          </h1>
-          <p className="text-sm text-zinc-500">
-            You need to join this league before viewing its settings.
-          </p>
-          <Link
-            href="/leagues"
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
-          >
-            Back to leagues
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   const leagueSummary = await prisma.league.findUnique({
     where: { id: leagueId },
@@ -123,6 +40,77 @@ export default async function LeagueSettingsPage({
 
   if (!leagueSummary) {
     notFound();
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return (
+      <LeaguePageShell
+        backHref="/leagues"
+        backLabel="Back to leagues"
+        leagueTitle={leagueSummary.name}
+        seasonLabel={`Season ${leagueSummary.season.name} ${leagueSummary.season.year}`}
+        pageTitle="League settings"
+        pageSubtitle="Sign in to view league settings."
+      >
+          <AuthButtons isAuthenticated={false} />
+      </LeaguePageShell>
+    );
+  }
+
+  const profile = await prisma.profile.findUnique({
+    where: { id: user.id },
+  });
+
+  if (!profile) {
+    return (
+      <LeaguePageShell
+        backHref="/leagues"
+        backLabel="Back to leagues"
+        leagueTitle={leagueSummary.name}
+        seasonLabel={`Season ${leagueSummary.season.name} ${leagueSummary.season.year}`}
+        pageTitle="League settings"
+        pageSubtitle="Please sync your profile from the home page and try again."
+      >
+          <Link
+            href="/"
+            className="text-sm font-medium text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text)] hover:underline"
+          >
+            Go to home
+          </Link>
+      </LeaguePageShell>
+    );
+  }
+
+  const membership = await prisma.leagueMember.findUnique({
+    where: {
+      leagueId_profileId: { leagueId, profileId: profile.id },
+    },
+    select: { role: true },
+  });
+
+  if (!membership) {
+    return (
+      <LeaguePageShell
+        backHref="/leagues"
+        backLabel="Back to leagues"
+        leagueTitle={leagueSummary.name}
+        seasonLabel={`Season ${leagueSummary.season.name} ${leagueSummary.season.year}`}
+        pageTitle="League settings"
+        pageSubtitle="You need to join this league before viewing its settings."
+      >
+        <Link
+          href="/leagues"
+          className="text-sm font-medium text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text)] hover:underline"
+        >
+          Browse leagues
+        </Link>
+      </LeaguePageShell>
+    );
   }
 
   const isOwner = membership.role === "OWNER";
@@ -151,155 +139,138 @@ export default async function LeagueSettingsPage({
     : "Not scheduled";
 
   return (
-    <div className="min-h-screen bg-zinc-50 px-6 py-16">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 rounded-3xl bg-white p-10 shadow-sm">
-        <div className="flex flex-col gap-2">
+    <LeaguePageShell
+      backHref={`/leagues/${leagueSummary.id}`}
+      leagueTitle={leagueSummary.name}
+      seasonLabel={`Season ${leagueSummary.season.name} ${leagueSummary.season.year}`}
+      pageTitle="League settings"
+      pageSubtitle="League summary and commissioner tools for this league."
+      showBadgeTooltip={isOwner}
+      pageBadge={isOwner ? "Commissioner" : null}
+    >
+      <SectionCard
+        title="League summary"
+        description="Settings picked by the commissioner for this league."
+        actions={
           <Link
-            href={`/leagues/${leagueSummary.id}`}
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
+            href="/rules"
+            className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
           >
-            Back to league
+            View full Fantasy CPL rules
           </Link>
-          <LeaguePageHeader
-            title="League settings"
-            leagueName={leagueSummary.name}
-            showBadgeTooltip={isOwner}
-          />
-          <p className="text-sm text-zinc-500">
-            Season: {leagueSummary.season.name} {leagueSummary.season.year}
-          </p>
-        </div>
-
-        <PageHeader
-          badge={isOwner ? "Commissioner" : null}
-          title="League settings"
-          subtitle="League summary and commissioner tools for this league."
-        />
-
-        <SectionCard
-          title="League summary"
-          description="Settings picked by the commissioner for this league."
-          actions={
-            <Link
-              href="/rules"
-              className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
-            >
-              View full Fantasy CPL rules
-            </Link>
-          }
-        >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                League name
-              </p>
-              <p className="mt-2 text-sm font-semibold text-zinc-900">
-                {leagueSummary.name}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Commissioner
-              </p>
-              <p className="mt-2 text-sm font-semibold text-zinc-900">
-                {commissionerName}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Teams
-              </p>
-              <p className="mt-2 text-sm font-semibold text-zinc-900">
-                {leagueSummary.teamCount} of {leagueSummary.maxTeams}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Scoring format
-              </p>
-              <p className="mt-2 text-sm font-semibold text-zinc-900">
-                {standingsLabel}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Draft type
-              </p>
-              <p className="mt-2 text-sm font-semibold text-zinc-900">
-                {draftLabel}
-              </p>
-              {leagueSummary.draftMode === "LIVE" ? (
-                <p className="mt-1 text-xs text-zinc-500">
-                  {leagueSummary.draftPickSeconds
-                    ? `Pick clock: ${Math.round(
-                        leagueSummary.draftPickSeconds / 60,
-                      )} min`
-                    : "Pick clock: —"}
-                </p>
-              ) : null}
-            </div>
-            <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Draft schedule
-              </p>
-              <p className="mt-2 text-sm font-semibold text-zinc-900">
-                {draftSchedule}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Join mode
-              </p>
-              <p className="mt-2 text-sm font-semibold text-zinc-900">
-                {joinLabel}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Roster size
-              </p>
-              <p className="mt-2 text-sm font-semibold text-zinc-900">
-                {leagueSummary.rosterSize} players
-              </p>
-            </div>
-            <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Goalkeeper requirement
-              </p>
-              <p className="mt-2 text-sm font-semibold text-zinc-900">
-                {goalkeeperRequirement}
-              </p>
-              <p className="mt-1 text-xs text-zinc-500">
-                {goalkeeperHelper}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-zinc-200 bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Waiver period
-              </p>
-              <p className="mt-2 text-sm font-semibold text-zinc-900">
-                {leagueSummary.waiverPeriodHours} hours
-              </p>
-            </div>
+        }
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              League name
+            </p>
+            <p className="mt-2 text-sm font-semibold text-zinc-900">
+              {leagueSummary.name}
+            </p>
           </div>
-        </SectionCard>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Commissioner
+            </p>
+            <p className="mt-2 text-sm font-semibold text-zinc-900">
+              {commissionerName}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Teams
+            </p>
+            <p className="mt-2 text-sm font-semibold text-zinc-900">
+              {leagueSummary.teamCount} of {leagueSummary.maxTeams}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Scoring format
+            </p>
+            <p className="mt-2 text-sm font-semibold text-zinc-900">
+              {standingsLabel}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Draft type
+            </p>
+            <p className="mt-2 text-sm font-semibold text-zinc-900">
+              {draftLabel}
+            </p>
+            {leagueSummary.draftMode === "LIVE" ? (
+              <p className="mt-1 text-xs text-zinc-500">
+                {leagueSummary.draftPickSeconds
+                  ? `Pick clock: ${Math.round(
+                      leagueSummary.draftPickSeconds / 60,
+                    )} min`
+                  : "Pick clock: —"}
+              </p>
+            ) : null}
+          </div>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Draft schedule
+            </p>
+            <p className="mt-2 text-sm font-semibold text-zinc-900">
+              {draftSchedule}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Join mode
+            </p>
+            <p className="mt-2 text-sm font-semibold text-zinc-900">
+              {joinLabel}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Roster size
+            </p>
+            <p className="mt-2 text-sm font-semibold text-zinc-900">
+              {leagueSummary.rosterSize} players
+            </p>
+          </div>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Goalkeeper requirement
+            </p>
+            <p className="mt-2 text-sm font-semibold text-zinc-900">
+              {goalkeeperRequirement}
+            </p>
+            <p className="mt-1 text-xs text-zinc-500">
+              {goalkeeperHelper}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Waiver period
+            </p>
+            <p className="mt-2 text-sm font-semibold text-zinc-900">
+              {leagueSummary.waiverPeriodHours} hours
+            </p>
+          </div>
+        </div>
+      </SectionCard>
 
-        {isOwner ? (
-          <SectionCard
-            title="Commissioner tools"
-            description="Manage the configuration below. Changes apply league-wide."
-          >
-            <SettingsClient
-              leagueId={leagueSummary.id}
-              leagueName={leagueSummary.name}
-            />
-          </SectionCard>
-        ) : (
-          <p className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
-            Only the commissioner can edit league settings.
-          </p>
-        )}
-      </div>
-    </div>
+      {isOwner ? (
+        <SectionCard
+          title="Commissioner tools"
+          description="Manage the configuration below. Changes apply league-wide."
+        >
+          <SettingsClient
+            leagueId={leagueSummary.id}
+            leagueName={leagueSummary.name}
+          />
+        </SectionCard>
+      ) : (
+        <p className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
+          Only the commissioner can edit league settings.
+        </p>
+      )}
+    </LeaguePageShell>
   );
 }

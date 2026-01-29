@@ -96,7 +96,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
 
     const teams = await prisma.fantasyTeam.findMany({
       where: { leagueId },
-      select: { id: true, name: true, createdAt: true },
+      select: { id: true, name: true, profileId: true, createdAt: true },
       orderBy: { createdAt: "asc" },
     });
 

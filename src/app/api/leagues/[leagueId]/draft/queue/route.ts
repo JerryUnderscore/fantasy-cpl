@@ -79,7 +79,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
       select: {
         id: true,
         rank: true,
-        player: {
+        Player: {
           select: {
             id: true,
             name: true,
@@ -97,11 +97,11 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
         id: item.id,
         rank: item.rank,
         player: {
-          id: item.player.id,
-          name: item.player.name,
-          jerseyNumber: item.player.jerseyNumber,
-          position: item.player.position,
-          club: item.player.club?.shortName ?? null,
+          id: item.Player.id,
+          name: item.Player.name,
+          jerseyNumber: item.Player.jerseyNumber,
+          position: item.Player.position,
+          club: item.Player.club?.shortName ?? null,
         },
       })),
     });
@@ -137,11 +137,12 @@ export async function PUT(request: NextRequest, ctx: Ctx) {
     }
 
     const body = (await request.json().catch(() => null)) as QueueBody | null;
-    const playerIds = Array.isArray(body?.playerIds)
-      ? body?.playerIds.filter((id): id is string => typeof id === "string")
+    const rawPlayerIds = Array.isArray(body?.playerIds) ? body.playerIds : null;
+    const playerIds = rawPlayerIds
+      ? rawPlayerIds.filter((id): id is string => typeof id === "string")
       : null;
 
-    if (!playerIds || playerIds.length !== body?.playerIds?.length) {
+    if (!rawPlayerIds || !playerIds || playerIds.length !== rawPlayerIds.length) {
       return NextResponse.json({ error: "playerIds required" }, { status: 400 });
     }
 
@@ -217,10 +218,12 @@ export async function PUT(request: NextRequest, ctx: Ctx) {
 
       await tx.draftQueueItem.createMany({
         data: uniqueIds.map((playerId, index) => ({
+          id: crypto.randomUUID(),
           draftId: draft.id,
           fantasyTeamId: team.id,
           playerId,
           rank: index + 1,
+          updatedAt: new Date(),
         })),
       });
     });

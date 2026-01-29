@@ -15,9 +15,9 @@ export const runtime = "nodejs";
 export default async function MatchDetailPage({
   params,
 }: {
-  params: MatchParams;
+  params: Promise<MatchParams>;
 }) {
-  const { matchId } = params;
+  const { matchId } = await params;
   if (!matchId) notFound();
 
   const match = await prisma.match.findUnique({

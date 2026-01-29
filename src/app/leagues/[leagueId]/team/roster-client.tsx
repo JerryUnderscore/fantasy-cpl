@@ -34,8 +34,10 @@ type Props = {
 
 const getSlotKitSrc = (slot: Slot) => getKitSrc(slot.player?.club?.slug);
 
-const buildSlotClubName = (club: Slot["player"]["club"] | null) =>
-  club?.slug ? getClubDisplayName(club.slug, club.name ?? club.shortName ?? null) : null;
+const buildSlotClubName = (player: Slot["player"] | null) =>
+  player?.club?.slug
+    ? getClubDisplayName(player.club.slug, player.club.name ?? player.club.shortName ?? null)
+    : null;
 
 const getPositionKey = (slot: Slot): PositionKey => {
   const candidate = slot.position || slot.player?.position || "MID";
@@ -305,7 +307,7 @@ export default function RosterClient({
         <PlayerPitchSlot
           playerName={slot.player?.name ?? "Open slot"}
           position={slot.player?.position ?? "Player"}
-          clubName={slot.player ? buildSlotClubName(slot.player.club) : null}
+          clubName={buildSlotClubName(slot.player)}
           clubSlug={slot.player?.club?.slug ?? null}
           jerseyNumber={slot.player?.jerseyNumber ?? null}
         />
@@ -440,7 +442,7 @@ export default function RosterClient({
             </p>
             <div className="mt-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
               {pendingDropSlot.player?.position ?? "MID"} ·{" "}
-              {buildSlotClubName(pendingDropSlot.player?.club ?? null) ??
+              {buildSlotClubName(pendingDropSlot.player ?? null) ??
                 "Unknown club"}
             </div>
             <div className="mt-5 flex items-center justify-end gap-2">

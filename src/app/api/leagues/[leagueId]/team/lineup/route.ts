@@ -92,7 +92,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
           number: matchWeekNumber,
         },
       },
-      select: { id: true, status: true },
+      select: { id: true, status: true, number: true },
     });
 
     if (!matchWeek) {

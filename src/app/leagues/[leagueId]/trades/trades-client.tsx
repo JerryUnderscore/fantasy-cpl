@@ -7,6 +7,7 @@ import { getClubDisplayName } from "@/lib/clubs";
 import LoadingState from "@/components/layout/loading-state";
 import InlineError from "@/components/layout/inline-error";
 import EmptyState from "@/components/layout/empty-state";
+import SectionCard from "@/components/layout/section-card";
 
 type TradePlayer = {
   id: string;
@@ -80,10 +81,17 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
         | { error?: string }
         | null;
       if (!res.ok) {
-        throw new Error(payload?.error ?? "Failed to load trades");
+        throw new Error(
+          payload && typeof payload === "object" && "error" in payload
+            ? payload.error ?? "Failed to load trades"
+            : "Failed to load trades",
+        );
       }
-      setTrades(payload?.trades ?? []);
-      setTeamId(payload?.teamId ?? null);
+      if (!payload || !("trades" in payload) || !("teamId" in payload)) {
+        throw new Error("Failed to load trades");
+      }
+      setTrades(payload.trades ?? []);
+      setTeamId(payload.teamId ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load trades");
     } finally {
@@ -136,7 +144,14 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
       | { error?: string }
       | null;
     if (!res.ok) {
-      throw new Error(payload?.error ?? "Unable to load roster");
+      throw new Error(
+        payload && typeof payload === "object" && "error" in payload
+          ? payload.error ?? "Unable to load roster"
+          : "Unable to load roster",
+      );
+    }
+    if (!payload || !("team" in payload) || !("players" in payload)) {
+      throw new Error("Unable to load roster");
     }
     return payload;
   };
@@ -184,150 +199,146 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
         <InlineError message={error} />
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-zinc-900">
-            Pending offers
-          </p>
-          <p className="text-xs text-zinc-500">
-            Trades awaiting a response.
-          </p>
-        </div>
-        <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-          {pendingTrades.length} pending
-        </span>
-      </div>
+      <SectionCard
+        title="Trade center"
+        description="Trades awaiting a response."
+        actions={
+          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+            {pendingTrades.length} pending
+          </span>
+        }
+      >
+        {trades.length === 0 ? (
+          <EmptyState
+            title="No trades yet"
+            description="Trades let you exchange players with other teams."
+          />
+        ) : (
+          <div className="grid gap-4">
+            {trades.map((trade) => {
+              const isIncoming = trade.offeredToTeamId === teamId;
+              const offeredPlayers = trade.items.filter(
+                (item) => item.direction === "FROM_OFFERING",
+              );
+              const requestedPlayers = trade.items.filter(
+                (item) => item.direction === "FROM_RECEIVING",
+              );
 
-      {trades.length === 0 ? (
-        <EmptyState
-          title="No trades yet"
-          description="Trades let you exchange players with other teams."
-        />
-      ) : (
-        <div className="grid gap-4">
-          {trades.map((trade) => {
-            const isIncoming = trade.offeredToTeamId === teamId;
-            const offeredPlayers = trade.items.filter(
-              (item) => item.direction === "FROM_OFFERING",
-            );
-            const requestedPlayers = trade.items.filter(
-              (item) => item.direction === "FROM_RECEIVING",
-            );
-
-            return (
-              <div
-                key={trade.id}
-                className="rounded-2xl border border-zinc-200 bg-white p-5"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                      {trade.status}
-                    </p>
-                    <p className="text-sm font-semibold text-zinc-900">
-                      {trade.offeredByTeam.name} → {trade.offeredToTeam.name}
-                    </p>
-                    <p className="text-xs text-zinc-500">
-                      {trade.offeredByTeam.profile?.displayName ?? "Unknown"} · {" "}
-                      {trade.offeredToTeam.profile?.displayName ?? "Unknown"}
-                    </p>
-                  </div>
-                  {trade.status === "PENDING" ? (
-                    <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-700">
-                      Pending
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                      {trade.status}
-                    </span>
-                  )}
-                </div>
-
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                      {trade.offeredByTeam.name} sends
-                    </p>
-                    <ul className="mt-3 space-y-2 text-sm text-zinc-700">
-                      {offeredPlayers.map((item) => (
-                        <li key={item.id}>
-                          <span className="font-semibold text-zinc-900">
-                            {formatPlayerName(
-                              item.player.name,
-                              item.player.jerseyNumber,
-                            )}
-                          </span>
-                          <span className="text-xs text-zinc-500">
-                            {" "}· {buildRosterLabel(item.player)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                      {trade.offeredToTeam.name} sends
-                    </p>
-                    <ul className="mt-3 space-y-2 text-sm text-zinc-700">
-                      {requestedPlayers.map((item) => (
-                        <li key={item.id}>
-                          <span className="font-semibold text-zinc-900">
-                            {formatPlayerName(
-                              item.player.name,
-                              item.player.jerseyNumber,
-                            )}
-                          </span>
-                          <span className="text-xs text-zinc-500">
-                            {" "}· {buildRosterLabel(item.player)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-
-                {trade.status === "PENDING" ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {isIncoming ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => handleTradeAction(trade.id, "ACCEPT")}
-                          className="rounded-full bg-black px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white"
-                        >
-                          Accept
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleTradeAction(trade.id, "DECLINE")}
-                          className="rounded-full border border-zinc-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600"
-                        >
-                          Decline
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openCounterModal(trade)}
-                          className="rounded-full border border-zinc-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600"
-                        >
-                          Counter
-                        </button>
-                      </>
+              return (
+                <div
+                  key={trade.id}
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                        {trade.status}
+                      </p>
+                      <p className="text-sm font-semibold text-[var(--text)]">
+                        {trade.offeredByTeam.name} → {trade.offeredToTeam.name}
+                      </p>
+                      <p className="text-xs text-[var(--text-muted)]">
+                        {trade.offeredByTeam.profile?.displayName ?? "Unknown"} ·{" "}
+                        {trade.offeredToTeam.profile?.displayName ?? "Unknown"}
+                      </p>
+                    </div>
+                    {trade.status === "PENDING" ? (
+                      <span className="rounded-full bg-[var(--surface2)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                        Pending
+                      </span>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleTradeAction(trade.id, "CANCEL")}
-                        className="rounded-full border border-zinc-200 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600"
-                      >
-                        Cancel
-                      </button>
+                      <span className="rounded-full bg-[var(--surface2)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                        {trade.status}
+                      </span>
                     )}
                   </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      )}
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                        {trade.offeredByTeam.name} sends
+                      </p>
+                      <ul className="mt-3 space-y-2 text-sm text-[var(--text)]">
+                        {offeredPlayers.map((item) => (
+                          <li key={item.id}>
+                            <span className="font-semibold text-[var(--text)]">
+                              {formatPlayerName(
+                                item.player.name,
+                                item.player.jerseyNumber,
+                              )}
+                            </span>
+                            <span className="text-xs text-[var(--text-muted)]">
+                              {" "}· {buildRosterLabel(item.player)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                        {trade.offeredToTeam.name} sends
+                      </p>
+                      <ul className="mt-3 space-y-2 text-sm text-[var(--text)]">
+                        {requestedPlayers.map((item) => (
+                          <li key={item.id}>
+                            <span className="font-semibold text-[var(--text)]">
+                              {formatPlayerName(
+                                item.player.name,
+                                item.player.jerseyNumber,
+                              )}
+                            </span>
+                            <span className="text-xs text-[var(--text-muted)]">
+                              {" "}· {buildRosterLabel(item.player)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {trade.status === "PENDING" ? (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {isIncoming ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleTradeAction(trade.id, "ACCEPT")}
+                            className="rounded-full bg-[var(--text)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--background)]"
+                          >
+                            Accept
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleTradeAction(trade.id, "DECLINE")}
+                            className="rounded-full border border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]"
+                          >
+                            Decline
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openCounterModal(trade)}
+                            className="rounded-full border border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]"
+                          >
+                            Counter
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleTradeAction(trade.id, "CANCEL")}
+                          className="rounded-full border border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </SectionCard>
 
       {modalState ? (
         <TradeOfferModal

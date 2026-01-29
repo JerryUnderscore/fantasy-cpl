@@ -1,4 +1,5 @@
 import { revalidatePath } from "next/cache";
+import { PlayerPosition } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdminUser } from "@/lib/admin";
 import PlayersTableClient from "./players-table-client";
@@ -10,7 +11,7 @@ export const runtime = "nodejs";
 
 const positions = ["GK", "DEF", "MID", "FWD"] as const;
 
-type Position = (typeof positions)[number];
+type Position = PlayerPosition;
 
 const normalizePosition = (raw: string): Position | null => {
   const value = raw.trim().toUpperCase();
@@ -99,6 +100,14 @@ async function createPlayer(formData: FormData) {
     return;
   }
 
+  const normalizedPosition = positions.includes(position as Position)
+    ? (position as Position)
+    : null;
+
+  if (!normalizedPosition) {
+    return;
+  }
+
   const parsedJersey =
     typeof jerseyNumber === "string" && jerseyNumber.trim() !== ""
       ? Number(jerseyNumber)
@@ -106,8 +115,9 @@ async function createPlayer(formData: FormData) {
 
   await prisma.player.create({
     data: {
+      id: crypto.randomUUID(),
       name: name.trim(),
-      position,
+      position: normalizedPosition,
       clubId,
       seasonId,
       active: true,
@@ -138,6 +148,14 @@ async function updatePlayer(formData: FormData) {
     return;
   }
 
+  const normalizedPosition = positions.includes(position as Position)
+    ? (position as Position)
+    : null;
+
+  if (!normalizedPosition) {
+    return;
+  }
+
   const parsedJersey =
     typeof jerseyNumber === "string" && jerseyNumber.trim() !== ""
       ? Number(jerseyNumber)
@@ -146,7 +164,7 @@ async function updatePlayer(formData: FormData) {
   await prisma.player.update({
     where: { id: playerId },
     data: {
-      position,
+      position: normalizedPosition,
       clubId,
       jerseyNumber:
         parsedJersey !== null && Number.isFinite(parsedJersey)
@@ -325,6 +343,7 @@ async function importPlayersCsv(formData: FormData) {
           active: true,
         },
         create: {
+          id: crypto.randomUUID(),
           name,
           seasonId,
           clubId,

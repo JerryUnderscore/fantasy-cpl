@@ -231,7 +231,9 @@ export async function POST(request: Request) {
               ...(joinMode.hasValue
                 ? { joinMode: joinMode.value as JoinMode }
                 : {}),
-              ...(maxTeams.hasValue ? { maxTeams: maxTeams.value } : {}),
+              ...(maxTeams.hasValue && maxTeams.value !== null
+                ? { maxTeams: maxTeams.value }
+                : {}),
               ...(standingsMode.hasValue
                 ? { standingsMode: standingsMode.value as StandingsMode }
                 : {}),

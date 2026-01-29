@@ -9,8 +9,7 @@ import MatchWeekSelector from "./matchweek-selector";
 import LineupControls from "./lineup-controls";
 import { buildRosterSlots } from "@/lib/roster";
 import { getActiveMatchWeekForSeason } from "@/lib/matchweek";
-import LeaguePageHeader from "@/components/leagues/league-page-header";
-import PageHeader from "@/components/layout/page-header";
+import LeaguePageShell from "@/components/leagues/league-page-shell";
 
 export const runtime = "nodejs";
 
@@ -37,66 +36,13 @@ export default async function MyTeamRosterPage({
   searchParams,
 }: {
   params: Promise<TeamParams>;
-  searchParams?: SearchParamsShape | Promise<SearchParamsShape>;
+  searchParams?: Promise<SearchParamsShape>;
 }) {
   const { leagueId } = await params;
-    if (!leagueId) notFound();
+  if (!leagueId) notFound();
 
   // Next 16 sometimes provides searchParams as a Promise.
   const sp = searchParams ? await searchParams : undefined;
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-[var(--background)] px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl border border-[var(--border)] bg-[var(--surface2)] p-10 shadow-sm">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-semibold text-[var(--accent)]">Team roster</h1>
-            <p className="text-sm text-[var(--text-muted)]">
-              Sign in to manage your roster.
-            </p>
-          </div>
-          <AuthButtons isAuthenticated={false} />
-          <Link
-            href={`/leagues/${leagueId}`}
-            className="text-sm font-medium text-[var(--accent)] underline-offset-4 hover:text-[var(--accent-muted)] hover:underline"
-          >
-            Back to league
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const profile = await prisma.profile.findUnique({
-    where: { id: user.id },
-    select: { id: true },
-  });
-
-  if (!profile) {
-    return (
-      <div className="min-h-screen bg-[var(--background)] px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl border border-[var(--border)] bg-[var(--surface2)] p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-[var(--accent)]">
-            Profile not synced
-          </h1>
-          <p className="text-sm text-[var(--text-muted)]">
-            Please sync your profile from the home page and try again.
-          </p>
-          <Link
-            href="/"
-            className="text-sm font-medium text-[var(--accent)] underline-offset-4 hover:text-[var(--accent-muted)] hover:underline"
-          >
-            Go to home
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
@@ -110,6 +56,49 @@ export default async function MyTeamRosterPage({
 
   if (!league) notFound();
 
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return (
+      <LeaguePageShell
+        backHref={`/leagues/${leagueId}`}
+        leagueTitle={league.name}
+        seasonLabel={`Season ${league.season.name} ${league.season.year}`}
+        pageTitle="Team roster"
+        pageSubtitle="Sign in to manage your roster."
+      >
+          <AuthButtons isAuthenticated={false} />
+      </LeaguePageShell>
+    );
+  }
+
+  const profile = await prisma.profile.findUnique({
+    where: { id: user.id },
+    select: { id: true },
+  });
+
+  if (!profile) {
+    return (
+      <LeaguePageShell
+        backHref={`/leagues/${leagueId}`}
+        leagueTitle={league.name}
+        seasonLabel={`Season ${league.season.name} ${league.season.year}`}
+        pageTitle="Team roster"
+        pageSubtitle="Please sync your profile from the home page and try again."
+      >
+          <Link
+            href="/"
+            className="text-sm font-medium text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text)] hover:underline"
+          >
+            Go to home
+          </Link>
+      </LeaguePageShell>
+    );
+  }
+
   const membership = await prisma.leagueMember.findUnique({
     where: {
       leagueId_profileId: { leagueId, profileId: profile.id },
@@ -119,22 +108,21 @@ export default async function MyTeamRosterPage({
 
   if (!membership) {
     return (
-      <div className="min-h-screen bg-[var(--background)] px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl border border-[var(--border)] bg-[var(--surface2)] p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-[var(--accent)]">
-            Not a league member
-          </h1>
-          <p className="text-sm text-[var(--text-muted)]">
-            You need to join this league before managing your roster.
-          </p>
-          <Link
-            href="/leagues"
-            className="text-sm font-medium text-[var(--accent)] underline-offset-4 hover:text-[var(--accent-muted)] hover:underline"
-          >
-            Back to leagues
-          </Link>
-        </div>
-      </div>
+      <LeaguePageShell
+        backHref="/leagues"
+        backLabel="Back to leagues"
+        leagueTitle={league.name}
+        seasonLabel={`Season ${league.season.name} ${league.season.year}`}
+        pageTitle="Team roster"
+        pageSubtitle="You need to join this league before managing your roster."
+      >
+        <Link
+          href="/leagues"
+          className="text-sm font-medium text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text)] hover:underline"
+        >
+          Browse leagues
+        </Link>
+      </LeaguePageShell>
     );
   }
 
@@ -147,20 +135,21 @@ export default async function MyTeamRosterPage({
 
   if (!team) {
     return (
-      <div className="min-h-screen bg-[var(--background)] px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl border border-[var(--border)] bg-[var(--surface2)] p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-[var(--accent)]">No team yet</h1>
-          <p className="text-sm text-[var(--text-muted)]">
-            Create your team from the league page to manage your roster.
-          </p>
-          <Link
-            href={`/leagues/${leagueId}`}
-            className="text-sm font-medium text-[var(--accent)] underline-offset-4 hover:text-[var(--accent-muted)] hover:underline"
-          >
-            Back to league
-          </Link>
-        </div>
-      </div>
+      <LeaguePageShell
+        backHref={`/leagues/${leagueId}`}
+        leagueTitle={league.name}
+        seasonLabel={`Season ${league.season.name} ${league.season.year}`}
+        pageTitle="Team roster"
+        pageSubtitle="Create your team from the league page to manage your roster."
+        showBadgeTooltip={membership.role === "OWNER"}
+      >
+        <Link
+          href={`/leagues/${leagueId}`}
+          className="text-sm font-medium text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text)] hover:underline"
+        >
+          Go to league overview
+        </Link>
+      </LeaguePageShell>
     );
   }
 
@@ -226,6 +215,7 @@ export default async function MyTeamRosterPage({
         player: {
           id: string;
           name: string;
+          jerseyNumber: number | null;
           position: string;
           club: { shortName: string | null; slug: string; name: string } | null;
         } | null;
@@ -349,67 +339,51 @@ export default async function MyTeamRosterPage({
         });
 
   return (
-    <div className="min-h-screen bg-[var(--background)] px-6 py-16">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 rounded-3xl border border-[var(--border)] bg-[var(--surface2)] p-10 shadow-sm">
-        <div className="flex flex-col gap-2">
-          <Link
-            href={`/leagues/${leagueId}`}
-            className="text-sm font-medium text-[var(--accent)] underline-offset-4 hover:text-[var(--accent-muted)] hover:underline"
-          >
-            Back to league
-          </Link>
-          <LeaguePageHeader
-            title={league.name}
-            leagueName={`Season ${league.season.name} ${league.season.year}`}
-            showBadgeTooltip={membership.role === "OWNER"}
-          />
-          <p className="text-sm text-[var(--text-muted)]">
-            {league.season.name} · {league.season.year}
-          </p>
-          <PageHeader
-            title="Team roster"
-            subtitle={`Manage lineups and roster moves for ${team.name}.`}
-          />
-        </div>
-
-        {selectedMatchWeek ? (
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-[var(--text)]">
-                MatchWeek {selectedMatchWeek.number} · {selectedMatchWeek.status}
-              </p>
-              <MatchWeekSelector
-                matchWeeks={matchWeeks}
-                selectedNumber={selectedMatchWeekNumber}
-                activeNumber={activeMatchWeek?.number ?? null}
-              />
-            </div>
-            <p className="text-xs text-[var(--text-muted)]">
-              Lineup edits lock based on the active MatchWeek.
+    <LeaguePageShell
+      backHref={`/leagues/${leagueId}`}
+      leagueTitle={league.name}
+      seasonLabel={`Season ${league.season.name} ${league.season.year}`}
+      pageTitle="Team roster"
+      pageSubtitle={`Manage lineups and roster moves for ${team.name}.`}
+      showBadgeTooltip={membership.role === "OWNER"}
+    >
+      {selectedMatchWeek ? (
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-[var(--text)]">
+              MatchWeek {selectedMatchWeek.number} · {selectedMatchWeek.status}
             </p>
-            {selectedMatchWeek.status !== "OPEN" ? (
-              <p className="text-xs text-[var(--text-muted)]">Lineups locked.</p>
-            ) : null}
+            <MatchWeekSelector
+              matchWeeks={matchWeeks}
+              selectedNumber={selectedMatchWeekNumber}
+              activeNumber={activeMatchWeek?.number ?? null}
+            />
           </div>
-        ) : null}
+          <p className="text-xs text-[var(--text-muted)]">
+            Lineup edits lock based on the active MatchWeek.
+          </p>
+          {selectedMatchWeek.status !== "OPEN" ? (
+            <p className="text-xs text-[var(--text-muted)]">Lineups locked.</p>
+          ) : null}
+        </div>
+      ) : null}
 
-        <LineupControls
-          leagueId={league.id}
-          matchWeekNumber={selectedMatchWeekNumber}
-          isLocked={selectedMatchWeek?.status !== "OPEN"}
-        />
+      <LineupControls
+        leagueId={league.id}
+        matchWeekNumber={selectedMatchWeekNumber}
+        isLocked={selectedMatchWeek?.status !== "OPEN"}
+      />
 
-        <RosterClient
-          leagueId={league.id}
-          initialSlots={slots}
-          matchWeekNumber={selectedMatchWeekNumber}
-          isLocked={selectedMatchWeek?.status !== "OPEN"}
-        />
-        <ScoringCard
-          leagueId={league.id}
-          matchWeekNumber={selectedMatchWeekNumber}
-        />
-      </div>
-    </div>
+      <RosterClient
+        leagueId={league.id}
+        initialSlots={slots}
+        matchWeekNumber={selectedMatchWeekNumber}
+        isLocked={selectedMatchWeek?.status !== "OPEN"}
+      />
+      <ScoringCard
+        leagueId={league.id}
+        matchWeekNumber={selectedMatchWeekNumber}
+      />
+    </LeaguePageShell>
   );
 }

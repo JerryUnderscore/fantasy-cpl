@@ -71,7 +71,6 @@ export default function DraftPrepClient({
   const [queueIds, setQueueIds] = useState<string[]>([]);
   const [queueError, setQueueError] = useState<string | null>(null);
   const [queueStatus, setQueueStatus] = useState<SaveState>("idle");
-  const [draftId, setDraftId] = useState<string | null>(null);
   const hasLoadedQueue = useRef(false);
   const hasSkippedInitialSave = useRef(false);
 
@@ -158,7 +157,6 @@ export default function DraftPrepClient({
       const ordered = [...items]
         .sort((a, b) => a.rank - b.rank)
         .map((item) => item.playerId);
-      setDraftId(payload?.draftId ?? null);
       hasSkippedInitialSave.current = false;
       setQueueIds(ordered.filter((id) => playersById.has(id)));
       hasLoadedQueue.current = true;
@@ -188,7 +186,6 @@ export default function DraftPrepClient({
         if (!res.ok) {
           throw new Error(payload?.error ?? "Failed to save queue");
         }
-        if (payload?.draftId) setDraftId(payload.draftId);
         setQueueStatus("saved");
       } catch (error) {
         setQueueStatus("error");

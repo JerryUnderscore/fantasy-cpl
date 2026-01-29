@@ -10,9 +10,9 @@ import { getCurrentMatchWeekForSeason } from "@/lib/matchweek";
 import LocalDateTime from "@/components/local-date-time";
 import { formatPlayerName } from "@/lib/players";
 import { getClubDisplayName } from "@/lib/clubs";
-import LeaguePageHeader from "@/components/leagues/league-page-header";
-import PageHeader from "@/components/layout/page-header";
 import EmptyState from "@/components/layout/empty-state";
+import SectionCard from "@/components/layout/section-card";
+import LeaguePageShell from "@/components/leagues/league-page-shell";
 
 export const runtime = "nodejs";
 
@@ -50,6 +50,9 @@ export default async function LeagueDetailPage({
 }) {
   const { leagueId } = await params;
   if (!leagueId) notFound();
+
+  const league = await getLeague(leagueId);
+  if (!league) notFound();
   
   const supabase = await createClient();
   const {
@@ -58,23 +61,16 @@ export default async function LeagueDetailPage({
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-zinc-50 px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 rounded-3xl bg-white p-10 shadow-sm">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-3xl font-semibold text-black">League teams</h1>
-            <p className="text-sm text-zinc-500">
-              Sign in to view the teams in this league.
-            </p>
-          </div>
+      <LeaguePageShell
+        backHref="/leagues"
+        backLabel="Back to leagues"
+        leagueTitle={league.name}
+        seasonLabel={`Season ${league.season.name} ${league.season.year}`}
+        pageTitle="Overview"
+        pageSubtitle="Sign in to view the teams in this league."
+      >
           <AuthButtons isAuthenticated={false} />
-          <Link
-            href="/leagues"
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
-          >
-            Back to leagues
-          </Link>
-        </div>
-      </div>
+      </LeaguePageShell>
     );
   }
 
@@ -84,47 +80,42 @@ export default async function LeagueDetailPage({
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-zinc-50 px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl bg-white p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-black">
-            Profile not synced
-          </h1>
-          <p className="text-sm text-zinc-500">
-            Please sync your profile from the home page and try again.
-          </p>
+      <LeaguePageShell
+        backHref="/leagues"
+        backLabel="Back to leagues"
+        leagueTitle={league.name}
+        seasonLabel={`Season ${league.season.name} ${league.season.year}`}
+        pageTitle="Overview"
+        pageSubtitle="Please sync your profile from the home page and try again."
+      >
           <Link
             href="/"
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
+            className="text-sm font-medium text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text)] hover:underline"
           >
             Go to home
           </Link>
-        </div>
-      </div>
+      </LeaguePageShell>
     );
   }
-
-  const league = await getLeague(leagueId);
-  if (!league) notFound();
 
   const membership = await getMembership(league.id, profile.id);
   if (!membership) {
     return (
-      <div className="min-h-screen bg-zinc-50 px-6 py-16">
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-3xl bg-white p-10 shadow-sm">
-          <h1 className="text-2xl font-semibold text-black">
-            Not a league member
-          </h1>
-          <p className="text-sm text-zinc-500">
-            You need to join this league before viewing its teams.
-          </p>
-          <Link
-            href="/leagues"
-            className="text-sm font-medium text-zinc-500 underline-offset-4 hover:text-black hover:underline"
-          >
-            Back to leagues
-          </Link>
-        </div>
-      </div>
+      <LeaguePageShell
+        backHref="/leagues"
+        backLabel="Back to leagues"
+        leagueTitle={league.name}
+        seasonLabel={`Season ${league.season.name} ${league.season.year}`}
+        pageTitle="Overview"
+        pageSubtitle="You need to join this league before viewing its teams."
+      >
+        <Link
+          href="/leagues"
+          className="text-sm font-medium text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text)] hover:underline"
+        >
+          Browse leagues
+        </Link>
+      </LeaguePageShell>
     );
   }
 
@@ -229,223 +220,200 @@ export default async function LeagueDetailPage({
           name: true,
           jerseyNumber: true,
           position: true,
-          club: { select: { shortName: true, name: true } },
+          club: { select: { shortName: true, name: true, slug: true } },
         },
       },
     },
   });
 
   return (
-    <div className="min-h-screen bg-[var(--background)] px-6 py-16">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-10 shadow-[0_25px_45px_rgba(1,2,12,0.65)]">
-        <div className="flex flex-col gap-2">
-          <Link
-            href="/leagues"
-            className="text-sm font-medium text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text)] hover:underline"
-          >
-            Back to leagues
-          </Link>
-          <LeaguePageHeader
-            title={league.name}
-            leagueName={`Season ${league.season.name} ${league.season.year}`}
-            showBadgeTooltip={membership.role === "OWNER"}
-            actions={
-              <>
-                {showDraftButton ? (
-                  <Link
-                    href={`/leagues/${league.id}/draft`}
-                    className="inline-flex items-center justify-center rounded-full bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition hover:bg-[var(--accent-muted)]"
-                    style={{ color: "#101014" }}
-                  >
-                    Draft
-                  </Link>
-                ) : null}
-                {membership.role === "OWNER" ? (
-                  <Link
-                    href={`/leagues/${league.id}/settings`}
-                    className="inline-flex items-center justify-center rounded-full border border-[var(--border)] p-2 text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
-                    aria-label="League settings"
-                  >
-                    <span role="img" aria-hidden="true" className="text-lg">
-                      ⚙️
-                    </span>
-                  </Link>
-                ) : null}
-              </>
-            }
-          />
-          <p className="text-sm text-[var(--text-muted)]">
-            {league.season.name} {league.season.year}
-          </p>
-          <PageHeader
-            title="Overview"
-            subtitle="Standings, schedule, and waiver activity for this league."
-          />
-          <div className="mt-3 flex flex-wrap gap-3 text-sm font-semibold text-[var(--text-muted)]">
+    <LeaguePageShell
+      backHref="/leagues"
+      backLabel="Back to leagues"
+      leagueTitle={league.name}
+      seasonLabel={`Season ${league.season.name} ${league.season.year}`}
+      pageTitle="Overview"
+      pageSubtitle="Standings, schedule, and waiver activity for this league."
+      showBadgeTooltip={membership.role === "OWNER"}
+      actions={
+        <>
+          {showDraftButton ? (
             <Link
-              href={`/leagues/${league.id}/players`}
-              className="transition hover:text-[var(--text)] hover:underline underline-offset-4"
+              href={`/leagues/${league.id}/draft`}
+              className="inline-flex items-center justify-center rounded-full bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition hover:bg-[var(--accent-muted)]"
+              style={{ color: "#101014" }}
             >
-              Players
+              Draft
             </Link>
-            <Link
-              href={`/leagues/${league.id}/trades`}
-              className="transition hover:text-[var(--text)] hover:underline underline-offset-4"
-            >
-              Trades
-            </Link>
+          ) : null}
+          {membership.role === "OWNER" ? (
             <Link
               href={`/leagues/${league.id}/settings`}
-              className="transition hover:text-[var(--text)] hover:underline underline-offset-4"
+              className="inline-flex items-center justify-center rounded-full border border-[var(--border)] p-2 text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
+              aria-label="League settings"
             >
-              League settings
+              <span role="img" aria-hidden="true" className="text-lg">
+                ⚙️
+              </span>
             </Link>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-              Standings
-            </h2>
-            <p className="text-xs text-[var(--text-muted)]">
-              {latestFinalizedMatchWeek?.number
-                ? `After MatchWeek ${latestFinalizedMatchWeek.number}`
-                : currentMatchWeek?.number
-                  ? `MatchWeek ${currentMatchWeek.number} in progress`
-                  : "No MatchWeek data yet"}
-            </p>
-          </div>
-          {standings.length === 0 ? (
-            <div className="mt-3">
-              <EmptyState
-                title="No teams yet"
-                description="Once teams join, standings will appear here."
-              />
-            </div>
-          ) : (
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
-                  <tr>
-                    <th className="py-2 pr-3">#</th>
-                    <th className="py-2 pr-3">Team</th>
-                    <th className="py-2 pr-3">Owner</th>
-                    <th className="py-2 pr-3">Points</th>
-                    <th className="py-2 pr-3">Played</th>
-                  </tr>
-                </thead>
-                <tbody className="text-[var(--text)]">
-                  {standings.map((row) => (
-                    <tr
-                      key={row.teamId}
-                      className="border-t border-[var(--border)]"
-                    >
-                      <td className="py-2 pr-3 text-[var(--text-muted)]">
-                        {row.rank}
-                      </td>
-                      <td className="py-2 pr-3 font-semibold text-[var(--text)]">
-                        <Link
-                          href={
-                            row.profileId === profile.id
-                              ? `/leagues/${league.id}/team`
-                              : `/leagues/${league.id}/teams/${row.teamId}`
-                          }
-                          className="underline-offset-4 hover:text-[var(--accent)] hover:underline"
-                        >
-                          {row.teamName}
-                        </Link>
-                      </td>
-                      <td className="py-2 pr-3 text-[var(--text-muted)]">
-                        {row.ownerName}
-                      </td>
-                      <td className="py-2 pr-3 font-semibold text-[var(--text)]">
-                        {row.totalPoints}
-                      </td>
-                      <td className="py-2 pr-3 text-[var(--text-muted)]">
-                        {row.playedFinalized}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                MatchWeek schedule
-              </h2>
-              <p className="text-xs text-[var(--text-muted)]">
-                {currentMatchWeek?.number
-                  ? `MatchWeek ${currentMatchWeek.number}`
-                  : "No MatchWeek scheduled"}
-              </p>
-            </div>
-            {scheduleMatchesPayload.length === 0 ? (
-              <div className="mt-3">
-                <EmptyState
-                  title="No matches scheduled"
-                  description="CPL matchups will appear here once the schedule is published."
-                />
-              </div>
-            ) : (
-              <div className="mt-4">
-                <MatchScheduleList matches={scheduleMatchesPayload} />
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-5">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                On waivers
-              </h2>
-              <p className="text-xs text-[var(--text-muted)]">Claim window</p>
-            </div>
-            {waivers.length === 0 ? (
-              <div className="mt-3">
-                <EmptyState
-                  title="No players on waivers"
-                  description="Waiver claims will appear here when players enter the window."
-                />
-              </div>
-            ) : (
-              <ul className="mt-4 flex flex-col gap-3">
-                {waivers.map((waiver) => (
-                  <li
-                    key={waiver.id}
-                    className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
+          ) : null}
+        </>
+      }
+      headerContent={
+        <>
+          <Link
+            href={`/leagues/${league.id}/players`}
+            className="transition hover:text-[var(--text)] hover:underline underline-offset-4"
+          >
+            Players
+          </Link>
+          <Link
+            href={`/leagues/${league.id}/trades`}
+            className="transition hover:text-[var(--text)] hover:underline underline-offset-4"
+          >
+            Trades
+          </Link>
+          <Link
+            href={`/leagues/${league.id}/settings`}
+            className="transition hover:text-[var(--text)] hover:underline underline-offset-4"
+          >
+            League settings
+          </Link>
+        </>
+      }
+    >
+      <SectionCard
+        title="Standings"
+        actions={
+          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+            {latestFinalizedMatchWeek?.number
+              ? `After MatchWeek ${latestFinalizedMatchWeek.number}`
+              : currentMatchWeek?.number
+                ? `MatchWeek ${currentMatchWeek.number} in progress`
+                : "No MatchWeek data yet"}
+          </span>
+        }
+      >
+        {standings.length === 0 ? (
+          <EmptyState
+            title="No teams yet"
+            description="Once teams join, standings will appear here."
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                <tr>
+                  <th className="py-2 pr-3">#</th>
+                  <th className="py-2 pr-3">Team</th>
+                  <th className="py-2 pr-3">Owner</th>
+                  <th className="py-2 pr-3">Points</th>
+                  <th className="py-2 pr-3">Played</th>
+                </tr>
+              </thead>
+              <tbody className="text-[var(--text)]">
+                {standings.map((row) => (
+                  <tr
+                    key={row.teamId}
+                    className="border-t border-[var(--border)]"
                   >
-                    <p className="text-sm font-semibold text-[var(--text)]">
-                      {formatPlayerName(
-                        waiver.player.name,
-                        waiver.player.jerseyNumber,
-                      )}
-                    </p>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      {waiver.player.position} ·{" "}
-                      {waiver.player.club
-                        ? getClubDisplayName(
-                            waiver.player.club.slug,
-                            waiver.player.club.name,
-                          )
-                        : "No club"}
-                    </p>
-                    <p className="mt-1 text-xs text-[var(--text-muted)]">
-                      Clears:{" "}
-                      <LocalDateTime value={waiver.waiverAvailableAt} />
-                    </p>
-                  </li>
+                    <td className="py-2 pr-3 text-[var(--text-muted)]">
+                      {row.rank}
+                    </td>
+                    <td className="py-2 pr-3 font-semibold text-[var(--text)]">
+                      <Link
+                        href={
+                          row.profileId === profile.id
+                            ? `/leagues/${league.id}/team`
+                            : `/leagues/${league.id}/teams/${row.teamId}`
+                        }
+                        className="underline-offset-4 hover:text-[var(--accent)] hover:underline"
+                      >
+                        {row.teamName}
+                      </Link>
+                    </td>
+                    <td className="py-2 pr-3 text-[var(--text-muted)]">
+                      {row.ownerName}
+                    </td>
+                    <td className="py-2 pr-3 font-semibold text-[var(--text)]">
+                      {row.totalPoints}
+                    </td>
+                    <td className="py-2 pr-3 text-[var(--text-muted)]">
+                      {row.playedFinalized}
+                    </td>
+                  </tr>
                 ))}
-              </ul>
-            )}
+              </tbody>
+            </table>
           </div>
-        </div>
+        )}
+      </SectionCard>
+
+      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+        <SectionCard
+          title="MatchWeek schedule"
+          actions={
+            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+              {currentMatchWeek?.number
+                ? `MatchWeek ${currentMatchWeek.number}`
+                : "No MatchWeek scheduled"}
+            </span>
+          }
+        >
+          {scheduleMatchesPayload.length === 0 ? (
+            <EmptyState
+              title="No matches scheduled"
+              description="CPL matchups will appear here once the schedule is published."
+            />
+          ) : (
+            <MatchScheduleList matches={scheduleMatchesPayload} />
+          )}
+        </SectionCard>
+
+        <SectionCard
+          title="On waivers"
+          actions={
+            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+              Claim window
+            </span>
+          }
+        >
+          {waivers.length === 0 ? (
+            <EmptyState
+              title="No players on waivers"
+              description="Waiver claims will appear here when players enter the window."
+            />
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {waivers.map((waiver) => (
+                <li
+                  key={waiver.id}
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
+                >
+                  <p className="text-sm font-semibold text-[var(--text)]">
+                    {formatPlayerName(
+                      waiver.player.name,
+                      waiver.player.jerseyNumber,
+                    )}
+                  </p>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    {waiver.player.position} ·{" "}
+                    {waiver.player.club
+                      ? getClubDisplayName(
+                          waiver.player.club.slug,
+                          waiver.player.club.name,
+                        )
+                      : "No club"}
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--text-muted)]">
+                    Clears: <LocalDateTime value={waiver.waiverAvailableAt} />
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
       </div>
-    </div>
+    </LeaguePageShell>
   );
 }
