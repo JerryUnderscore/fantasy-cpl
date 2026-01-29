@@ -2,9 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
 import ProfileSync from "@/components/profile-sync";
 import AppHeader from "@/components/app-header";
-import {
-  getHeaderMatchweekInfo,
-} from "@/lib/matchweek";
+import { getHeaderMatchweekInfo } from "@/lib/matchweek";
+import AppFooter from "@/components/app-footer";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -54,7 +53,7 @@ export default async function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] text-[var(--text)]">
+    <div className="flex min-h-screen flex-col bg-[var(--background)] text-[var(--text)]">
       <AppHeader
         isAuthenticated={isAuthenticated}
         displayName={displayName}
@@ -66,9 +65,10 @@ export default async function AppShell({ children }: AppShellProps) {
         currentMatchWeekStatus={currentMatchWeekStatus}
       />
       <ProfileSync isAuthenticated={Boolean(user)} />
-      <main className="mx-auto w-full max-w-[1300px] px-6 py-8">
+      <main className="mx-auto w-full max-w-[1300px] flex-1 px-6 py-8">
         {children}
       </main>
+      <AppFooter />
     </div>
   );
 }
