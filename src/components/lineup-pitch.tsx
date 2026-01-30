@@ -19,6 +19,7 @@ export type LineupPitchProps<Slot> = {
   benchDescription?: React.ReactNode;
   benchCountLabel?: (count: number) => React.ReactNode;
   errorMessage?: React.ReactNode;
+  benchLayout?: "grid" | "scroll";
 };
 
 export default function LineupPitch<Slot>({
@@ -30,6 +31,7 @@ export default function LineupPitch<Slot>({
   benchDescription,
   benchCountLabel,
   errorMessage,
+  benchLayout = "grid",
 }: LineupPitchProps<Slot>) {
   const benchCountContent =
     benchCountLabel?.(bench.length) ?? (
@@ -116,13 +118,23 @@ export default function LineupPitch<Slot>({
           </div>
           {benchCountContent}
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {bench.map((slot, index) => (
-            <React.Fragment key={`bench-${index}`}>
-              {renderBenchSlot(slot, index)}
-            </React.Fragment>
-          ))}
-        </div>
+        {benchLayout === "scroll" ? (
+          <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
+            {bench.map((slot, index) => (
+              <React.Fragment key={`bench-${index}`}>
+                {renderBenchSlot(slot, index)}
+              </React.Fragment>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {bench.map((slot, index) => (
+              <React.Fragment key={`bench-${index}`}>
+                {renderBenchSlot(slot, index)}
+              </React.Fragment>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

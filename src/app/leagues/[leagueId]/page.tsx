@@ -14,6 +14,7 @@ import EmptyState from "@/components/layout/empty-state";
 import SectionCard from "@/components/layout/section-card";
 import LeaguePageShell from "@/components/leagues/league-page-shell";
 import JoinOpenLeagueButton from "@/components/leagues/join-open-league-button";
+import LeagueOverviewMobile from "./league-overview-mobile";
 
 export const runtime = "nodejs";
 
@@ -206,6 +207,10 @@ export default async function LeagueDetailPage({
     })
     .map((row, index) => ({ rank: index + 1, ...row }));
 
+  const currentTeam = teamsWithCounts.find(
+    (team) => team.profileId === profile.id,
+  );
+
   const scheduleMatches = currentMatchWeek
     ? await prisma.match.findMany({
         where: { matchWeekId: currentMatchWeek.id },
@@ -227,6 +232,39 @@ export default async function LeagueDetailPage({
     }),
   );
 
+  const pendingClaims = currentTeam
+    ? await prisma.leagueWaiverClaim.findMany({
+        where: {
+          leagueId,
+          fantasyTeamId: currentTeam.id,
+          status: "PENDING",
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          createdAt: true,
+          player: {
+            select: {
+              id: true,
+              name: true,
+              jerseyNumber: true,
+              position: true,
+              club: { select: { shortName: true, slug: true, name: true } },
+            },
+          },
+          dropPlayer: {
+            select: {
+              id: true,
+              name: true,
+              jerseyNumber: true,
+              position: true,
+              club: { select: { shortName: true, slug: true, name: true } },
+            },
+          },
+        },
+      })
+    : [];
+
   const waivers = await prisma.leaguePlayerWaiver.findMany({
     where: { leagueId, player: { active: true } },
     orderBy: { waiverAvailableAt: "asc" },
@@ -245,6 +283,20 @@ export default async function LeagueDetailPage({
     },
   });
 
+  const matchweekLabel = currentMatchWeek?.number
+    ? `MatchWeek ${currentMatchWeek.number}`
+    : latestFinalizedMatchWeek?.number
+      ? `MatchWeek ${latestFinalizedMatchWeek.number}`
+      : "MatchWeek";
+
+  const matchweekContext = draft?.status === "LIVE"
+    ? "Draft live · Picks on the clock"
+    : currentMatchWeek?.number
+      ? `MatchWeek ${currentMatchWeek.number} in progress`
+      : latestFinalizedMatchWeek?.number
+        ? `Last finalized: MatchWeek ${latestFinalizedMatchWeek.number}`
+        : "MatchWeek updates coming soon";
+
   return (
     <LeaguePageShell
       backHref="/leagues"
@@ -254,6 +306,7 @@ export default async function LeagueDetailPage({
       pageTitle="Overview"
       pageSubtitle="Standings, schedule, and waiver activity for this league."
       showBadgeTooltip={memberRole === "OWNER"}
+      hideHeaderOnMobile
       actions={
         isMember ? (
           <>
@@ -305,6 +358,41 @@ export default async function LeagueDetailPage({
         ) : null
       }
     >
+      <div className="sm:hidden">
+        <LeagueOverviewMobile
+          leagueId={league.id}
+          leagueName={league.name}
+          backHref="/leagues"
+          matchweekLabel={matchweekLabel}
+          matchweekContext={matchweekContext}
+          showSettings={memberRole === "OWNER"}
+          standings={standings.map((row) => ({
+            rank: row.rank,
+            teamName: row.teamName,
+            ownerName: row.ownerName,
+            totalPoints: row.totalPoints,
+            playedFinalized: row.playedFinalized,
+            href:
+              row.profileId === profile.id
+                ? `/leagues/${league.id}/team`
+                : `/leagues/${league.id}/teams/${row.teamId}`,
+          }))}
+          scheduleMatches={scheduleMatchesPayload}
+          waivers={waivers.map((waiver) => ({
+            id: waiver.id,
+            waiverAvailableAt: waiver.waiverAvailableAt.toISOString(),
+            player: waiver.player,
+          }))}
+          pendingClaims={pendingClaims.map((claim) => ({
+            id: claim.id,
+            createdAt: claim.createdAt.toISOString(),
+            player: claim.player,
+            dropPlayer: claim.dropPlayer,
+          }))}
+        />
+      </div>
+
+      <div className="hidden sm:block">
       {isReadOnly ? (
         <SectionCard
           title="Open league"
@@ -454,6 +542,7 @@ export default async function LeagueDetailPage({
             </ul>
           )}
         </SectionCard>
+      </div>
       </div>
     </LeaguePageShell>
   );

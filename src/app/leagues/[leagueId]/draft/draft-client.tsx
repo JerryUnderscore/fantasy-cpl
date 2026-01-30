@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { formatPlayerName } from "@/lib/players";
 import { useDraftRealtime } from "./use-draft-realtime";
@@ -14,6 +14,9 @@ import {
   getNameSearchRank,
   normalizeSearchText,
 } from "@/lib/search";
+import { useSheet } from "@/components/overlays/sheet-provider";
+import { useToast } from "@/components/overlays/toast-provider";
+import { ROSTER_LIMITS, CLUB_ROSTER_LIMIT } from "@/lib/roster";
 
 type AvailablePlayer = {
   id: string;
@@ -32,6 +35,18 @@ type OnTheClock = {
 
 type DraftMode = "LIVE" | "CASUAL" | "NONE";
 
+type BoardRound = {
+  round: number;
+  slots: Array<{
+    teamName: string;
+    playerName: string | null;
+    playerPosition: string | null;
+    clubLabel: string | null;
+    isCurrentPick: boolean;
+    isMyTeam: boolean;
+  }>;
+};
+
 type Props = {
   leagueId: string;
   draftId: string | null;
@@ -48,6 +63,10 @@ type Props = {
   scheduledAt: string | null;
   canPick: boolean;
   availablePlayers: AvailablePlayer[];
+  boardRounds: BoardRound[];
+  rosterCounts: Record<"GK" | "DEF" | "MID" | "FWD", number>;
+  rosterSize: number;
+  maxGoalkeepers: number;
 };
 
 const formatSeconds = (value: number) => {
@@ -80,8 +99,14 @@ export default function DraftClient({
   scheduledAt,
   canPick,
   availablePlayers,
+  boardRounds,
+  rosterCounts,
+  rosterSize,
+  maxGoalkeepers,
 }: Props) {
   const router = useRouter();
+  const sheet = useSheet();
+  const toast = useToast();
   const [modal, setModal] = useState<ModalState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
@@ -89,6 +114,19 @@ export default function DraftClient({
   const [positionFilter, setPositionFilter] = useState("ALL");
   const [clubFilter, setClubFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "QUEUED">("ALL");
+  const [mobileTab, setMobileTab] = useState<"board" | "queue" | "players">(
+    "board",
+  );
+  const [mobileSearch, setMobileSearch] = useState("");
+  const [mobilePositionFilter, setMobilePositionFilter] = useState("ALL");
+  const [mobileClubFilter, setMobileClubFilter] = useState("ALL");
+  const [mobileQueueIds, setMobileQueueIds] = useState<string[]>(queuedPlayerIds);
+  const [queueStatus, setQueueStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [queueError, setQueueError] = useState<string | null>(null);
+  const hasLoadedQueue = useRef(false);
+  const hasSkippedInitialSave = useRef(false);
 
   const deadlineMs =
     deadline && !Number.isNaN(new Date(deadline).getTime())
@@ -168,10 +206,7 @@ export default function DraftClient({
     const query = normalizeSearchText(modal?.search ?? "");
     const queuedSet = new Set(queuedPlayerIds);
     const filtered = availablePlayers.filter((player) => {
-      if (
-        positionFilter !== "ALL" &&
-        player.position !== positionFilter
-      ) {
+      if (positionFilter !== "ALL" && player.position !== positionFilter) {
         return false;
       }
       if (clubFilter !== "ALL" && player.club !== clubFilter) {
@@ -233,6 +268,115 @@ export default function DraftClient({
     setPositionFilter("ALL");
     setClubFilter("ALL");
     setStatusFilter("ALL");
+  };
+
+  useEffect(() => {
+    setMobileQueueIds(queuedPlayerIds);
+  }, [queuedPlayerIds]);
+
+  const saveQueue = useCallback(
+    async (nextQueue: string[]) => {
+      setQueueStatus("saving");
+      setQueueError(null);
+      try {
+        const res = await fetch(`/api/leagues/${leagueId}/draft-prep/queue`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ queue: nextQueue }),
+        });
+        const payload = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(payload?.error ?? "Failed to save queue");
+        }
+        setQueueStatus("saved");
+      } catch (err) {
+        setQueueStatus("error");
+        setQueueError(
+          err instanceof Error ? err.message : "Failed to save queue",
+        );
+      }
+    },
+    [leagueId],
+  );
+
+  useEffect(() => {
+    if (!hasLoadedQueue.current) {
+      hasLoadedQueue.current = true;
+      return;
+    }
+    if (!hasSkippedInitialSave.current) {
+      hasSkippedInitialSave.current = true;
+      return;
+    }
+    setQueueStatus("idle");
+    void saveQueue(mobileQueueIds);
+  }, [mobileQueueIds, saveQueue]);
+
+  const moveQueueItem = (playerId: string, direction: "UP" | "DOWN") => {
+    setMobileQueueIds((prev) => {
+      const index = prev.indexOf(playerId);
+      if (index === -1) return prev;
+      const next = [...prev];
+      const swapIndex = direction === "UP" ? index - 1 : index + 1;
+      if (swapIndex < 0 || swapIndex >= next.length) return prev;
+      [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
+      return next;
+    });
+  };
+
+  const removeQueueItem = (playerId: string) => {
+    setMobileQueueIds((prev) => prev.filter((id) => id !== playerId));
+  };
+
+  const mobileQueuedPlayers = useMemo(() => {
+    const map = new Map(availablePlayers.map((player) => [player.id, player]));
+    return mobileQueueIds
+      .map((id) => map.get(id))
+      .filter((player): player is AvailablePlayer => Boolean(player));
+  }, [mobileQueueIds, availablePlayers]);
+
+  const mobilePlayers = useMemo(() => {
+    const query = normalizeSearchText(mobileSearch);
+    return availablePlayers.filter((player) => {
+      if (mobilePositionFilter !== "ALL" && player.position !== mobilePositionFilter) {
+        return false;
+      }
+      if (mobileClubFilter !== "ALL" && player.club !== mobileClubFilter) {
+        return false;
+      }
+      if (!query) return true;
+      return getNameSearchRank(player.name, query) > 0;
+    });
+  }, [availablePlayers, mobileSearch, mobilePositionFilter, mobileClubFilter]);
+
+  const submitPickRequest = async (playerId: string, mode: ModalMode) => {
+    try {
+      const endpoint =
+        mode === "FORCE_PICK"
+          ? `/api/leagues/${leagueId}/draft/force-pick`
+          : `/api/leagues/${leagueId}/draft/pick`;
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ playerId }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        return {
+          ok: false,
+          status: res.status,
+          message: data?.error ?? "Unable to draft player",
+        } as const;
+      }
+      router.refresh();
+      return { ok: true } as const;
+    } catch (err) {
+      return {
+        ok: false,
+        status: 500,
+        message: err instanceof Error ? err.message : "Unable to draft player",
+      } as const;
+    }
   };
 
   const submitPick = async (mode: ModalMode) => {
@@ -368,91 +512,393 @@ export default function DraftClient({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="sticky top-6 z-20 rounded-2xl border border-zinc-800 bg-[#0f1115] p-4 shadow-sm md:p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <span
-              className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusPillClass}`}
-            >
-              {statusLabel}
-            </span>
-            <p className="text-sm text-zinc-300">
+      <div className="sticky top-0 z-30 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm sm:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col">
+            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
               Pick {onTheClock?.pickNumber ?? "—"} / {totalPicks || "—"}
-            </p>
-            <p className="text-sm text-zinc-300">
-              Round {onTheClock?.round ?? "—"}
-            </p>
+            </span>
+            <span className="text-sm font-semibold text-[var(--text)]">
+              Round {onTheClock?.round ?? "—"} · {statusLabel}
+            </span>
           </div>
           <div className="text-right">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
               {timerLabel}
             </p>
-            <p className="text-lg font-semibold text-zinc-100">{timerValue}</p>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          <div className="rounded-xl border border-zinc-800 bg-[#242424] px-3 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
-              Now picking
-            </p>
-            <p className="text-sm font-semibold text-zinc-100">
-              {draftStatus === "LIVE"
-                ? onTheClock?.fantasyTeamName ?? "—"
-                : "—"}
-            </p>
-          </div>
-          <div className="rounded-xl border border-zinc-800 bg-[#242424] px-3 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
-              On deck
-            </p>
-            <p className="text-sm font-semibold text-zinc-100">
-              {draftStatus === "LIVE" ? onDeck?.fantasyTeamName ?? "—" : "—"}
-            </p>
-          </div>
-          <div className="rounded-xl border border-zinc-800 bg-[#242424] px-3 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
-              Pick
-            </p>
-            <p className="text-sm font-semibold text-zinc-100">
-              {onTheClock?.pickNumber ?? "—"} / {totalPicks || "—"}
+            <p className="text-lg font-semibold text-[var(--text)]">
+              {timerValue}
             </p>
           </div>
         </div>
-
-        {draftMode === "LIVE" && scheduledLabel && draftStatus === "NOT_STARTED" ? (
-          <p className="mt-3 text-xs text-zinc-400">
-            Draft starts at: {scheduledLabel}
+        <div className="mt-3 flex items-center justify-between gap-3 text-xs text-[var(--text-muted)]">
+          <span>
+            On clock: {draftStatus === "LIVE" ? onTheClock?.fantasyTeamName ?? "—" : "—"}
+          </span>
+          <span>
+            On deck: {draftStatus === "LIVE" ? onDeck?.fantasyTeamName ?? "—" : "—"}
+          </span>
+        </div>
+        {canPick && !isPaused ? (
+          <p className="mt-2 text-xs text-[var(--text-muted)]">
+            You are on the clock. Choose a player to lock in this pick.
           </p>
         ) : null}
+      </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => openModal("MAKE_PICK")}
-            disabled={!canPick || isPaused || isPending}
-            className={`rounded-full bg-[#c7a55b] px-4 py-2 text-sm font-semibold text-black disabled:opacity-50 ${clickableSurface}`}
-          >
-            Make pick
-          </button>
-          <button
-            type="button"
-            onClick={advanceDraft}
-            disabled={!canPick || isPaused || isPending}
-            className={`rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 disabled:opacity-50 ${clickableSurface}`}
-          >
-            Auto-pick now
-          </button>
-          {canPick && !isPaused ? (
-            <p className="text-xs text-zinc-500">
-              You are on the clock. Choose a player to lock in this pick.
+      <div className="sm:hidden">
+        <div className="flex w-full rounded-full border border-[var(--border)] bg-[var(--surface2)] p-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+          {[
+            { key: "board", label: "Board" },
+            { key: "queue", label: "Queue" },
+            { key: "players", label: "Players" },
+          ].map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() =>
+                setMobileTab(item.key as "board" | "queue" | "players")
+              }
+              className={`flex-1 rounded-full px-3 py-2 text-[11px] ${
+                mobileTab === item.key
+                  ? "bg-[var(--surface)] text-[var(--text)]"
+                  : "text-[var(--text-muted)]"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        {mobileTab === "board" ? (
+          <div className="mt-4 flex flex-col gap-4">
+            {boardRounds.map((round) => (
+              <div
+                key={round.round}
+                className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-4"
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                  Round {round.round}
+                </p>
+                <div className="mt-3 flex flex-col gap-2">
+                  {round.slots.map((slot, index) => (
+                    <div
+                      key={`${round.round}-${slot.teamName}-${index}`}
+                      className={`flex items-center justify-between rounded-xl border border-[var(--border)] px-3 py-2 text-sm ${
+                        slot.isCurrentPick
+                          ? "bg-[rgba(199,165,91,0.2)]"
+                          : slot.isMyTeam
+                            ? "bg-[rgba(96,165,250,0.15)]"
+                            : "bg-[var(--surface)]"
+                      }`}
+                    >
+                      <div>
+                        <p className="text-xs text-[var(--text-muted)]">
+                          {slot.teamName}
+                        </p>
+                        <p className="text-sm font-semibold text-[var(--text)]">
+                          {slot.playerName ?? "—"}
+                        </p>
+                        <p className="text-[10px] text-[var(--text-muted)]">
+                          {slot.playerPosition && slot.clubLabel
+                            ? `${slot.playerPosition} · ${slot.clubLabel}`
+                            : "—"}
+                        </p>
+                      </div>
+                      {slot.isCurrentPick ? (
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--accent)]">
+                          On the clock
+                        </span>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {mobileTab === "queue" ? (
+          <div className="mt-4 flex flex-col gap-3">
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] px-4 py-3 text-xs text-[var(--text-muted)]">
+              Top queue player auto-picked if timer expires.
+            </div>
+            {queueError ? (
+              <div className="rounded-2xl border border-[var(--danger)] bg-[rgba(242,100,100,0.1)] px-4 py-3 text-xs text-[var(--danger)]">
+                {queueError}
+              </div>
+            ) : null}
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+              {queueStatus === "saving" && "Saving..."}
+              {queueStatus === "saved" && "Saved"}
+              {queueStatus === "error" && "Save failed"}
+            </div>
+            {mobileQueuedPlayers.length === 0 ? (
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-muted)]">
+                Your queue is empty.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {mobileQueuedPlayers.map((player, index) => (
+                  <div
+                    key={player.id}
+                    className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
+                  >
+                    <p className="text-sm font-semibold text-[var(--text)]">
+                      {index + 1}. {formatPlayerName(player.name, player.jerseyNumber)}
+                    </p>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      {player.position} · {player.club ?? "—"}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => moveQueueItem(player.id, "UP")}
+                        className="rounded-full border border-[var(--border)] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]"
+                      >
+                        Up
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveQueueItem(player.id, "DOWN")}
+                        className="rounded-full border border-[var(--border)] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]"
+                      >
+                        Down
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeQueueItem(player.id)}
+                        className="rounded-full border border-[var(--border)] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {mobileTab === "players" ? (
+          <div className="mt-4 flex flex-col gap-3">
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] px-4 py-3 text-xs text-[var(--text-muted)]">
+              Need DEF {Math.max(0, (ROSTER_LIMITS.min.DEF ?? 0) - rosterCounts.DEF)} · Need MID {Math.max(0, (ROSTER_LIMITS.min.MID ?? 0) - rosterCounts.MID)} · Need FWD {Math.max(0, (ROSTER_LIMITS.min.FWD ?? 0) - rosterCounts.FWD)} · Max GK {maxGoalkeepers} · Club limit {CLUB_ROSTER_LIMIT}
+            </div>
+            <input
+              value={mobileSearch}
+              onChange={(event) => setMobileSearch(event.target.value)}
+              placeholder="Search players"
+              className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--text)]"
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <select
+                value={mobilePositionFilter}
+                onChange={(event) => setMobilePositionFilter(event.target.value)}
+                className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
+              >
+                <option value="ALL">All positions</option>
+                <option value="GK">GK</option>
+                <option value="DEF">DEF</option>
+                <option value="MID">MID</option>
+                <option value="FWD">FWD</option>
+              </select>
+              <select
+                value={mobileClubFilter}
+                onChange={(event) => setMobileClubFilter(event.target.value)}
+                className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
+              >
+                {clubOptions.map((club) => (
+                  <option key={club} value={club}>
+                    {club}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-3">
+              {mobilePlayers.map((player) => {
+                const rosterTotal =
+                  rosterCounts.GK + rosterCounts.DEF + rosterCounts.MID + rosterCounts.FWD;
+                const rosterFull = rosterTotal >= rosterSize;
+                const exceedsGK =
+                  player.position === "GK" && rosterCounts.GK >= maxGoalkeepers;
+                const disabled = rosterFull || exceedsGK || !canPick || isPaused;
+                const reason = rosterFull
+                  ? "Roster full"
+                  : exceedsGK
+                    ? "Max GK reached"
+                    : !canPick
+                      ? "Not on the clock"
+                      : null;
+                return (
+                  <div
+                    key={player.id}
+                    className={`rounded-2xl border border-[var(--border)] px-4 py-3 ${
+                      disabled ? "bg-[var(--surface2)] opacity-70" : "bg-[var(--surface)]"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-[var(--text)]">
+                          {formatPlayerName(player.name, player.jerseyNumber)}
+                        </p>
+                        <p className="text-xs text-[var(--text-muted)]">
+                          {player.position} · {player.club ?? "—"}
+                        </p>
+                        {reason ? (
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--danger)]">
+                            {reason}
+                          </p>
+                        ) : null}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => {
+                          sheet.open({
+                            id: `confirm-pick-${player.id}`,
+                            title: "Confirm draft pick",
+                            subtitle: `Round ${onTheClock?.round ?? "—"} · Pick ${
+                              onTheClock?.pickNumber ?? "—"
+                            }`,
+                            render: () => (
+                              <div className="flex flex-col gap-3 text-sm text-[var(--text)]">
+                                <p>
+                                  Draft {formatPlayerName(player.name, player.jerseyNumber)}.
+                                </p>
+                                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] px-4 py-3 text-xs text-[var(--text-muted)]">
+                                  {player.position} · {player.club ?? "—"}
+                                </div>
+                              </div>
+                            ),
+                            actions: [
+                              { key: "cancel", label: "Cancel", tone: "secondary" },
+                              {
+                                key: "confirm",
+                                label: "Draft player",
+                                tone: "primary",
+                                autoClose: false,
+                                onPress: async (ctx) => {
+                                  ctx.setLoading(true);
+                                  const result = await submitPickRequest(
+                                    player.id,
+                                    "MAKE_PICK",
+                                  );
+                                  ctx.setLoading(false);
+                                  if (!result.ok) {
+                                    ctx.setError(result.message);
+                                    return;
+                                  }
+                                  toast.success("Pick submitted.");
+                                  ctx.close({
+                                    type: "action",
+                                    payload: { key: "confirm" },
+                                  });
+                                },
+                              },
+                            ],
+                          });
+                        }}
+                        className="rounded-full bg-[var(--accent)] px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--background)] disabled:opacity-60"
+                      >
+                        Draft
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="hidden sm:block">
+        <div className="sticky top-6 z-20 rounded-2xl border border-zinc-800 bg-[#0f1115] p-4 shadow-sm md:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <span
+                className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusPillClass}`}
+              >
+                {statusLabel}
+              </span>
+              <p className="text-sm text-zinc-300">
+                Pick {onTheClock?.pickNumber ?? "—"} / {totalPicks || "—"}
+              </p>
+              <p className="text-sm text-zinc-300">
+                Round {onTheClock?.round ?? "—"}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                {timerLabel}
+              </p>
+              <p className="text-lg font-semibold text-zinc-100">{timerValue}</p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-zinc-800 bg-[#242424] px-3 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                Now picking
+              </p>
+              <p className="text-sm font-semibold text-zinc-100">
+                {draftStatus === "LIVE"
+                  ? onTheClock?.fantasyTeamName ?? "—"
+                  : "—"}
+              </p>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-[#242424] px-3 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                On deck
+              </p>
+              <p className="text-sm font-semibold text-zinc-100">
+                {draftStatus === "LIVE" ? onDeck?.fantasyTeamName ?? "—" : "—"}
+              </p>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-[#242424] px-3 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                Pick
+              </p>
+              <p className="text-sm font-semibold text-zinc-100">
+                {onTheClock?.pickNumber ?? "—"} / {totalPicks || "—"}
+              </p>
+            </div>
+          </div>
+
+          {draftMode === "LIVE" && scheduledLabel && draftStatus === "NOT_STARTED" ? (
+            <p className="mt-3 text-xs text-zinc-400">
+              Draft starts at: {scheduledLabel}
             </p>
           ) : null}
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => openModal("MAKE_PICK")}
+              disabled={!canPick || isPaused || isPending}
+              className={`rounded-full bg-[#c7a55b] px-4 py-2 text-sm font-semibold text-black disabled:opacity-50 ${clickableSurface}`}
+            >
+              Make pick
+            </button>
+            <button
+              type="button"
+              onClick={advanceDraft}
+              disabled={!canPick || isPaused || isPending}
+              className={`rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 disabled:opacity-50 ${clickableSurface}`}
+            >
+              Auto-pick now
+            </button>
+            {canPick && !isPaused ? (
+              <p className="text-xs text-zinc-500">
+                You are on the clock. Choose a player to lock in this pick.
+              </p>
+            ) : null}
+          </div>
         </div>
       </div>
 
       {showManualTools ? (
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="hidden flex-wrap items-center gap-3 sm:flex">
           {canStart ? (
             <button
               type="button"
@@ -484,20 +930,16 @@ export default function DraftClient({
             </button>
           ) : null}
           {draftStatus === "LIVE" ? (
-            <>
-              <button
-                type="button"
-                onClick={() => openModal("FORCE_PICK")}
-                disabled={isPending}
-                className={`rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 ${clickableSurface}`}
-              >
-                Force pick
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() => openModal("FORCE_PICK")}
+              disabled={isPending}
+              className={`rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 ${clickableSurface}`}
+            >
+              Force pick
+            </button>
           ) : null}
-          <p className="text-xs text-zinc-500">
-            Commissioner tools for this draft.
-          </p>
+          <p className="text-xs text-zinc-500">Commissioner tools for this draft.</p>
         </div>
       ) : null}
 
@@ -620,10 +1062,7 @@ export default function DraftClient({
                       >
                         <div className="flex flex-col">
                           <span className="font-semibold text-zinc-900">
-                            {formatPlayerName(
-                              player.name,
-                              player.jerseyNumber,
-                            )}
+                            {formatPlayerName(player.name, player.jerseyNumber)}
                           </span>
                           <span className="text-xs text-zinc-500">
                             {player.position} · {player.club ?? "—"}

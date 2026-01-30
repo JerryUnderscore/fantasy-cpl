@@ -13,6 +13,10 @@ import {
   getNameSearchRank,
   normalizeSearchText,
 } from "@/lib/search";
+import { useModal } from "@/components/overlays/modal-provider";
+import { useSheet, type SheetAction } from "@/components/overlays/sheet-provider";
+import { useToast } from "@/components/overlays/toast-provider";
+import { useOverlayPresets } from "@/components/overlays/presets";
 
 type PlayerAvailabilityStatus = "FREE_AGENT" | "WAIVERS" | "ROSTERED";
 
@@ -135,6 +139,10 @@ export default function PlayersClient({ leagueId }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const searchParamsString = searchParams.toString();
+  const modal = useModal();
+  const sheet = useSheet();
+  const toast = useToast();
+  const { openSelector } = useOverlayPresets();
   const [data, setData] = useState<AvailablePlayersResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -182,6 +190,12 @@ export default function PlayersClient({ leagueId }: Props) {
   const hasInitializedFilters = useRef(false);
   const lastSyncedQuery = useRef<string | null>(null);
   const hasLoadedPreferences = useRef(false);
+  const filterDraftRef = useRef({
+    statusFilter: "ALL" as StatusFilter,
+    positionFilter: "ALL" as PositionFilter,
+    clubFilter: "ALL",
+    sortOption: "NAME_ASC" as SortOption,
+  });
 
   const loadPlayers = useCallback(
     async (signal?: AbortSignal) => {
@@ -521,6 +535,42 @@ export default function PlayersClient({ leagueId }: Props) {
     }
   };
 
+  const submitPlayerAction = async (
+    action: "ADD" | "CLAIM",
+    playerId: string,
+    dropId?: string | null,
+  ) => {
+    try {
+      const payload: Record<string, string> = { playerId };
+      if (dropId) payload.dropPlayerId = dropId;
+      const url =
+        action === "ADD"
+          ? `/api/leagues/${leagueId}/free-agents/add`
+          : `/api/leagues/${leagueId}/waivers/claim`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const responsePayload = await res.json().catch(() => null);
+      if (!res.ok) {
+        return {
+          ok: false,
+          status: res.status,
+          message: responsePayload?.error ?? "Unable to submit request",
+        } as const;
+      }
+      await Promise.all([loadPlayers(), refreshRoster(), refreshClaims()]);
+      return { ok: true } as const;
+    } catch (err) {
+      return {
+        ok: false,
+        status: 500,
+        message: err instanceof Error ? err.message : "Unable to submit request",
+      } as const;
+    }
+  };
+
   const handleActionClick = (action: "ADD" | "CLAIM", playerId: string) => {
     if (action === "CLAIM" && claimedPlayerIds.has(playerId)) {
       return;
@@ -767,8 +817,218 @@ export default function PlayersClient({ leagueId }: Props) {
     setCollapsedPositions((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const openFiltersModal = () => {
+    filterDraftRef.current = {
+      statusFilter,
+      positionFilter,
+      clubFilter,
+      sortOption,
+    };
+
+    modal.open({
+      id: "players-filters",
+      title: "Filter & Sort",
+      render: () => (
+        <MobileFiltersContent
+          initial={filterDraftRef.current}
+          clubs={clubs}
+          onChange={(next) => {
+            filterDraftRef.current = next;
+          }}
+        />
+      ),
+      footer: {
+        leftAction: {
+          key: "clear",
+          label: "Clear",
+          onPress: () => {
+            setStatusFilter("ALL");
+            setPositionFilter("ALL");
+            setClubFilter("ALL");
+            setSortOption("NAME_ASC");
+            modal.close({ type: "submit" });
+          },
+        },
+        rightAction: {
+          key: "apply",
+          label: "Apply",
+          onPress: () => {
+            const draft = filterDraftRef.current;
+            setStatusFilter(draft.statusFilter);
+            setPositionFilter(draft.positionFilter);
+            setClubFilter(draft.clubFilter);
+            setSortOption(draft.sortOption);
+            modal.close({ type: "submit" });
+          },
+        },
+      },
+    });
+  };
+
+  const openPlayerSheet = (player: AvailablePlayer) => {
+    const clubLabel = buildClubLabel(player.club);
+    const primaryAction =
+      player.status === "WAIVERS"
+        ? "CLAIM"
+        : player.status === "FREE_AGENT"
+          ? "ADD"
+          : null;
+    const primaryLabel =
+      primaryAction === "CLAIM" ? "Claim" : primaryAction === "ADD" ? "Add" : "";
+    const primaryDisabled =
+      player.status === "ROSTERED" ||
+      (player.status === "WAIVERS" && claimedPlayerIds.has(player.id));
+
+    const actions = [
+      { key: "close", label: "Close", tone: "secondary" },
+      primaryAction
+        ? {
+            key: primaryAction,
+            label: primaryLabel,
+            tone: "primary",
+            disabled: primaryDisabled,
+            autoClose: false,
+            onPress: async (ctx) => {
+              ctx.setError(null);
+              let dropId: string | null = null;
+              if (rosterFull) {
+                dropId = await openSelector({
+                  id: `drop-${player.id}`,
+                  title: "Choose drop player",
+                  options: rosteredPlayers.map((entry) => ({
+                    id: entry.id,
+                    label: formatPlayerName(entry.name, entry.jerseyNumber),
+                    subLabel: `${entry.position} · ${buildRosterClubLabel(entry.club)}`,
+                    disabledReason:
+                      lockInfo?.isLocked && entry.isStarter
+                        ? "Starter locked"
+                        : undefined,
+                  })),
+                  searchable: true,
+                  emptyState: "No eligible players to drop.",
+                });
+                if (!dropId) return;
+              }
+
+              await sheet.replace({
+                id: `confirm-${primaryAction}-${player.id}`,
+                title: primaryAction === "ADD" ? "Confirm add" : "Confirm claim",
+                subtitle:
+                  primaryAction === "CLAIM"
+                    ? formatClaimCountdown(player.waiverAvailableAt ?? null)
+                    : "Free agent add",
+                render: () => (
+                  <div className="flex flex-col gap-3 text-sm text-[var(--text)]">
+                    <p>
+                      {primaryAction === "ADD" ? "Add" : "Claim"}{" "}
+                      {formatPlayerName(player.name, player.jerseyNumber)}.
+                    </p>
+                    {dropId ? (
+                      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] px-4 py-3 text-xs text-[var(--text-muted)]">
+                        Drop:{" "}
+                        {formatPlayerName(
+                          rosteredPlayers.find((entry) => entry.id === dropId)
+                            ?.name ?? "Selected player",
+                          rosteredPlayers.find((entry) => entry.id === dropId)
+                            ?.jerseyNumber ?? null,
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                ),
+                actions: [
+                  { key: "cancel", label: "Cancel", tone: "secondary" },
+                  {
+                    key: "confirm",
+                    label:
+                      primaryAction === "ADD"
+                        ? "Confirm add"
+                        : "Confirm claim",
+                    tone: "primary",
+                    autoClose: false,
+                    onPress: async (confirmCtx) => {
+                      confirmCtx.setLoading(true);
+                      const result = await submitPlayerAction(
+                        primaryAction,
+                        player.id,
+                        dropId,
+                      );
+                      confirmCtx.setLoading(false);
+                      if (!result.ok) {
+                        confirmCtx.setError(result.message);
+                        return;
+                      }
+                      toast.success(
+                        primaryAction === "ADD"
+                          ? "Player added."
+                          : "Claim submitted.",
+                      );
+                      confirmCtx.close({
+                        type: "action",
+                        payload: { key: "confirm" },
+                      });
+                    },
+                  },
+                ],
+              });
+            },
+          }
+        : null,
+    ].filter(Boolean) as SheetAction[];
+
+    sheet.open({
+      id: `player-${player.id}`,
+      title: formatPlayerName(player.name, player.jerseyNumber),
+      subtitle: `${player.position} · ${clubLabel}`,
+      render: () => (
+        <div className="flex flex-col gap-3 text-sm text-[var(--text)]">
+          <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+            Status
+          </p>
+          <p>
+            {player.status === "WAIVERS"
+              ? `Waivers · Clears ${formatDateTime(player.waiverAvailableAt) ?? "soon"}`
+              : player.status === "ROSTERED"
+                ? `Rostered by ${player.rosteredByTeamName ?? "another team"}`
+                : "Free agent"}
+          </p>
+          {rosterFull ? (
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-xs text-[var(--text-muted)]">
+              Roster full — you will be asked to choose a drop player.
+            </div>
+          ) : null}
+        </div>
+      ),
+      actions,
+    });
+  };
+
   return (
     <div className="flex flex-col gap-6">
+      <div className="sticky top-0 z-30 -mx-6 bg-[var(--background)] px-6 pb-3 pt-2 sm:hidden">
+        <div className="flex flex-col gap-3">
+          <input
+            type="search"
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="Search players"
+            className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)]"
+          />
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={openFiltersModal}
+              className="rounded-full border border-[var(--border)] bg-[var(--surface2)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]"
+            >
+              Filter &amp; Sort
+            </button>
+            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+              {filteredPlayers.length} players
+            </span>
+          </div>
+        </div>
+      </div>
+
       {actionError ? (
         <div className="fixed right-6 top-6 z-50 w-full max-w-sm rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-lg">
           <div className="flex items-start justify-between gap-3">
@@ -812,7 +1072,7 @@ export default function PlayersClient({ leagueId }: Props) {
         </div>
       </div>
 
-      <div className="sticky top-0 z-20 -mx-6 border-b border-[var(--border)] bg-[var(--surface)]/95 px-6 py-3 backdrop-blur md:-mx-10 md:px-10">
+      <div className="sticky top-0 z-20 -mx-6 border-b border-[var(--border)] bg-[var(--surface)]/95 px-6 py-3 backdrop-blur md:-mx-10 md:px-10 sm:block hidden">
         <div className="flex flex-col gap-3">
           <input
             type="search"
@@ -1002,8 +1262,9 @@ export default function PlayersClient({ leagueId }: Props) {
           description="Try adjusting your position, status, or search filters."
         />
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,1.4fr)]">
-          <SectionCard title="Players">
+        <div className="hidden sm:grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,1.4fr)]">
+          <div className="hidden sm:block">
+            <SectionCard title="Players">
             <div className="flex flex-col gap-4">
               {positionOrder.map((positionKey) => {
                 const group = groupedPlayers[positionKey];
@@ -1134,7 +1395,8 @@ export default function PlayersClient({ leagueId }: Props) {
                 );
               })}
             </div>
-          </SectionCard>
+            </SectionCard>
+          </div>
 
           <div className="hidden lg:block">
             <SectionCard
@@ -1208,6 +1470,55 @@ export default function PlayersClient({ leagueId }: Props) {
           </div>
         </div>
       )}
+
+      {filteredPlayers.length > 0 ? (
+        <div className="grid gap-3 sm:hidden">
+          {filteredPlayers.map((player) => {
+            const clubLabel = buildClubLabel(player.club);
+            const statusLabel = player.status.replace("_", " ");
+            const actionLabel =
+              player.status === "WAIVERS"
+                ? claimedPlayerIds.has(player.id)
+                  ? "Claimed"
+                  : "Claim"
+                : player.status === "FREE_AGENT"
+                  ? "Add"
+                  : "Rostered";
+            const actionDisabled =
+              player.status === "ROSTERED" ||
+              (player.status === "WAIVERS" && claimedPlayerIds.has(player.id));
+            return (
+              <button
+                key={player.id}
+                type="button"
+                onClick={() => openPlayerSheet(player)}
+                className="flex items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface2)] px-4 py-3 text-left"
+              >
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-semibold text-[var(--text)]">
+                    {formatPlayerName(player.name, player.jerseyNumber)}
+                  </p>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    {player.position} · {clubLabel}
+                  </p>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                    {statusLabel}
+                  </span>
+                </div>
+                <span
+                  className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wide ${
+                    actionDisabled
+                      ? "border border-[var(--border)] text-[var(--text-muted)]"
+                      : "bg-[var(--accent)] text-[var(--background)]"
+                  }`}
+                >
+                  {actionLabel}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
 
       {modalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
@@ -1292,6 +1603,99 @@ export default function PlayersClient({ leagueId }: Props) {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function MobileFiltersContent({
+  initial,
+  clubs,
+  onChange,
+}: {
+  initial: {
+    statusFilter: StatusFilter;
+    positionFilter: PositionFilter;
+    clubFilter: string;
+    sortOption: SortOption;
+  };
+  clubs: Array<{ slug: string; label: string }>;
+  onChange: (next: {
+    statusFilter: StatusFilter;
+    positionFilter: PositionFilter;
+    clubFilter: string;
+    sortOption: SortOption;
+  }) => void;
+}) {
+  const [status, setStatus] = useState<StatusFilter>(initial.statusFilter);
+  const [position, setPosition] = useState<PositionFilter>(initial.positionFilter);
+  const [club, setClub] = useState(initial.clubFilter);
+  const [sort, setSort] = useState<SortOption>(initial.sortOption);
+
+  useEffect(() => {
+    onChange({
+      statusFilter: status,
+      positionFilter: position,
+      clubFilter: club,
+      sortOption: sort,
+    });
+  }, [status, position, club, sort, onChange]);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+        Status
+        <select
+          value={status}
+          onChange={(event) => setStatus(event.target.value as StatusFilter)}
+          className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
+        >
+          <option value="ALL">All</option>
+          <option value="FREE_AGENT">Free agents</option>
+          <option value="WAIVERS">Waivers</option>
+          <option value="ROSTERED">Rostered</option>
+        </select>
+      </label>
+      <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+        Position
+        <select
+          value={position}
+          onChange={(event) => setPosition(event.target.value as PositionFilter)}
+          className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
+        >
+          <option value="ALL">All</option>
+          <option value="GK">GK</option>
+          <option value="DEF">DEF</option>
+          <option value="MID">MID</option>
+          <option value="FWD">FWD</option>
+        </select>
+      </label>
+      <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+        Club
+        <select
+          value={club}
+          onChange={(event) => setClub(event.target.value)}
+          className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
+        >
+          <option value="ALL">All</option>
+          {clubs.map((entry) => (
+            <option key={entry.slug} value={entry.slug}>
+              {entry.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+        Sort
+        <select
+          value={sort}
+          onChange={(event) => setSort(event.target.value as SortOption)}
+          className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
+        >
+          <option value="NAME_ASC">Name A-Z</option>
+          <option value="STATUS">Status</option>
+          <option value="WAIVER_SOON">Waiver clears soonest</option>
+        </select>
+      </label>
     </div>
   );
 }

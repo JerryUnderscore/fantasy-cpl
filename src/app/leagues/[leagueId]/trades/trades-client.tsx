@@ -12,6 +12,8 @@ import TradeCard, {
   type TradeCardStatus,
   type TradeItem as TradeCardItem,
 } from "@/components/trades/trade-card";
+import { useSheet } from "@/components/overlays/sheet-provider";
+import { useToast } from "@/components/overlays/toast-provider";
 
 type TradePlayer = {
   id: string;
@@ -72,6 +74,11 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [modalState, setModalState] = useState<CounterModalState | null>(null);
   const [actingTradeId, setActingTradeId] = useState<string | null>(null);
+  const [mobileTab, setMobileTab] = useState<"inbox" | "sent" | "history">(
+    "inbox",
+  );
+  const sheet = useSheet();
+  const toast = useToast();
 
   const loadTrades = useCallback(async () => {
     setIsLoading(true);
@@ -117,25 +124,33 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
     [trades],
   );
 
-  const handleTradeAction = async (tradeId: string, action: string) => {
-    setError(null);
+  const handleTradeActionInSheet = async (
+    tradeId: string,
+    action: string,
+  ) => {
     setActingTradeId(tradeId);
     try {
-      const res = await fetch(
-        `/api/leagues/${leagueId}/trades/${tradeId}`,
-        {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ action }),
-        },
-      );
+      const res = await fetch(`/api/leagues/${leagueId}/trades/${tradeId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
       const payload = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error(payload?.error ?? "Unable to update trade");
+        return {
+          ok: false,
+          message: payload?.error ?? "Unable to update trade",
+          status: res.status,
+        } as const;
       }
       await loadTrades();
+      return { ok: true } as const;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to update trade");
+      return {
+        ok: false,
+        message: err instanceof Error ? err.message : "Unable to update trade",
+        status: 500,
+      } as const;
     } finally {
       setActingTradeId(null);
     }
@@ -224,6 +239,7 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
     rightItems: TradeCardItem[],
     leftLabel?: string,
     rightLabel?: string,
+    options?: { collapsible?: boolean; stacked?: boolean; stackedOrder?: "left-first" | "right-first" },
   ) => {
     const { status, label } = mapStatus(trade);
 
@@ -244,12 +260,74 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
         rightLabel={rightLabel}
         onAccept={
           direction === "INCOMING" && status === "PENDING"
-            ? () => handleTradeAction(trade.id, "ACCEPT")
+            ? () =>
+                sheet.open({
+                  id: `trade-accept-${trade.id}`,
+                  title: "Accept trade?",
+                  subtitle: "You can’t undo this once accepted.",
+                  render: () => (
+                    <p className="text-sm text-[var(--text-muted)]">
+                      Confirm accepting this trade.
+                    </p>
+                  ),
+                  actions: [
+                    { key: "cancel", label: "Cancel", tone: "secondary" },
+                    {
+                      key: "confirm",
+                      label: "Accept trade",
+                      tone: "primary",
+                      onPress: async (ctx) => {
+                        const result = await handleTradeActionInSheet(
+                          trade.id,
+                          "ACCEPT",
+                        );
+                        if (!result.ok) {
+                          ctx.setError(result.message);
+                          return;
+                        }
+                        toast.success("Trade accepted.");
+                        ctx.close({ type: "action", payload: { key: "confirm" } });
+                      },
+                      autoClose: false,
+                    },
+                  ],
+                })
             : undefined
         }
         onReject={
           direction === "INCOMING" && status === "PENDING"
-            ? () => handleTradeAction(trade.id, "DECLINE")
+            ? () =>
+                sheet.open({
+                  id: `trade-decline-${trade.id}`,
+                  title: "Reject trade?",
+                  subtitle: "This offer will be declined.",
+                  render: () => (
+                    <p className="text-sm text-[var(--text-muted)]">
+                      Confirm rejecting this trade.
+                    </p>
+                  ),
+                  actions: [
+                    { key: "cancel", label: "Cancel", tone: "secondary" },
+                    {
+                      key: "confirm",
+                      label: "Reject trade",
+                      tone: "danger",
+                      onPress: async (ctx) => {
+                        const result = await handleTradeActionInSheet(
+                          trade.id,
+                          "DECLINE",
+                        );
+                        if (!result.ok) {
+                          ctx.setError(result.message);
+                          return;
+                        }
+                        toast.info("Trade rejected.");
+                        ctx.close({ type: "action", payload: { key: "confirm" } });
+                      },
+                      autoClose: false,
+                    },
+                  ],
+                })
             : undefined
         }
         onCounter={
@@ -259,11 +337,46 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
         }
         onWithdraw={
           direction === "OUTGOING" && status === "PENDING"
-            ? () => handleTradeAction(trade.id, "CANCEL")
+            ? () =>
+                sheet.open({
+                  id: `trade-withdraw-${trade.id}`,
+                  title: "Withdraw trade?",
+                  subtitle: "This offer will be pulled back.",
+                  render: () => (
+                    <p className="text-sm text-[var(--text-muted)]">
+                      Confirm withdrawing this trade offer.
+                    </p>
+                  ),
+                  actions: [
+                    { key: "cancel", label: "Cancel", tone: "secondary" },
+                    {
+                      key: "confirm",
+                      label: "Withdraw trade",
+                      tone: "danger",
+                      onPress: async (ctx) => {
+                        const result = await handleTradeActionInSheet(
+                          trade.id,
+                          "CANCEL",
+                        );
+                        if (!result.ok) {
+                          ctx.setError(result.message);
+                          return;
+                        }
+                        toast.info("Trade withdrawn.");
+                        ctx.close({ type: "action", payload: { key: "confirm" } });
+                      },
+                      autoClose: false,
+                    },
+                  ],
+                })
             : undefined
         }
         isActing={actingTradeId === trade.id}
         actionsDisabled={actingTradeId === trade.id}
+        collapsible={options?.collapsible}
+        defaultCollapsed={options?.collapsible}
+        stacked={options?.stacked}
+        stackedOrder={options?.stackedOrder}
       />
     );
   };
@@ -292,125 +405,254 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
         <InlineError message={error} />
       ) : null}
 
-      <SectionCard
-        title="Trade Inbox"
-        description="Review and respond to incoming offers."
-        actions={
-          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-            {incomingPending.length} pending
-          </span>
-        }
-      >
-        {incomingPending.length === 0 ? (
-          <EmptyState
-            title="No trade offers yet"
-            description="This is where you'll review and respond to trade offers sent to you."
-          />
-        ) : (
-          <div className="grid gap-4">
-            {incomingPending.map((trade) => {
-              const offeredPlayers = trade.items.filter(
-                (item) => item.direction === "FROM_OFFERING",
-              );
-              const requestedPlayers = trade.items.filter(
-                (item) => item.direction === "FROM_RECEIVING",
-              );
+      <div className="flex flex-col gap-4 sm:hidden">
+        <div className="flex w-full rounded-full border border-[var(--border)] bg-[var(--surface2)] p-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+          {[
+            { key: "inbox", label: `Inbox (${incomingPending.length})` },
+            { key: "sent", label: `Sent (${outgoingPending.length})` },
+            { key: "history", label: `History (${historyTrades.length})` },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() =>
+                setMobileTab(tab.key as "inbox" | "sent" | "history")
+              }
+              className={`flex-1 rounded-full px-3 py-2 text-[11px] ${
+                mobileTab === tab.key
+                  ? "bg-[var(--surface)] text-[var(--text)]"
+                  : "text-[var(--text-muted)]"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {mobileTab === "inbox" ? (
+          incomingPending.length === 0 ? (
+            <EmptyState
+              title="No trade offers yet"
+              description="This is where you'll review and respond to trade offers sent to you."
+            />
+          ) : (
+            <div className="grid gap-4">
+              {incomingPending.map((trade) => {
+                const offeredPlayers = trade.items.filter(
+                  (item) => item.direction === "FROM_OFFERING",
+                );
+                const requestedPlayers = trade.items.filter(
+                  (item) => item.direction === "FROM_RECEIVING",
+                );
 
-              return renderTradeCard(
-                trade,
-                "INCOMING",
-                buildTradeItemsFromPlayers(
-                  requestedPlayers.map((item) => item.player),
-                ),
-                buildTradeItemsFromPlayers(
-                  offeredPlayers.map((item) => item.player),
-                ),
-              );
-            })}
-          </div>
-        )}
-      </SectionCard>
+                return renderTradeCard(
+                  trade,
+                  "INCOMING",
+                  buildTradeItemsFromPlayers(
+                    requestedPlayers.map((item) => item.player),
+                  ),
+                  buildTradeItemsFromPlayers(
+                    offeredPlayers.map((item) => item.player),
+                  ),
+                  undefined,
+                  undefined,
+                  { collapsible: true, stacked: true, stackedOrder: "right-first" },
+                );
+              })}
+            </div>
+          )
+        ) : null}
+        {mobileTab === "sent" ? (
+          outgoingPending.length === 0 ? (
+            <EmptyState
+              title="No sent trades"
+              description="You have not sent any trade offers yet."
+            />
+          ) : (
+            <div className="grid gap-4">
+              {outgoingPending.map((trade) => {
+                const offeredPlayers = trade.items.filter(
+                  (item) => item.direction === "FROM_OFFERING",
+                );
+                const requestedPlayers = trade.items.filter(
+                  (item) => item.direction === "FROM_RECEIVING",
+                );
 
-      <SectionCard
-        title="Sent Trades"
-        description="Offers you have sent that are awaiting a response."
-        actions={
-          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-            {outgoingPending.length} pending
-          </span>
-        }
-      >
-        {outgoingPending.length === 0 ? (
-          <EmptyState
-            title="No sent trades"
-            description="You have not sent any trade offers yet."
-          />
-        ) : (
-          <div className="grid gap-4">
-            {outgoingPending.map((trade) => {
-              const offeredPlayers = trade.items.filter(
-                (item) => item.direction === "FROM_OFFERING",
-              );
-              const requestedPlayers = trade.items.filter(
-                (item) => item.direction === "FROM_RECEIVING",
-              );
+                return renderTradeCard(
+                  trade,
+                  "OUTGOING",
+                  buildTradeItemsFromPlayers(
+                    offeredPlayers.map((item) => item.player),
+                  ),
+                  buildTradeItemsFromPlayers(
+                    requestedPlayers.map((item) => item.player),
+                  ),
+                  undefined,
+                  undefined,
+                  { collapsible: true, stacked: true, stackedOrder: "left-first" },
+                );
+              })}
+            </div>
+          )
+        ) : null}
+        {mobileTab === "history" ? (
+          historyTrades.length === 0 ? (
+            <EmptyState
+              title="No trade history"
+              description="No completed trades yet."
+            />
+          ) : (
+            <div className="grid gap-4">
+              {historyTrades.map((trade) => {
+                const isIncoming = trade.offeredToTeamId === teamId;
+                const offeredPlayers = trade.items.filter(
+                  (item) => item.direction === "FROM_OFFERING",
+                );
+                const requestedPlayers = trade.items.filter(
+                  (item) => item.direction === "FROM_RECEIVING",
+                );
+                const gavePlayers = isIncoming ? requestedPlayers : offeredPlayers;
+                const receivedPlayers = isIncoming ? offeredPlayers : requestedPlayers;
 
-              return renderTradeCard(
-                trade,
-                "OUTGOING",
-                buildTradeItemsFromPlayers(
-                  offeredPlayers.map((item) => item.player),
-                ),
-                buildTradeItemsFromPlayers(
-                  requestedPlayers.map((item) => item.player),
-                ),
-              );
-            })}
-          </div>
-        )}
-      </SectionCard>
+                return renderTradeCard(
+                  trade,
+                  "HISTORY",
+                  buildTradeItemsFromPlayers(
+                    gavePlayers.map((item) => item.player),
+                  ),
+                  buildTradeItemsFromPlayers(
+                    receivedPlayers.map((item) => item.player),
+                  ),
+                  undefined,
+                  undefined,
+                  { collapsible: true, stacked: true, stackedOrder: "right-first" },
+                );
+              })}
+            </div>
+          )
+        ) : null}
+      </div>
 
-      <SectionCard
-        title="Trade History"
-        description="Completed or resolved trades from this season."
-        actions={
-          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-            {historyTrades.length} recorded
-          </span>
-        }
-      >
-        {historyTrades.length === 0 ? (
-          <EmptyState
-            title="No trade history"
-            description="No completed trades yet."
-          />
-        ) : (
-          <div className="grid gap-4">
-            {historyTrades.map((trade) => {
-              const isIncoming = trade.offeredToTeamId === teamId;
-              const offeredPlayers = trade.items.filter(
-                (item) => item.direction === "FROM_OFFERING",
-              );
-              const requestedPlayers = trade.items.filter(
-                (item) => item.direction === "FROM_RECEIVING",
-              );
-              const gavePlayers = isIncoming ? requestedPlayers : offeredPlayers;
-              const receivedPlayers = isIncoming ? offeredPlayers : requestedPlayers;
+      <div className="hidden flex-col gap-6 sm:flex">
+        <SectionCard
+          title="Trade Inbox"
+          description="Review and respond to incoming offers."
+          actions={
+            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+              {incomingPending.length} pending
+            </span>
+          }
+        >
+          {incomingPending.length === 0 ? (
+            <EmptyState
+              title="No trade offers yet"
+              description="This is where you'll review and respond to trade offers sent to you."
+            />
+          ) : (
+            <div className="grid gap-4">
+              {incomingPending.map((trade) => {
+                const offeredPlayers = trade.items.filter(
+                  (item) => item.direction === "FROM_OFFERING",
+                );
+                const requestedPlayers = trade.items.filter(
+                  (item) => item.direction === "FROM_RECEIVING",
+                );
 
-              return renderTradeCard(
-                trade,
-                "HISTORY",
-                buildTradeItemsFromPlayers(
-                  gavePlayers.map((item) => item.player),
-                ),
-                buildTradeItemsFromPlayers(
-                  receivedPlayers.map((item) => item.player),
-                ),
-              );
-            })}
-          </div>
-        )}
-      </SectionCard>
+                return renderTradeCard(
+                  trade,
+                  "INCOMING",
+                  buildTradeItemsFromPlayers(
+                    requestedPlayers.map((item) => item.player),
+                  ),
+                  buildTradeItemsFromPlayers(
+                    offeredPlayers.map((item) => item.player),
+                  ),
+                );
+              })}
+            </div>
+          )}
+        </SectionCard>
+
+        <SectionCard
+          title="Sent Trades"
+          description="Offers you have sent that are awaiting a response."
+          actions={
+            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+              {outgoingPending.length} pending
+            </span>
+          }
+        >
+          {outgoingPending.length === 0 ? (
+            <EmptyState
+              title="No sent trades"
+              description="You have not sent any trade offers yet."
+            />
+          ) : (
+            <div className="grid gap-4">
+              {outgoingPending.map((trade) => {
+                const offeredPlayers = trade.items.filter(
+                  (item) => item.direction === "FROM_OFFERING",
+                );
+                const requestedPlayers = trade.items.filter(
+                  (item) => item.direction === "FROM_RECEIVING",
+                );
+
+                return renderTradeCard(
+                  trade,
+                  "OUTGOING",
+                  buildTradeItemsFromPlayers(
+                    offeredPlayers.map((item) => item.player),
+                  ),
+                  buildTradeItemsFromPlayers(
+                    requestedPlayers.map((item) => item.player),
+                  ),
+                );
+              })}
+            </div>
+          )}
+        </SectionCard>
+
+        <SectionCard
+          title="Trade History"
+          description="Completed or resolved trades from this season."
+          actions={
+            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+              {historyTrades.length} recorded
+            </span>
+          }
+        >
+          {historyTrades.length === 0 ? (
+            <EmptyState
+              title="No trade history"
+              description="No completed trades yet."
+            />
+          ) : (
+            <div className="grid gap-4">
+              {historyTrades.map((trade) => {
+                const isIncoming = trade.offeredToTeamId === teamId;
+                const offeredPlayers = trade.items.filter(
+                  (item) => item.direction === "FROM_OFFERING",
+                );
+                const requestedPlayers = trade.items.filter(
+                  (item) => item.direction === "FROM_RECEIVING",
+                );
+                const gavePlayers = isIncoming ? requestedPlayers : offeredPlayers;
+                const receivedPlayers = isIncoming ? offeredPlayers : requestedPlayers;
+
+                return renderTradeCard(
+                  trade,
+                  "HISTORY",
+                  buildTradeItemsFromPlayers(
+                    gavePlayers.map((item) => item.player),
+                  ),
+                  buildTradeItemsFromPlayers(
+                    receivedPlayers.map((item) => item.player),
+                  ),
+                );
+              })}
+            </div>
+          )}
+        </SectionCard>
+      </div>
 
       {modalState ? (
         <TradeOfferModal

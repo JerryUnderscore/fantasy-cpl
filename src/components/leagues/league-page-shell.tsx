@@ -22,6 +22,7 @@ type LeaguePageShellProps = {
   actions?: ReactNode;
   headerContent?: ReactNode;
   pageBadge?: string | null;
+  hideHeaderOnMobile?: boolean;
   children: ReactNode;
 };
 
@@ -37,6 +38,7 @@ export default function LeaguePageShell({
   actions,
   headerContent,
   pageBadge,
+  hideHeaderOnMobile = false,
   children,
 }: LeaguePageShellProps) {
   return (
@@ -44,7 +46,11 @@ export default function LeaguePageShell({
       <div
         className={`flex w-full flex-col gap-8 ${leagueSurface} ${leaguePagePaddingX} ${leaguePagePaddingY}`}
       >
-        <div className={leagueHeaderSpacing}>
+        <div
+          className={`${leagueHeaderSpacing} ${
+            hideHeaderOnMobile ? "hidden sm:flex" : ""
+          }`}
+        >
           <Link
             href={backHref}
             className="text-sm font-medium text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text)] hover:underline"

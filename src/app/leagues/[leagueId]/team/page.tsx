@@ -7,6 +7,7 @@ import RosterClient from "./roster-client";
 import ScoringCard from "./scoring-card";
 import MatchWeekSelector from "./matchweek-selector";
 import LineupControls from "./lineup-controls";
+import TeamMobileTabs from "./team-mobile-tabs";
 import { buildRosterSlots } from "@/lib/roster";
 import { getActiveMatchWeekForSeason } from "@/lib/matchweek";
 import LeaguePageShell from "@/components/leagues/league-page-shell";
@@ -380,22 +381,31 @@ export default async function MyTeamRosterPage({
         </div>
       ) : null}
 
-      <LineupControls
+      <TeamMobileTabs
         leagueId={league.id}
         matchWeekNumber={selectedMatchWeekNumber}
+        slots={slots}
         isLocked={selectedMatchWeek?.status !== "OPEN"}
       />
 
-      <RosterClient
-        leagueId={league.id}
-        initialSlots={slots}
-        matchWeekNumber={selectedMatchWeekNumber}
-        isLocked={selectedMatchWeek?.status !== "OPEN"}
-      />
-      <ScoringCard
-        leagueId={league.id}
-        matchWeekNumber={selectedMatchWeekNumber}
-      />
+      <div className="hidden sm:block">
+        <LineupControls
+          leagueId={league.id}
+          matchWeekNumber={selectedMatchWeekNumber}
+          isLocked={selectedMatchWeek?.status !== "OPEN"}
+        />
+
+        <RosterClient
+          leagueId={league.id}
+          initialSlots={slots}
+          matchWeekNumber={selectedMatchWeekNumber}
+          isLocked={selectedMatchWeek?.status !== "OPEN"}
+        />
+        <ScoringCard
+          leagueId={league.id}
+          matchWeekNumber={selectedMatchWeekNumber}
+        />
+      </div>
     </LeaguePageShell>
   );
 }

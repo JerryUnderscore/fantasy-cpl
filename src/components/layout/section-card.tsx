@@ -22,10 +22,10 @@ export default function SectionCard({
 
   return (
     <section
-      className={`rounded-2xl border ${borderClass} ${backgroundClass} p-6 shadow-sm`}
+      className={`rounded-2xl border ${borderClass} ${backgroundClass} p-4 shadow-sm sm:p-6`}
     >
       {title || description || actions ? (
-        <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex flex-col gap-1">
             {title ? (
               <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">
@@ -36,7 +36,9 @@ export default function SectionCard({
               <p className="text-sm text-[var(--text-muted)]">{description}</p>
             ) : null}
           </div>
-          {actions ? <div className="flex items-center gap-3">{actions}</div> : null}
+          {actions ? (
+            <div className="flex flex-wrap items-center gap-3">{actions}</div>
+          ) : null}
         </div>
       ) : null}
       <div className={title || description || actions ? "mt-4" : ""}>
