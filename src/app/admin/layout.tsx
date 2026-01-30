@@ -19,6 +19,9 @@ export default async function AdminLayout({
         </SectionCard>
       </aside>
       <section className="min-h-[70vh] flex-1">
+        <div className="mb-4 rounded-2xl border border-[var(--border)] bg-[var(--surface2)] px-4 py-3 text-sm text-[var(--text-muted)] sm:hidden">
+          Admin editing is disabled on mobile to prevent accidental changes.
+        </div>
         {children}
       </section>
     </div>

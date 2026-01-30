@@ -2,6 +2,7 @@ import ScoringAdminClient from "@/app/scoring-admin/scoring-admin-client";
 import { getAdminConsoleData } from "@/app/admin/admin-data";
 import PageHeader from "@/components/layout/page-header";
 import SectionCard from "@/components/layout/section-card";
+import AdminMobileReadonly from "@/components/admin/admin-mobile-readonly";
 
 export const runtime = "nodejs";
 
@@ -37,19 +38,22 @@ export default async function AdminSchedulePage() {
       />
 
       <SectionCard title="Schedule tools">
-        <ScoringAdminClient
-          postUrl="/api/scoring/stats"
-          matchWeeks={matchWeeks}
-          seasons={seasons}
-          clubs={clubs}
-          canWrite={canWrite}
-          isAdmin={isAdmin}
-          showDevTools={false}
-          showMatchWeekControls={false}
-          showStatsEditor={false}
-          showScheduleImport
-          showMatchesEditor
-        />
+        <div className="hidden sm:block">
+          <ScoringAdminClient
+            postUrl="/api/scoring/stats"
+            matchWeeks={matchWeeks}
+            seasons={seasons}
+            clubs={clubs}
+            canWrite={canWrite}
+            isAdmin={isAdmin}
+            showDevTools={false}
+            showMatchWeekControls={false}
+            showStatsEditor={false}
+            showScheduleImport
+            showMatchesEditor
+          />
+        </div>
+        <AdminMobileReadonly matchWeeks={matchWeeks} title="Schedule summary" />
       </SectionCard>
     </div>
   );

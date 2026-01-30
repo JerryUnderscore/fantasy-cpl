@@ -44,7 +44,52 @@ export default async function AdminUsersPage() {
       />
 
       <SectionCard title="Accounts">
-        <div className="overflow-x-auto">
+        <div className="sm:hidden">
+          <div className="flex flex-col gap-3">
+            {profiles.map((profile) => {
+              const leagueCount = profile.memberships.length;
+              const commissionerCount = profile.memberships.filter(
+                (membership) => membership.role === "OWNER",
+              ).length;
+
+              return (
+                <div
+                  key={profile.id}
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[var(--text)]">
+                        {profile.displayName ?? "Unnamed"}
+                      </p>
+                      <p className="text-xs text-[var(--text-muted)]">
+                        Discord ID: {profile.discordId ?? "-"}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-[var(--surface2)] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                      {profile.isAdmin ? "Admin" : "Standard"}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-[var(--text-muted)]">
+                    <span>Leagues: {leagueCount}</span>
+                    <span>
+                      Commissioner: {commissionerCount > 0 ? "Yes" : "No"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled
+                    className="mt-3 w-full rounded-full border border-[var(--border)] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)] opacity-60"
+                  >
+                    Admin controls disabled on mobile
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="hidden overflow-x-auto sm:block">
           <table className="min-w-full text-left text-sm">
             <thead className="border-b border-[var(--border)] text-xs uppercase tracking-wide text-[var(--text-muted)]">
               <tr>

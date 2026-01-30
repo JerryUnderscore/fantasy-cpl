@@ -476,106 +476,143 @@ export default async function AdminPlayersPage() {
         subtitle={`Manage the CPL player pool · ${season.name} ${season.year}`}
       />
 
-      <SectionCard title="Add player">
-        <form action={createPlayer} className="grid gap-3 sm:grid-cols-4">
-          <input
-            type="text"
-            name="name"
-            placeholder="Player name"
-            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-            required
-          />
-          <input
-            type="number"
-            name="jerseyNumber"
-            placeholder="Jersey #"
-            min="0"
-            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-          />
-          <select
-            name="position"
-            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-          >
-            {positions.map((position) => (
-              <option key={position} value={position}>
-                {position}
-              </option>
+      <div className="sm:hidden">
+        <SectionCard title="Player list (read-only)">
+          <div className="flex flex-col gap-3">
+            {players.map((player) => (
+              <div
+                key={player.id}
+                className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--text)]">
+                      {player.name}
+                    </p>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      {player.position} ·{" "}
+                      {getClubDisplayName(player.club.slug, player.club.name)}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-[var(--surface2)] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                    {player.active ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                <div className="mt-2 text-xs text-[var(--text-muted)]">
+                  Jersey: {player.jerseyNumber ?? "—"}
+                </div>
+              </div>
             ))}
-          </select>
-          <select
-            name="clubId"
-            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-          >
-            {clubs.map((club) => (
-              <option key={club.id} value={club.id}>
-                {getClubDisplayName(club.slug, club.name)}
-              </option>
-            ))}
-          </select>
-          <select
-            name="seasonId"
-            defaultValue={season.id}
-            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-          >
-            {seasons.map((seasonOption) => (
-              <option key={seasonOption.id} value={seasonOption.id}>
-                {seasonOption.year} - {seasonOption.name}
-              </option>
-            ))}
-          </select>
-          <button
-            type="submit"
-            className="sm:col-span-4 rounded-full bg-black px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white"
-          >
-            Add player
-          </button>
-        </form>
-      </SectionCard>
+          </div>
+        </SectionCard>
+      </div>
 
-      <SectionCard
-        title="Import players"
-        description="CSV columns: name, position, club (shortName or name), jerseyNumber."
-      >
-        <form
-          action={importPlayersCsv}
-          className="grid gap-3 sm:grid-cols-[2fr_1fr_auto]"
+      <div className="hidden sm:block">
+        <SectionCard title="Add player">
+          <form action={createPlayer} className="grid gap-3 sm:grid-cols-4">
+            <input
+              type="text"
+              name="name"
+              placeholder="Player name"
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+              required
+            />
+            <input
+              type="number"
+              name="jerseyNumber"
+              placeholder="Jersey #"
+              min="0"
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+            />
+            <select
+              name="position"
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+            >
+              {positions.map((position) => (
+                <option key={position} value={position}>
+                  {position}
+                </option>
+              ))}
+            </select>
+            <select
+              name="clubId"
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+            >
+              {clubs.map((club) => (
+                <option key={club.id} value={club.id}>
+                  {getClubDisplayName(club.slug, club.name)}
+                </option>
+              ))}
+            </select>
+            <select
+              name="seasonId"
+              defaultValue={season.id}
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+            >
+              {seasons.map((seasonOption) => (
+                <option key={seasonOption.id} value={seasonOption.id}>
+                  {seasonOption.year} - {seasonOption.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              className="sm:col-span-4 rounded-full bg-black px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white"
+            >
+              Add player
+            </button>
+          </form>
+        </SectionCard>
+      </div>
+
+      <div className="hidden sm:block">
+        <SectionCard
+          title="Import players"
+          description="CSV columns: name, position, club (shortName or name), jerseyNumber."
         >
-          <input
-            type="file"
-            name="csvFile"
-            accept=".csv,text/csv"
-            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
-            required
-          />
-          <select
-            name="seasonId"
-            defaultValue={season.id}
-            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+          <form
+            action={importPlayersCsv}
+            className="grid gap-3 sm:grid-cols-[2fr_1fr_auto]"
           >
-            {seasons.map((seasonOption) => (
-              <option key={seasonOption.id} value={seasonOption.id}>
-                {seasonOption.year} - {seasonOption.name}
-              </option>
-            ))}
-          </select>
-          <button
-            type="submit"
-            className="rounded-full bg-black px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white"
-          >
-            Upload CSV
-          </button>
-        </form>
-      </SectionCard>
+            <input
+              type="file"
+              name="csvFile"
+              accept=".csv,text/csv"
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+              required
+            />
+            <select
+              name="seasonId"
+              defaultValue={season.id}
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+            >
+              {seasons.map((seasonOption) => (
+                <option key={seasonOption.id} value={seasonOption.id}>
+                  {seasonOption.year} - {seasonOption.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              className="rounded-full bg-black px-5 py-2 text-xs font-semibold uppercase tracking-wide text-white"
+            >
+              Upload CSV
+            </button>
+          </form>
+        </SectionCard>
+      </div>
 
-      <SectionCard title="Player list">
-        <PlayersTableClient
-          players={players}
-          clubs={clubs}
-          positions={positions}
-          updatePlayer={updatePlayer}
-          togglePlayerActive={togglePlayerActive}
-        />
-      </SectionCard>
+      <div className="hidden sm:block">
+        <SectionCard title="Player list">
+          <PlayersTableClient
+            players={players}
+            clubs={clubs}
+            positions={positions}
+            updatePlayer={updatePlayer}
+            togglePlayerActive={togglePlayerActive}
+          />
+        </SectionCard>
+      </div>
     </div>
   );
 }

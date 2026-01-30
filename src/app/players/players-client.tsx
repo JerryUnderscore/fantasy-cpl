@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { getClubDisplayName } from "@/lib/clubs";
 import { formatPlayerName } from "@/lib/players";
+import { useModal } from "@/components/overlays/modal-provider";
 
 type Player = {
   id: string;
@@ -31,11 +32,18 @@ export default function PlayersClient({ players }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const modal = useModal();
   const [searchTerm, setSearchTerm] = useState("");
   const [positionFilter, setPositionFilter] =
     useState<(typeof positions)[number]>("ALL");
   const [clubFilter, setClubFilter] = useState("ALL");
   const [sortOption, setSortOption] = useState<SortOption>("NAME_ASC");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [modalFilters, setModalFilters] = useState({
+    position: "ALL" as (typeof positions)[number],
+    club: "ALL",
+    sort: "NAME_ASC" as SortOption,
+  });
 
   const clubs = useMemo(() => {
     const clubMap = new Map<string, string>();
@@ -136,9 +144,134 @@ export default function PlayersClient({ players }: Props) {
     });
   }, [players, positionFilter, clubFilter, searchTerm, sortOption]);
 
+  const openFiltersModal = () => {
+    setModalFilters({
+      position: positionFilter,
+      club: clubFilter,
+      sort: sortOption,
+    });
+
+    void modal.open({
+      id: "stats-filter-modal",
+      title: "Filter & Sort",
+      subtitle: "Refine the player list on mobile.",
+      render: () => (
+        <div className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+            Position
+            <select
+              value={modalFilters.position}
+              onChange={(event) =>
+                setModalFilters((prev) => ({
+                  ...prev,
+                  position: event.target.value as (typeof positions)[number],
+                }))
+              }
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-sm text-[var(--text)]"
+            >
+              {positions.map((position) => (
+                <option key={position} value={position}>
+                  {position === "ALL" ? "All positions" : position}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+            Club
+            <select
+              value={modalFilters.club}
+              onChange={(event) =>
+                setModalFilters((prev) => ({
+                  ...prev,
+                  club: event.target.value,
+                }))
+              }
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-sm text-[var(--text)]"
+            >
+              <option value="ALL">All clubs</option>
+              {clubs.map((club) => (
+                <option key={club.key} value={club.key}>
+                  {club.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+            Sort
+            <select
+              value={modalFilters.sort}
+              onChange={(event) =>
+                setModalFilters((prev) => ({
+                  ...prev,
+                  sort: event.target.value as SortOption,
+                }))
+              }
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-sm text-[var(--text)]"
+            >
+              <option value="NAME_ASC">Name (A-Z)</option>
+              <option value="CLUB_ASC">Club (A-Z)</option>
+              <option value="POSITION_ASC">Position (A-Z)</option>
+            </select>
+          </label>
+        </div>
+      ),
+      footer: {
+        leftAction: {
+          key: "clear",
+          label: "Clear",
+          onPress: () => {
+            setModalFilters({
+              position: "ALL",
+              club: "ALL",
+              sort: "NAME_ASC",
+            });
+            setSearchTerm("");
+            setPositionFilter("ALL");
+            setClubFilter("ALL");
+            setSortOption("NAME_ASC");
+            modal.close({ type: "submit", payload: "clear" });
+          },
+        },
+        rightAction: {
+          key: "apply",
+          label: "Apply",
+          onPress: () => {
+            setPositionFilter(modalFilters.position);
+            setClubFilter(modalFilters.club);
+            setSortOption(modalFilters.sort);
+            modal.close({ type: "submit", payload: "apply" });
+          },
+        },
+      },
+    });
+  };
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="sticky top-0 z-10 -mx-6 flex flex-col gap-3 border-b border-[var(--border)] bg-[var(--background)] px-6 pb-3 pt-2 sm:hidden">
+        <label className="flex w-full flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+          Search
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Search by player or club"
+            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)]"
+          />
+        </label>
+        <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+          <span>{filteredPlayers.length} players</span>
+          <button
+            type="button"
+            onClick={openFiltersModal}
+            className="rounded-full border border-[var(--border)] bg-[var(--surface2)] px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--text)] transition hover:border-[var(--accent)]"
+          >
+            Filter & Sort
+          </button>
+        </div>
+      </div>
+
+      <div className="hidden flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 lg:flex lg:flex-row lg:items-center lg:justify-between">
         <div className="grid flex-1 grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-4">
           <label className="flex w-full flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
             Search
@@ -215,7 +348,67 @@ export default function PlayersClient({ players }: Props) {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+      <div className="sm:hidden">
+        <div className="flex flex-col gap-3">
+          {filteredPlayers.map((player) => {
+            const isOpen = expandedId === player.id;
+            return (
+              <div
+                key={player.id}
+                className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpandedId(isOpen ? null : player.id)
+                  }
+                  className="flex w-full items-start justify-between gap-3 text-left"
+                  aria-expanded={isOpen}
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--text)]">
+                      {formatPlayerName(player.name, player.jerseyNumber)}
+                    </p>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      {player.position} ·{" "}
+                      {getClubDisplayName(player.club.slug, player.club.name)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-[var(--text)]">
+                      —
+                    </p>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      Points
+                    </p>
+                  </div>
+                </button>
+                <div className="mt-2 text-xs text-[var(--text-muted)]">
+                  Minutes: —
+                </div>
+                {isOpen ? (
+                  <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-xs text-[var(--text-muted)]">
+                    <p className="text-[var(--text)]">Scoring details</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <span>Goals: —</span>
+                      <span>Assists: —</span>
+                      <span>Clean sheets: —</span>
+                      <span>Cards: —</span>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+          {filteredPlayers.length === 0 ? (
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-6 text-sm text-[var(--text-muted)]">
+              No players match that search.
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="hidden overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] sm:block">
         <table className="min-w-full text-left text-sm">
           <thead className="bg-[var(--surface2)] text-xs uppercase tracking-wide text-[var(--text-muted)]">
             <tr>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import PageHeader from "@/components/layout/page-header";
+import { useSheet } from "@/components/overlays/sheet-provider";
 
 type RulesSection = {
   id: string;
@@ -30,6 +31,7 @@ export default function RulesPage() {
     () => new Set(),
   );
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const sheet = useSheet();
 
   const sections = useMemo<RulesSection[]>(
     () => [
@@ -339,6 +341,32 @@ export default function RulesPage() {
     [openSection, setHash],
   );
 
+  const openJumpSheet = useCallback(() => {
+    void sheet.open({
+      id: "rules-jump",
+      title: "Jump to section",
+      subtitle: "Select a rules section to jump.",
+      size: "sm",
+      render: (ctx) => (
+        <div className="flex flex-col gap-2">
+          {sections.map((section) => (
+            <button
+              key={section.id}
+              type="button"
+              onClick={() => {
+                setHashAndOpen(section.id);
+                ctx.close({ type: "dismiss" });
+              }}
+              className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] px-4 py-3 text-left text-sm font-semibold text-[var(--text)] transition hover:border-[var(--accent)]"
+            >
+              {section.title}
+            </button>
+          ))}
+        </div>
+      ),
+    });
+  }, [sections, setHashAndOpen, sheet]);
+
   useEffect(() => {
     const handleHash = () => {
       const hash = normalizeHash(window.location.hash);
@@ -374,7 +402,17 @@ export default function RulesPage() {
           />
         </div>
 
-        <section className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-5">
+        <div className="mt-6 flex items-center gap-3 sm:hidden">
+          <button
+            type="button"
+            onClick={openJumpSheet}
+            className="rounded-full border border-[var(--border)] bg-[var(--surface2)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text)]"
+          >
+            Jump to section
+          </button>
+        </div>
+
+        <section className="mt-8 hidden rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-5 sm:block">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
             Table of contents
           </h2>
@@ -395,7 +433,7 @@ export default function RulesPage() {
           </div>
         </section>
 
-        <section className="mt-8 space-y-4">
+        <section className="mt-6 space-y-4 sm:mt-8">
           {sections.map((section) => {
             const isOpen = openSections.has(section.id);
             return (
@@ -408,7 +446,7 @@ export default function RulesPage() {
                     : "border-[var(--border)]"
                 }`}
               >
-                <div className="flex items-center justify-between gap-4 p-5">
+                <div className="flex items-center justify-between gap-4 p-4 sm:p-5">
                   <button
                     id={`${section.id}-button`}
                     type="button"
@@ -433,7 +471,7 @@ export default function RulesPage() {
                     type="button"
                     onClick={() => setHashAndOpen(section.id)}
                     aria-label={`Link to ${section.title}`}
-                    className="rounded-full border border-[var(--border)] px-3 py-1 text-xs font-semibold text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                    className="hidden rounded-full border border-[var(--border)] px-3 py-1 text-xs font-semibold text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:inline-flex"
                   >
                     🔗
                   </button>
@@ -441,7 +479,7 @@ export default function RulesPage() {
                 {isOpen ? (
                   <div
                     id={`${section.id}-content`}
-                    className="border-t border-[var(--border)] p-5"
+                    className="border-t border-[var(--border)] p-4 sm:p-5"
                   >
                     {section.content}
                   </div>

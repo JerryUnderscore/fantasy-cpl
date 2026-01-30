@@ -146,6 +146,7 @@ export default async function AdminLandingLineupPage() {
   const benchSlots = LANDING_LINEUP_SLOT_DEFS.filter(
     (slot) => slot.group === "BENCH",
   );
+  const playerById = new Map(players.map((player) => [player.id, player]));
 
   return (
     <div className="flex flex-col gap-6">
@@ -155,7 +156,62 @@ export default async function AdminLandingLineupPage() {
         subtitle="Pick the starters and bench players shown on the marketing homepage."
       />
 
-      <form action={saveLandingLineup} className="space-y-8">
+      <div className="sm:hidden">
+        <SectionCard title="Current lineup (read-only)">
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                Starters
+              </p>
+              <div className="mt-3 space-y-3">
+                {starterSlots.map((slot) => {
+                  const playerId = assignments.get(slot.slotKey) ?? "";
+                  const player = playerById.get(playerId);
+                  return (
+                    <div
+                      key={slot.slotKey}
+                      className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
+                    >
+                      <p className="text-xs font-semibold text-[var(--text-muted)]">
+                        {slot.label}
+                      </p>
+                      <p className="text-sm font-semibold text-[var(--text)]">
+                        {player ? buildPlayerLabel(player) : "Open slot"}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                Bench
+              </p>
+              <div className="mt-3 space-y-3">
+                {benchSlots.map((slot) => {
+                  const playerId = assignments.get(slot.slotKey) ?? "";
+                  const player = playerById.get(playerId);
+                  return (
+                    <div
+                      key={slot.slotKey}
+                      className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
+                    >
+                      <p className="text-xs font-semibold text-[var(--text-muted)]">
+                        {slot.label}
+                      </p>
+                      <p className="text-sm font-semibold text-[var(--text)]">
+                        {player ? buildPlayerLabel(player) : "Open slot"}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+      </div>
+
+      <form action={saveLandingLineup} className="hidden space-y-8 sm:block">
         <input type="hidden" name="seasonId" value={season.id} />
 
         <SectionCard
