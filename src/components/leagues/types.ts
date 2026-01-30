@@ -11,4 +11,5 @@ export type OpenLeagueViewModel = {
   id: string;
   name: string;
   teamsCount: number;
+  maxTeams: number;
 };

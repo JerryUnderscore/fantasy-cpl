@@ -45,42 +45,42 @@ export default function TeamRenameLink({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-xs font-semibold uppercase tracking-wide text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline"
+        className="rounded-full border border-[var(--border)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
       >
         Rename
       </button>
 
       {open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-xl">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-zinc-900">
+              <h2 className="text-lg font-semibold text-[var(--text)]">
                 Rename team
               </h2>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="text-sm font-semibold text-zinc-500 hover:text-zinc-900"
+                className="text-sm font-semibold text-[var(--text-muted)] hover:text-[var(--text)]"
               >
                 Close
               </button>
             </div>
-            <p className="mt-2 text-sm text-zinc-500">
+            <p className="mt-2 text-sm text-[var(--text-muted)]">
               Update your team name for this league.
             </p>
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className="mt-4 w-full rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400"
+              className="mt-4 w-full rounded-xl border border-[var(--border)] bg-[var(--surface2)] px-4 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
             />
             {error ? (
-              <p className="mt-2 text-sm text-red-600">{error}</p>
+              <p className="mt-2 text-sm text-[var(--danger)]">{error}</p>
             ) : null}
             <div className="mt-4 flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600"
+                className="rounded-full border border-[var(--border)] px-4 py-2 text-sm font-semibold text-[var(--text-muted)]"
               >
                 Cancel
               </button>
@@ -88,7 +88,7 @@ export default function TeamRenameLink({
                 type="button"
                 onClick={submit}
                 disabled={isPending}
-                className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                className="rounded-full bg-[var(--text)] px-4 py-2 text-sm font-semibold text-[var(--background)] disabled:opacity-60"
               >
                 {isPending ? "Saving..." : "Save"}
               </button>

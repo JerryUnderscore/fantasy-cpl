@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import AuthButtons from "@/components/auth-buttons";
 import { getActiveMatchWeekForSeason } from "@/lib/matchweek";
 import TradeRosterClient from "./trade-roster-client";
+import TradeOfferAction from "./trade-offer-action";
 import LeaguePageShell from "@/components/leagues/league-page-shell";
 
 export const runtime = "nodejs";
@@ -34,7 +35,7 @@ export default async function TeamRosterPage({
 
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { id: true, name: true, season: true },
+    select: { id: true, name: true, season: true, joinMode: true },
   });
 
   if (!league) {
@@ -90,7 +91,10 @@ export default async function TeamRosterPage({
     select: { id: true, role: true },
   });
 
-  if (!membership) {
+  const isOpenJoin = league.joinMode === "OPEN";
+  const isReadOnly = !membership && isOpenJoin;
+
+  if (!membership && !isOpenJoin) {
     return (
       <LeaguePageShell
         backHref="/leagues"
@@ -215,7 +219,7 @@ export default async function TeamRosterPage({
         )
       : null;
 
-    if (missingSlots.length > 0) {
+    if (missingSlots.length > 0 && membership) {
       await prisma.teamMatchWeekLineupSlot.createMany({
         data: missingSlots.map((slot) => ({
           fantasyTeamId: team.id,
@@ -287,33 +291,45 @@ export default async function TeamRosterPage({
     .map((slot) => slot.player)
     .filter((player): player is NonNullable<typeof player> => Boolean(player));
   const allowTrade = Boolean(viewerTeam && viewerTeam.id !== team.id);
+  const showTradeAction = allowTrade && !isReadOnly;
 
   return (
     <LeaguePageShell
       backHref={`/leagues/${leagueId}`}
       leagueTitle={league.name}
       seasonLabel={`Season ${league.season.name} ${league.season.year}`}
-      pageTitle="Team roster"
+      pageTitle={team.name}
       pageSubtitle={`Roster view for ${team.name}.`}
-      showBadgeTooltip={membership.role === "OWNER"}
+      showBadgeTooltip={membership?.role === "OWNER"}
       headerContent={
-        <div className="flex flex-col gap-1 text-sm font-normal text-[var(--text-muted)]">
-          <span>Owner: {team.profile.displayName ?? "Unknown"}</span>
-          <span className="text-xs uppercase tracking-wide">
-            Season: {league.season.name} {league.season.year}
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm font-normal text-[var(--text-muted)]">
+          <div className="flex flex-col gap-1">
+            <span>Owner: {team.profile.displayName ?? "Unknown"}</span>
+            <span className="text-xs uppercase tracking-wide">
+              Season: {league.season.name} {league.season.year}
+            </span>
+          </div>
+          {showTradeAction ? (
+            <TradeOfferAction
+              leagueId={leagueId}
+              viewerTeam={viewerTeam}
+              targetTeam={{ id: team.id, name: team.name }}
+              viewerPlayers={viewerPlayers}
+              targetPlayers={targetPlayers}
+            />
+          ) : null}
         </div>
       }
     >
+      {isReadOnly ? (
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] px-4 py-3 text-sm text-[var(--text-muted)]">
+          Read-only view. Join the league to propose trades or manage a team.
+        </div>
+      ) : null}
       <TradeRosterClient
-        leagueId={leagueId}
-        allowTrade={allowTrade}
-        targetTeam={{ id: team.id, name: team.name }}
-        viewerTeam={viewerTeam}
         starters={starters}
         bench={bench}
-        viewerPlayers={viewerPlayers}
-        targetPlayers={targetPlayers}
+        showKits
       />
     </LeaguePageShell>
   );

@@ -13,6 +13,7 @@ import { getClubDisplayName } from "@/lib/clubs";
 import EmptyState from "@/components/layout/empty-state";
 import SectionCard from "@/components/layout/section-card";
 import LeaguePageShell from "@/components/leagues/league-page-shell";
+import JoinOpenLeagueButton from "@/components/leagues/join-open-league-button";
 
 export const runtime = "nodejs";
 
@@ -21,7 +22,16 @@ type LeagueParams = { leagueId: string };
 async function getLeague(leagueId: string) {
   return prisma.league.findUnique({
     where: { id: leagueId },
-    include: { season: true },
+    select: {
+      id: true,
+      name: true,
+      seasonId: true,
+      season: true,
+      joinMode: true,
+      teamCount: true,
+      maxTeams: true,
+      draftMode: true,
+    },
   });
 }
 
@@ -99,7 +109,13 @@ export default async function LeagueDetailPage({
   }
 
   const membership = await getMembership(league.id, profile.id);
-  if (!membership) {
+  const isOpenJoin = league.joinMode === "OPEN";
+  const isMember = Boolean(membership);
+  const isReadOnly = !isMember && isOpenJoin;
+  const isFull = league.teamCount >= league.maxTeams;
+  const memberRole = membership?.role ?? null;
+
+  if (!membership && !isOpenJoin) {
     return (
       <LeaguePageShell
         backHref="/leagues"
@@ -109,12 +125,15 @@ export default async function LeagueDetailPage({
         pageTitle="Overview"
         pageSubtitle="You need to join this league before viewing its teams."
       >
-        <Link
-          href="/leagues"
-          className="text-sm font-medium text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text)] hover:underline"
-        >
-          Browse leagues
-        </Link>
+        <div className="flex flex-col gap-2 text-sm text-[var(--text-muted)]">
+          <p>Invite code required to join this league.</p>
+          <Link
+            href="/leagues"
+            className="text-sm font-medium text-[var(--text-muted)] underline-offset-4 transition hover:text-[var(--text)] hover:underline"
+          >
+            Browse leagues
+          </Link>
+        </div>
       </LeaguePageShell>
     );
   }
@@ -234,54 +253,76 @@ export default async function LeagueDetailPage({
       seasonLabel={`Season ${league.season.name} ${league.season.year}`}
       pageTitle="Overview"
       pageSubtitle="Standings, schedule, and waiver activity for this league."
-      showBadgeTooltip={membership.role === "OWNER"}
+      showBadgeTooltip={memberRole === "OWNER"}
       actions={
-        <>
-          {showDraftButton ? (
-            <Link
-              href={`/leagues/${league.id}/draft`}
-              className="inline-flex items-center justify-center rounded-full bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition hover:bg-[var(--accent-muted)]"
-              style={{ color: "#101014" }}
-            >
-              Draft
-            </Link>
-          ) : null}
-          {membership.role === "OWNER" ? (
-            <Link
-              href={`/leagues/${league.id}/settings`}
-              className="inline-flex items-center justify-center rounded-full border border-[var(--border)] p-2 text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
-              aria-label="League settings"
-            >
-              <span role="img" aria-hidden="true" className="text-lg">
-                ⚙️
-              </span>
-            </Link>
-          ) : null}
-        </>
+        isMember ? (
+          <>
+            {showDraftButton ? (
+              <Link
+                href={`/leagues/${league.id}/draft`}
+                className="inline-flex items-center justify-center rounded-full bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold uppercase tracking-wide transition hover:bg-[var(--accent-muted)]"
+                style={{ color: "#101014" }}
+              >
+                Draft
+              </Link>
+            ) : null}
+            {memberRole === "OWNER" ? (
+              <Link
+                href={`/leagues/${league.id}/settings`}
+                className="inline-flex items-center justify-center rounded-full border border-[var(--border)] p-2 text-[var(--text-muted)] transition hover:border-[var(--accent)] hover:text-[var(--text)]"
+                aria-label="League settings"
+              >
+                <span role="img" aria-hidden="true" className="text-lg">
+                  ⚙️
+                </span>
+              </Link>
+            ) : null}
+          </>
+        ) : null
       }
       headerContent={
-        <>
-          <Link
-            href={`/leagues/${league.id}/players`}
-            className="transition hover:text-[var(--text)] hover:underline underline-offset-4"
-          >
-            Players
-          </Link>
-          <Link
-            href={`/leagues/${league.id}/trades`}
-            className="transition hover:text-[var(--text)] hover:underline underline-offset-4"
-          >
-            Trades
-          </Link>
-          <Link
-            href={`/leagues/${league.id}/settings`}
-            className="transition hover:text-[var(--text)] hover:underline underline-offset-4"
-          >
-            League settings
-          </Link>
-        </>
+        isMember ? (
+          <>
+            <Link
+              href={`/leagues/${league.id}/players`}
+              className="transition hover:text-[var(--text)] hover:underline underline-offset-4"
+            >
+              Players
+            </Link>
+            <Link
+              href={`/leagues/${league.id}/trades`}
+              className="transition hover:text-[var(--text)] hover:underline underline-offset-4"
+            >
+              Trades
+            </Link>
+            <Link
+              href={`/leagues/${league.id}/settings`}
+              className="transition hover:text-[var(--text)] hover:underline underline-offset-4"
+            >
+              League settings
+            </Link>
+          </>
+        ) : null
       }
     >
+      {isReadOnly ? (
+        <SectionCard
+          title="Open league"
+          description="Read-only view. Join to manage a team, trades, and waivers."
+          actions={
+            <JoinOpenLeagueButton
+              leagueId={league.id}
+              label={isFull ? "League full" : "Join league"}
+              disabled={isFull}
+              className="px-4 py-1.5 text-xs"
+            />
+          }
+        >
+          <p className="text-sm text-[var(--text-muted)]">
+            You can browse teams and rosters before joining.
+          </p>
+        </SectionCard>
+      ) : null}
       <SectionCard
         title="Standings"
         actions={

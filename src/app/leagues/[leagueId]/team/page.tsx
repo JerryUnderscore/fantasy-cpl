@@ -10,6 +10,7 @@ import LineupControls from "./lineup-controls";
 import { buildRosterSlots } from "@/lib/roster";
 import { getActiveMatchWeekForSeason } from "@/lib/matchweek";
 import LeaguePageShell from "@/components/leagues/league-page-shell";
+import TeamRenameLink from "@/app/leagues/[leagueId]/team-rename-link";
 
 export const runtime = "nodejs";
 
@@ -343,9 +344,20 @@ export default async function MyTeamRosterPage({
       backHref={`/leagues/${leagueId}`}
       leagueTitle={league.name}
       seasonLabel={`Season ${league.season.name} ${league.season.year}`}
-      pageTitle="Team roster"
+      pageTitle={team.name}
       pageSubtitle={`Manage lineups and roster moves for ${team.name}.`}
       showBadgeTooltip={membership.role === "OWNER"}
+      headerContent={
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm font-normal text-[var(--text-muted)]">
+          <div className="flex flex-col gap-1">
+            <span>Owner: You</span>
+            <span className="text-xs uppercase tracking-wide">
+              Season: {league.season.name} {league.season.year}
+            </span>
+          </div>
+          <TeamRenameLink leagueId={league.id} initialTeamName={team.name} />
+        </div>
+      }
     >
       {selectedMatchWeek ? (
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">

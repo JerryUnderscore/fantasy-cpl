@@ -39,8 +39,8 @@ const TEST_MY_LEAGUE: MyLeagueViewModel = {
 };
 
 const TEST_OPEN_LEAGUES: OpenLeagueViewModel[] = [
-  { id: "public-1", name: "Open Cup", teamsCount: 12 },
-  { id: "public-2", name: "Community Series", teamsCount: 8 },
+  { id: "public-1", name: "Open Cup", teamsCount: 12, maxTeams: 14 },
+  { id: "public-2", name: "Community Series", teamsCount: 8, maxTeams: 10 },
 ];
 
 export function getTestLeaguesView() {
@@ -132,6 +132,7 @@ export async function loadLeaguesView(profileId: string) {
     select: {
       id: true,
       name: true,
+      maxTeams: true,
       _count: { select: { teams: true } },
     },
   });
@@ -140,6 +141,7 @@ export async function loadLeaguesView(profileId: string) {
     id: league.id,
     name: league.name,
     teamsCount: league._count.teams,
+    maxTeams: league.maxTeams,
   }));
 
   return { myLeagues, openLeagues: openLeagueModels };
