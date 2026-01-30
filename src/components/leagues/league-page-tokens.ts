@@ -1,4 +1,4 @@
-export const leaguePageMaxWidth = "max-w-4xl";
+export const leaguePageMaxWidth = "max-w-5xl";
 export const leaguePagePaddingX = "px-6 md:px-10";
 export const leaguePagePaddingY = "py-8 md:py-10";
 export const leagueSurface =

@@ -74,6 +74,8 @@ type Props = {
 type StatusFilter = "ALL" | PlayerAvailabilityStatus;
 type PositionFilter = "ALL" | AvailablePlayer["position"];
 type SortOption = "NAME_ASC" | "STATUS" | "WAIVER_SOON";
+type DensityMode = "COMFORTABLE" | "COMPACT";
+type PositionGroup = AvailablePlayer["position"];
 
 type RosterSlot = {
   id: string;
@@ -160,12 +162,26 @@ export default function PlayersClient({ leagueId }: Props) {
   >([]);
   const shownResolvedIds = useRef(new Set<string>());
   const hasInitializedResolved = useRef(false);
+  const [searchInput, setSearchInput] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [positionFilter, setPositionFilter] =
     useState<PositionFilter>("ALL");
   const [clubFilter, setClubFilter] = useState("ALL");
   const [sortOption, setSortOption] = useState<SortOption>("NAME_ASC");
+  const [density, setDensity] = useState<DensityMode>("COMFORTABLE");
+  const [collapsedPositions, setCollapsedPositions] = useState<
+    Record<PositionGroup, boolean>
+  >({
+    GK: false,
+    DEF: false,
+    MID: false,
+    FWD: false,
+  });
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const hasInitializedFilters = useRef(false);
+  const lastSyncedQuery = useRef<string | null>(null);
+  const hasLoadedPreferences = useRef(false);
 
   const loadPlayers = useCallback(
     async (signal?: AbortSignal) => {
@@ -201,12 +217,44 @@ export default function PlayersClient({ leagueId }: Props) {
   }, [loadPlayers]);
 
   useEffect(() => {
+    if (hasLoadedPreferences.current) return;
+    hasLoadedPreferences.current = true;
+    try {
+      const storedDensity = window.localStorage.getItem("players-density");
+      if (storedDensity === "COMPACT" || storedDensity === "COMFORTABLE") {
+        setDensity(storedDensity);
+      }
+      const storedCollapsed = window.localStorage.getItem("players-collapsed");
+      if (storedCollapsed) {
+        const parsed = JSON.parse(storedCollapsed) as Partial<
+          Record<PositionGroup, boolean>
+        >;
+        setCollapsedPositions((prev) => ({
+          GK: parsed.GK ?? prev.GK,
+          DEF: parsed.DEF ?? prev.DEF,
+          MID: parsed.MID ?? prev.MID,
+          FWD: parsed.FWD ?? prev.FWD,
+        }));
+      }
+    } catch {
+      // ignore localStorage parsing issues
+    }
+  }, []);
+
+  useEffect(() => {
     if (!actionError) return;
     const timeout = window.setTimeout(() => {
       setActionError(null);
     }, 6000);
     return () => window.clearTimeout(timeout);
   }, [actionError]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setSearchTerm(searchInput);
+    }, 200);
+    return () => window.clearTimeout(handle);
+  }, [searchInput]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -515,6 +563,17 @@ export default function PlayersClient({ leagueId }: Props) {
   }, [data]);
 
   useEffect(() => {
+    if (
+      searchParamsString === "" &&
+      lastSyncedQuery.current &&
+      (searchTerm.trim() ||
+        statusFilter !== "ALL" ||
+        positionFilter !== "ALL" ||
+        clubFilter !== "ALL" ||
+        sortOption !== "NAME_ASC")
+    ) {
+      return;
+    }
     const params = new URLSearchParams(searchParamsString);
     const query = params.get("q") ?? "";
     const statusParam = params.get("status") ?? "ALL";
@@ -548,11 +607,16 @@ export default function PlayersClient({ leagueId }: Props) {
         ? (sortParam as SortOption)
         : "NAME_ASC";
 
-    if (nextSearch !== searchTerm) setSearchTerm(nextSearch);
+    if (nextSearch !== searchTerm) {
+      setSearchTerm(nextSearch);
+      setSearchInput(nextSearch);
+    }
     if (nextStatus !== statusFilter) setStatusFilter(nextStatus);
     if (nextPosition !== positionFilter) setPositionFilter(nextPosition);
     if (nextClub !== clubFilter) setClubFilter(nextClub);
     if (nextSort !== sortOption) setSortOption(nextSort);
+    hasInitializedFilters.current = true;
+    lastSyncedQuery.current = params.toString();
   }, [
     searchParamsString,
     clubs,
@@ -564,6 +628,26 @@ export default function PlayersClient({ leagueId }: Props) {
   ]);
 
   useEffect(() => {
+    try {
+      window.localStorage.setItem("players-density", density);
+    } catch {
+      // ignore write errors
+    }
+  }, [density]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        "players-collapsed",
+        JSON.stringify(collapsedPositions),
+      );
+    } catch {
+      // ignore write errors
+    }
+  }, [collapsedPositions]);
+
+  useEffect(() => {
+    if (!hasInitializedFilters.current) return;
     const params = new URLSearchParams();
     if (searchTerm.trim()) params.set("q", searchTerm.trim());
     if (statusFilter !== "ALL") params.set("status", statusFilter);
@@ -572,14 +656,12 @@ export default function PlayersClient({ leagueId }: Props) {
     if (sortOption !== "NAME_ASC") params.set("sort", sortOption);
 
     const nextQuery = params.toString();
-    const currentQuery =
-      typeof window !== "undefined"
-        ? new URLSearchParams(window.location.search).toString()
-        : searchParamsString;
-    if (nextQuery === currentQuery) return;
+    const currentQuery = searchParamsString;
+    if (nextQuery === currentQuery || nextQuery === lastSyncedQuery.current) return;
 
     const url = nextQuery ? `${pathname}?${nextQuery}` : pathname;
     router.replace(url, { scroll: false });
+    lastSyncedQuery.current = nextQuery;
   }, [
     searchTerm,
     statusFilter,
@@ -642,10 +724,47 @@ export default function PlayersClient({ leagueId }: Props) {
     return scored.map((entry) => entry.player);
   }, [data, searchTerm, statusFilter, positionFilter, clubFilter, sortOption]);
 
+  const groupedPlayers = useMemo(() => {
+    const groups: Record<PositionGroup, AvailablePlayer[]> = {
+      GK: [],
+      DEF: [],
+      MID: [],
+      FWD: [],
+    };
+    filteredPlayers.forEach((player) => {
+      groups[player.position].push(player);
+    });
+    return groups;
+  }, [filteredPlayers]);
+
+  const selectedPlayer =
+    selectedPlayerId && data
+      ? data.players.find((player) => player.id === selectedPlayerId) ?? null
+      : null;
+
+  const densityClasses =
+    density === "COMPACT"
+      ? {
+          row: "py-2",
+          name: "text-sm",
+          meta: "text-[10px]",
+        }
+      : {
+          row: "py-3",
+          name: "text-sm",
+          meta: "text-xs",
+        };
+
   const counts = data?.counts ?? {
     FREE_AGENT: 0,
     WAIVERS: 0,
     ROSTERED: 0,
+  };
+
+  const positionOrder: PositionGroup[] = ["GK", "DEF", "MID", "FWD"];
+
+  const togglePosition = (key: PositionGroup) => {
+    setCollapsedPositions((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   return (
@@ -693,16 +812,16 @@ export default function PlayersClient({ leagueId }: Props) {
         </div>
       </div>
 
-      <SectionCard title="Filters">
+      <div className="sticky top-0 z-20 -mx-6 border-b border-[var(--border)] bg-[var(--surface)]/95 px-6 py-3 backdrop-blur md:-mx-10 md:px-10">
         <div className="flex flex-col gap-3">
           <input
             type="search"
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
             placeholder="Search players"
             className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-muted)]"
           />
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-5">
             <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
               Status
               <select
@@ -763,12 +882,24 @@ export default function PlayersClient({ leagueId }: Props) {
                 <option value="WAIVER_SOON">Waiver clears soonest</option>
               </select>
             </label>
+            <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+              Density
+              <select
+                value={density}
+                onChange={(event) => setDensity(event.target.value as DensityMode)}
+                className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)]"
+              >
+                <option value="COMFORTABLE">Comfortable</option>
+                <option value="COMPACT">Compact</option>
+              </select>
+            </label>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
             <span>{filteredPlayers.length} players</span>
             <button
               type="button"
               onClick={() => {
+                setSearchInput("");
                 setSearchTerm("");
                 setStatusFilter("ALL");
                 setPositionFilter("ALL");
@@ -784,7 +915,7 @@ export default function PlayersClient({ leagueId }: Props) {
             <div className="text-xs text-[var(--warning)]">{rosterError}</div>
           ) : null}
         </div>
-      </SectionCard>
+      </div>
 
       {actionMessage ? (
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-4 text-sm text-[var(--text-muted)]">
@@ -871,87 +1002,211 @@ export default function PlayersClient({ leagueId }: Props) {
           description="Try adjusting your position, status, or search filters."
         />
       ) : (
-        <SectionCard title="Players">
-          <ul className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] divide-y divide-[var(--border)]">
-            {filteredPlayers.map((player, index) => {
-              const clubLabel = buildClubLabel(player.club);
-              const statusClasses =
-                player.status === "FREE_AGENT"
-                  ? "bg-emerald-100 text-emerald-700"
-                  : player.status === "WAIVERS"
-                    ? "bg-amber-100 text-amber-700"
-                    : "bg-[var(--surface2)] text-[var(--text-muted)]";
-              return (
-                <li
-                  key={player.id}
-                  className={`px-4 py-3 ${index % 2 === 1 ? "bg-[var(--surface2)]" : "bg-[var(--surface)]"}`}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex flex-col gap-1">
-                      <p className="text-sm font-semibold text-[var(--text)]">
-                        {formatPlayerName(player.name, player.jerseyNumber)}
-                      </p>
-                      <p className="text-xs text-[var(--text-muted)]">
-                        {player.position} · {clubLabel}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusClasses}`}
-                      >
-                        {player.status.replace("_", " ")}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,1.4fr)]">
+          <SectionCard title="Players">
+            <div className="flex flex-col gap-4">
+              {positionOrder.map((positionKey) => {
+                const group = groupedPlayers[positionKey];
+                const isCollapsed = collapsedPositions[positionKey];
+                return (
+                  <div
+                    key={positionKey}
+                    className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => togglePosition(positionKey)}
+                      className="flex w-full items-center justify-between px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]"
+                    >
+                      <span>{positionKey}</span>
+                      <span className="flex items-center gap-3">
+                        <span>{group.length} players</span>
+                        <span>{isCollapsed ? "＋" : "－"}</span>
                       </span>
-                      {player.status === "WAIVERS" ? (
-                        <button
-                          type="button"
-                          onClick={() => handleActionClick("CLAIM", player.id)}
-                          disabled={
-                            claimingPlayerId === player.id ||
-                            claimedPlayerIds.has(player.id)
-                          }
-                          className="rounded-full bg-[var(--text)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--background)] disabled:opacity-60"
-                        >
-                          {claimedPlayerIds.has(player.id)
-                            ? "Claimed"
-                            : claimingPlayerId === player.id
-                              ? "Claiming..."
-                              : "Claim"}
-                        </button>
-                      ) : player.status === "FREE_AGENT" ? (
-                        <button
-                          type="button"
-                          onClick={() => handleActionClick("ADD", player.id)}
-                          disabled={claimingPlayerId === player.id}
-                          className="rounded-full border border-[var(--border)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text)] disabled:opacity-60"
-                        >
-                          {claimingPlayerId === player.id ? "Adding..." : "Add"}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled
-                          className="rounded-full border border-[var(--border)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]"
-                        >
-                          Rostered
-                        </button>
-                      )}
-                    </div>
+                    </button>
+                    {isCollapsed ? null : group.length === 0 ? (
+                      <div className="border-t border-[var(--border)] p-4">
+                        <EmptyState
+                          title="No players"
+                          description="No players match the current filters."
+                        />
+                      </div>
+                    ) : (
+                      <ul className="divide-y divide-[var(--border)]">
+                        {group.map((player, index) => {
+                          const clubLabel = buildClubLabel(player.club);
+                          const statusClasses =
+                            player.status === "FREE_AGENT"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : player.status === "WAIVERS"
+                                ? "bg-amber-100 text-amber-700"
+                                : "bg-[var(--surface2)] text-[var(--text-muted)]";
+                          const isSelected = selectedPlayerId === player.id;
+                          return (
+                            <li
+                              key={player.id}
+                              className={`px-4 ${densityClasses.row} ${
+                                index % 2 === 1 ? "bg-[var(--surface2)]" : "bg-[var(--surface)]"
+                              }`}
+                            >
+                              <div
+                                className="flex flex-wrap items-center justify-between gap-4"
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => setSelectedPlayerId(player.id)}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    setSelectedPlayerId(player.id);
+                                  }
+                                }}
+                              >
+                                <div className="flex flex-col gap-1">
+                                  <p className={`${densityClasses.name} font-semibold text-[var(--text)]`}>
+                                    {formatPlayerName(player.name, player.jerseyNumber)}
+                                  </p>
+                                  <p className={`${densityClasses.meta} text-[var(--text-muted)]`}>
+                                    {player.position} · {clubLabel}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span
+                                    className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusClasses}`}
+                                  >
+                                    {player.status.replace("_", " ")}
+                                  </span>
+                                  {player.status === "WAIVERS" ? (
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleActionClick("CLAIM", player.id);
+                                      }}
+                                      disabled={
+                                        claimingPlayerId === player.id ||
+                                        claimedPlayerIds.has(player.id)
+                                      }
+                                      className="w-24 rounded-full bg-[var(--text)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--background)] disabled:opacity-60"
+                                    >
+                                      {claimedPlayerIds.has(player.id)
+                                        ? "Claimed"
+                                        : claimingPlayerId === player.id
+                                          ? "Claiming..."
+                                          : "Claim"}
+                                    </button>
+                                  ) : player.status === "FREE_AGENT" ? (
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleActionClick("ADD", player.id);
+                                      }}
+                                      disabled={claimingPlayerId === player.id}
+                                      className="w-24 rounded-full border border-[var(--border)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text)] disabled:opacity-60"
+                                    >
+                                      {claimingPlayerId === player.id ? "Adding..." : "Add"}
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      disabled
+                                      className="w-24 rounded-full border border-[var(--border)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]"
+                                    >
+                                      Rostered
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              {isSelected ? (
+                                <div className="mt-2 text-xs text-[var(--text-muted)] md:hidden">
+                                  {player.status === "WAIVERS"
+                                    ? `Clears: ${formatDateTime(player.waiverAvailableAt) ?? "TBD"}`
+                                    : player.status === "ROSTERED"
+                                      ? `Rostered by: ${player.rosteredByTeamName ?? "Unknown team"}`
+                                      : "Free agent"}
+                                </div>
+                              ) : null}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
                   </div>
-                  {player.status === "WAIVERS" ? (
-                    <p className="mt-2 text-xs text-[var(--text-muted)]">
-                      Clears: {formatDateTime(player.waiverAvailableAt) ?? "TBD"}
+                );
+              })}
+            </div>
+          </SectionCard>
+
+          <div className="hidden lg:block">
+            <SectionCard
+              title="Preview"
+              description="Select a player to review details."
+            >
+              {selectedPlayer ? (
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <p className="text-lg font-semibold text-[var(--text)]">
+                      {formatPlayerName(
+                        selectedPlayer.name,
+                        selectedPlayer.jerseyNumber,
+                      )}
                     </p>
-                  ) : null}
-                  {player.status === "ROSTERED" ? (
-                    <p className="mt-2 text-xs text-[var(--text-muted)]">
-                      Rostered by: {player.rosteredByTeamName ?? "Unknown team"}
+                    <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                      {selectedPlayer.position} · {buildClubLabel(selectedPlayer.club)}
                     </p>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </SectionCard>
+                  </div>
+                  <div className="text-sm text-[var(--text-muted)]">
+                    {selectedPlayer.status === "WAIVERS"
+                      ? `Clears: ${formatDateTime(selectedPlayer.waiverAvailableAt) ?? "TBD"}`
+                      : selectedPlayer.status === "ROSTERED"
+                        ? `Rostered by: ${selectedPlayer.rosteredByTeamName ?? "Unknown team"}`
+                        : "Free agent"}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {selectedPlayer.status === "WAIVERS" ? (
+                      <button
+                        type="button"
+                        onClick={() => handleActionClick("CLAIM", selectedPlayer.id)}
+                        disabled={
+                          claimingPlayerId === selectedPlayer.id ||
+                          claimedPlayerIds.has(selectedPlayer.id)
+                        }
+                        className="w-28 rounded-full bg-[var(--text)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--background)] disabled:opacity-60"
+                      >
+                        {claimedPlayerIds.has(selectedPlayer.id)
+                          ? "Claimed"
+                          : claimingPlayerId === selectedPlayer.id
+                            ? "Claiming..."
+                            : "Claim"}
+                      </button>
+                    ) : selectedPlayer.status === "FREE_AGENT" ? (
+                      <button
+                        type="button"
+                        onClick={() => handleActionClick("ADD", selectedPlayer.id)}
+                        disabled={claimingPlayerId === selectedPlayer.id}
+                        className="w-28 rounded-full border border-[var(--border)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text)] disabled:opacity-60"
+                      >
+                        {claimingPlayerId === selectedPlayer.id ? "Adding..." : "Add"}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        className="w-28 rounded-full border border-[var(--border)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]"
+                      >
+                        Rostered
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <EmptyState
+                  title="No player selected"
+                  description="Choose a player from the list to preview details."
+                />
+              )}
+            </SectionCard>
+          </div>
+        </div>
       )}
 
       {modalOpen ? (

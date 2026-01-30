@@ -8,6 +8,10 @@ import LoadingState from "@/components/layout/loading-state";
 import InlineError from "@/components/layout/inline-error";
 import EmptyState from "@/components/layout/empty-state";
 import SectionCard from "@/components/layout/section-card";
+import TradeCard, {
+  type TradeCardStatus,
+  type TradeItem as TradeCardItem,
+} from "@/components/trades/trade-card";
 
 type TradePlayer = {
   id: string;
@@ -17,7 +21,7 @@ type TradePlayer = {
   club: { shortName: string | null; slug: string; name: string } | null;
 };
 
-type TradeItem = {
+type TradeLineItem = {
   id: string;
   direction: "FROM_OFFERING" | "FROM_RECEIVING";
   player: TradePlayer;
@@ -38,7 +42,7 @@ type Trade = {
   offeredToTeamId: string;
   offeredByTeam: TradeTeam;
   offeredToTeam: TradeTeam;
-  items: TradeItem[];
+  items: TradeLineItem[];
 };
 
 type TradesResponse = {
@@ -67,6 +71,7 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalState, setModalState] = useState<CounterModalState | null>(null);
+  const [actingTradeId, setActingTradeId] = useState<string | null>(null);
 
   const loadTrades = useCallback(async () => {
     setIsLoading(true);
@@ -107,14 +112,14 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
     () => trades.filter((trade) => trade.status === "PENDING"),
     [trades],
   );
-
-  const buildRosterLabel = (player: TradePlayer) =>
-    `${player.position} · ${
-      player.club ? getClubDisplayName(player.club.slug, player.club.name) : ""
-    }`.trim();
+  const historyTrades = useMemo(
+    () => trades.filter((trade) => trade.status !== "PENDING"),
+    [trades],
+  );
 
   const handleTradeAction = async (tradeId: string, action: string) => {
     setError(null);
+    setActingTradeId(tradeId);
     try {
       const res = await fetch(
         `/api/leagues/${leagueId}/trades/${tradeId}`,
@@ -131,6 +136,8 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
       await loadTrades();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to update trade");
+    } finally {
+      setActingTradeId(null);
     }
   };
 
@@ -189,9 +196,95 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
 
   if (isLoading) {
     return (
-      <LoadingState label="Loading trades…" />
+      <LoadingState label="Loading trades..." />
     );
   }
+
+  const mapStatus = (trade: Trade): { status: TradeCardStatus; label: string } => {
+    switch (trade.status) {
+      case "PENDING":
+        return { status: "PENDING", label: "Pending" };
+      case "ACCEPTED":
+        return { status: "ACCEPTED", label: "Accepted" };
+      case "DECLINED":
+        return { status: "REJECTED", label: "Rejected" };
+      case "CANCELED":
+        return { status: "EXPIRED", label: "Withdrawn" };
+      case "COUNTERED":
+        return { status: "EXPIRED", label: "Countered" };
+      default:
+        return { status: "EXPIRED", label: trade.status };
+    }
+  };
+
+  const renderTradeCard = (
+    trade: Trade,
+    direction: "INCOMING" | "OUTGOING" | "HISTORY",
+    leftItems: TradeCardItem[],
+    rightItems: TradeCardItem[],
+    leftLabel?: string,
+    rightLabel?: string,
+  ) => {
+    const { status, label } = mapStatus(trade);
+
+    return (
+      <TradeCard
+        key={trade.id}
+        direction={direction}
+        status={status}
+        statusLabel={label}
+        title={`${trade.offeredByTeam.name} -> ${trade.offeredToTeam.name}`}
+        subtext={`${trade.offeredByTeam.profile?.displayName ?? "Unknown"} - ${
+          trade.offeredToTeam.profile?.displayName ?? "Unknown"
+        }`}
+        timestamp={trade.createdAt}
+        leftItems={leftItems}
+        rightItems={rightItems}
+        leftLabel={leftLabel}
+        rightLabel={rightLabel}
+        onAccept={
+          direction === "INCOMING" && status === "PENDING"
+            ? () => handleTradeAction(trade.id, "ACCEPT")
+            : undefined
+        }
+        onReject={
+          direction === "INCOMING" && status === "PENDING"
+            ? () => handleTradeAction(trade.id, "DECLINE")
+            : undefined
+        }
+        onCounter={
+          direction === "INCOMING" && status === "PENDING"
+            ? () => openCounterModal(trade)
+            : undefined
+        }
+        onWithdraw={
+          direction === "OUTGOING" && status === "PENDING"
+            ? () => handleTradeAction(trade.id, "CANCEL")
+            : undefined
+        }
+        isActing={actingTradeId === trade.id}
+        actionsDisabled={actingTradeId === trade.id}
+      />
+    );
+  };
+
+  const buildTradeItemsFromPlayers = (items: TradePlayer[]): TradeCardItem[] =>
+    items.map((item) => ({
+      id: item.id,
+      name: formatPlayerName(item.name, item.jerseyNumber),
+      position: item.position,
+      clubName: item.club
+        ? getClubDisplayName(item.club.slug, item.club.name)
+        : null,
+      clubSlug: item.club?.slug ?? null,
+    }));
+
+  const incomingPending = pendingTrades.filter(
+    (trade) => trade.offeredToTeamId === teamId,
+  );
+  const outgoingPending = pendingTrades.filter(
+    (trade) => trade.offeredByTeamId === teamId,
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -200,23 +293,22 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
       ) : null}
 
       <SectionCard
-        title="Trade center"
-        description="Trades awaiting a response."
+        title="Trade Inbox"
+        description="Review and respond to incoming offers."
         actions={
           <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-            {pendingTrades.length} pending
+            {incomingPending.length} pending
           </span>
         }
       >
-        {trades.length === 0 ? (
+        {incomingPending.length === 0 ? (
           <EmptyState
-            title="No trades yet"
-            description="Trades let you exchange players with other teams."
+            title="No trade offers yet"
+            description="This is where you'll review and respond to trade offers sent to you."
           />
         ) : (
           <div className="grid gap-4">
-            {trades.map((trade) => {
-              const isIncoming = trade.offeredToTeamId === teamId;
+            {incomingPending.map((trade) => {
               const offeredPlayers = trade.items.filter(
                 (item) => item.direction === "FROM_OFFERING",
               );
@@ -224,116 +316,96 @@ export default function TradesClient({ leagueId }: { leagueId: string }) {
                 (item) => item.direction === "FROM_RECEIVING",
               );
 
-              return (
-                <div
-                  key={trade.id}
-                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                        {trade.status}
-                      </p>
-                      <p className="text-sm font-semibold text-[var(--text)]">
-                        {trade.offeredByTeam.name} → {trade.offeredToTeam.name}
-                      </p>
-                      <p className="text-xs text-[var(--text-muted)]">
-                        {trade.offeredByTeam.profile?.displayName ?? "Unknown"} ·{" "}
-                        {trade.offeredToTeam.profile?.displayName ?? "Unknown"}
-                      </p>
-                    </div>
-                    {trade.status === "PENDING" ? (
-                      <span className="rounded-full bg-[var(--surface2)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                        Pending
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-[var(--surface2)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                        {trade.status}
-                      </span>
-                    )}
-                  </div>
+              return renderTradeCard(
+                trade,
+                "INCOMING",
+                buildTradeItemsFromPlayers(
+                  requestedPlayers.map((item) => item.player),
+                ),
+                buildTradeItemsFromPlayers(
+                  offeredPlayers.map((item) => item.player),
+                ),
+              );
+            })}
+          </div>
+        )}
+      </SectionCard>
 
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                        {trade.offeredByTeam.name} sends
-                      </p>
-                      <ul className="mt-3 space-y-2 text-sm text-[var(--text)]">
-                        {offeredPlayers.map((item) => (
-                          <li key={item.id}>
-                            <span className="font-semibold text-[var(--text)]">
-                              {formatPlayerName(
-                                item.player.name,
-                                item.player.jerseyNumber,
-                              )}
-                            </span>
-                            <span className="text-xs text-[var(--text-muted)]">
-                              {" "}· {buildRosterLabel(item.player)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface2)] p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                        {trade.offeredToTeam.name} sends
-                      </p>
-                      <ul className="mt-3 space-y-2 text-sm text-[var(--text)]">
-                        {requestedPlayers.map((item) => (
-                          <li key={item.id}>
-                            <span className="font-semibold text-[var(--text)]">
-                              {formatPlayerName(
-                                item.player.name,
-                                item.player.jerseyNumber,
-                              )}
-                            </span>
-                            <span className="text-xs text-[var(--text-muted)]">
-                              {" "}· {buildRosterLabel(item.player)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
+      <SectionCard
+        title="Sent Trades"
+        description="Offers you have sent that are awaiting a response."
+        actions={
+          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+            {outgoingPending.length} pending
+          </span>
+        }
+      >
+        {outgoingPending.length === 0 ? (
+          <EmptyState
+            title="No sent trades"
+            description="You have not sent any trade offers yet."
+          />
+        ) : (
+          <div className="grid gap-4">
+            {outgoingPending.map((trade) => {
+              const offeredPlayers = trade.items.filter(
+                (item) => item.direction === "FROM_OFFERING",
+              );
+              const requestedPlayers = trade.items.filter(
+                (item) => item.direction === "FROM_RECEIVING",
+              );
 
-                  {trade.status === "PENDING" ? (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {isIncoming ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => handleTradeAction(trade.id, "ACCEPT")}
-                            className="rounded-full bg-[var(--text)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--background)]"
-                          >
-                            Accept
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleTradeAction(trade.id, "DECLINE")}
-                            className="rounded-full border border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]"
-                          >
-                            Decline
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openCounterModal(trade)}
-                            className="rounded-full border border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]"
-                          >
-                            Counter
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleTradeAction(trade.id, "CANCEL")}
-                          className="rounded-full border border-[var(--border)] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]"
-                        >
-                          Cancel
-                        </button>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
+              return renderTradeCard(
+                trade,
+                "OUTGOING",
+                buildTradeItemsFromPlayers(
+                  offeredPlayers.map((item) => item.player),
+                ),
+                buildTradeItemsFromPlayers(
+                  requestedPlayers.map((item) => item.player),
+                ),
+              );
+            })}
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard
+        title="Trade History"
+        description="Completed or resolved trades from this season."
+        actions={
+          <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+            {historyTrades.length} recorded
+          </span>
+        }
+      >
+        {historyTrades.length === 0 ? (
+          <EmptyState
+            title="No trade history"
+            description="No completed trades yet."
+          />
+        ) : (
+          <div className="grid gap-4">
+            {historyTrades.map((trade) => {
+              const isIncoming = trade.offeredToTeamId === teamId;
+              const offeredPlayers = trade.items.filter(
+                (item) => item.direction === "FROM_OFFERING",
+              );
+              const requestedPlayers = trade.items.filter(
+                (item) => item.direction === "FROM_RECEIVING",
+              );
+              const gavePlayers = isIncoming ? requestedPlayers : offeredPlayers;
+              const receivedPlayers = isIncoming ? offeredPlayers : requestedPlayers;
+
+              return renderTradeCard(
+                trade,
+                "HISTORY",
+                buildTradeItemsFromPlayers(
+                  gavePlayers.map((item) => item.player),
+                ),
+                buildTradeItemsFromPlayers(
+                  receivedPlayers.map((item) => item.player),
+                ),
               );
             })}
           </div>

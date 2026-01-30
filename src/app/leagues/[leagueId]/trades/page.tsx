@@ -101,7 +101,6 @@ export default async function LeagueTradesPage({
       leagueTitle={league.name}
       seasonLabel={`Season ${league.season.name} ${league.season.year}`}
       pageTitle="Trades"
-      pageSubtitle="Propose and review trades in this league."
       showBadgeTooltip={membership.role === "OWNER"}
     >
       <TradesClient leagueId={leagueId} />
