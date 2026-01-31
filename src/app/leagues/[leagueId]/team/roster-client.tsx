@@ -10,6 +10,7 @@ import LineupPitch, {
   type PositionKey,
 } from "@/components/lineup-pitch";
 import PlayerPitchSlot from "@/components/pitch/player-pitch-slot";
+import PlayerChipMobile from "@/components/pitch/player-chip-mobile";
 import { useOverlayPresets } from "@/components/overlays/presets";
 import { useToast } from "@/components/overlays/toast-provider";
 
@@ -634,18 +635,12 @@ export default function RosterClient({
               onClick={() => handleMobileSlotTap(slot)}
               className="flex w-full max-w-[160px] flex-col items-center gap-3 rounded-2xl px-2 py-3"
             >
-              <PlayerPitchSlot
+              <PlayerChipMobile
                 playerName={slot.player?.name ?? "Open slot"}
-                position={slot.player?.position ?? "Player"}
                 clubName={buildSlotClubName(slot.player)}
                 clubSlug={slot.player?.club?.slug ?? null}
-                jerseyNumber={slot.player?.jerseyNumber ?? null}
+                badgeLabel={slot.player?.jerseyNumber ?? null}
               />
-              {slot.player ? (
-                <span className="rounded-full border border-white/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/80">
-                  Tap
-                </span>
-              ) : null}
             </button>
           )}
           renderBenchSlot={(slot, index) => (
